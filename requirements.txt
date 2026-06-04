@@ -1,0 +1,9 @@
+torch
+transformers
+peft
+accelerate
+scikit-learn
+Pillow
+# Optional: either torchvision or datasets for image loading
+# torchvision
+# datasets
