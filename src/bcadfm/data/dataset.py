@@ -9,6 +9,7 @@ import random
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
+from torchvision import transforms as T
 from transformers import AutoImageProcessor
 
 from .config import DataConfig
@@ -18,6 +19,27 @@ from .config import DataConfig
 class ImageSample:
     image_path: Path
     label: int
+
+
+def build_dinov3_base_transform(image_size: int = 518) -> T.Compose:
+    """Fallback preprocessing for DINOv3-style models.
+
+    Uses ImageNet-style normalization and a simple resize+center-crop pipeline.
+    This is used only when the Hugging Face image processor cannot be loaded
+    (e.g. for some DINOv3 checkpoints without a proper preprocessor_config).
+    """
+
+    return T.Compose(
+        [
+            T.Resize(image_size, interpolation=T.InterpolationMode.BICUBIC),
+            T.CenterCrop(image_size),
+            T.ToTensor(),
+            T.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225],
+            ),
+        ]
+    )
 
 
 class BatteryCellDataset(Dataset):
@@ -60,12 +82,27 @@ class BatteryCellDataset(Dataset):
         self.samples: List[ImageSample] = []
         self._collect_samples()
 
-        # DINOv3 image processor handles resize/normalization/RGB
-        self.processor = AutoImageProcessor.from_pretrained(model_name_or_path)
+        # Try to use the Hugging Face image processor first. For some models
+        # (e.g. certain DINOv3 checkpoints), this can fail because the
+        # repository does not ship a usable preprocessor_config.json or
+        # image_processor_type, which is a known transformers/DINOv3 issue.
+        # In that case, fall back to a manual torchvision-based transform.
+        self.processor: Optional[AutoImageProcessor] = None
+        self.manual_processor: Optional[Callable[[Image.Image], torch.Tensor]] = None
 
-        # Optional override of image size
-        if image_size_override is not None:
-            # Most HF processors expose a "size" dict with "height"/"width" keys
+        try:
+            self.processor = AutoImageProcessor.from_pretrained(model_name_or_path)
+        except Exception as e:  # pragma: no cover - defensive fallback
+            print(
+                f"[BatteryCellDataset] Warning: AutoImageProcessor.from_pretrained("
+                f"'{model_name_or_path}') failed with: {e}.\n"
+                "Falling back to manual torchvision preprocessing (DINOv3-style)."
+            )
+            size = image_size_override or (self.config.image_size or 518)
+            self.manual_processor = build_dinov3_base_transform(size)
+
+        # Optional override of image size when using the HF processor
+        if self.processor is not None and image_size_override is not None:
             if isinstance(self.processor.size, dict):
                 self.processor.size["height"] = image_size_override
                 self.processor.size["width"] = image_size_override
@@ -101,13 +138,19 @@ class BatteryCellDataset(Dataset):
         sample = self.samples[idx]
         image = Image.open(sample.image_path).convert("RGB")
 
-        # Apply custom augmentations (if any) BEFORE processor
+        # Apply custom augmentations (if any) BEFORE processor/manual transform
         if self.transform is not None:
             image = self.transform(image)
 
-        # Processor returns a dict with "pixel_values"
-        encoded = self.processor(images=image, return_tensors="pt")
-        pixel_values = encoded["pixel_values"][0]
+        if self.processor is not None:
+            # HF processor path (ViT and backbones that ship a proper
+            # preprocessor_config.json / image_processor_type)
+            encoded = self.processor(images=image, return_tensors="pt")
+            pixel_values = encoded["pixel_values"][0]
+        else:
+            # Manual transform path (e.g., DINOv3 checkpoints without a usable
+            # image processor in the current transformers version).
+            pixel_values = self.manual_processor(image)
 
         return {
             "pixel_values": pixel_values,
@@ -123,8 +166,6 @@ def build_augmentation_pipeline(config: DataConfig, split: str) -> Optional[Call
 
     if split != "train" or not config.augmentations_enabled:
         return None
-
-    from torchvision import transforms as T
 
     # Base transforms (individual ops)
     ops: List[tuple[str, float, Callable[[Image.Image], Image.Image]]] = []
