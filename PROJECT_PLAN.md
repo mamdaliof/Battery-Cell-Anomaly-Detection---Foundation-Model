@@ -13,8 +13,8 @@ This project uses DINOv3 vision transformers as a frozen backbone and fine-tunes
 
 2. **Model module (DINOv3 + classifier)**
    - Load a DINOv3 backbone from `transformers` (start with a smaller variant, e.g. ViT-B/16).[web:3]
-   - Freeze the DINOv3 backbone by default and add a linear classification head for binary classification.
-   - Implement a pure baseline: frozen DINOv3 + linear head, trained without PEFT.
+   - Freeze the DINOv3 backbone by default and add a configurable classification head (`DinoV3Classifier`).
+   - Implement a pure baseline: frozen DINOv3 + configurable head, trained without PEFT.
 
 3. **PEFT integration module**
    - Integrate Hugging Face PEFT for parameter-efficient fine-tuning.[web:12][web:15]
@@ -47,7 +47,7 @@ This project uses DINOv3 vision transformers as a frozen backbone and fine-tunes
 
 7. **Ablation study framework**
    - Design experiments to compare:
-     - Baseline: frozen DINOv3 + linear head (no PEFT).
+     - Baseline: frozen DINOv3 + configurable head (no PEFT).
      - LoRA variants (different ranks, different sets of targeted blocks/modules).
      - Adapter variants (different bottleneck sizes and placement).
      - Visual prompt tuning with different numbers of prompt tokens.
@@ -70,7 +70,7 @@ This project uses DINOv3 vision transformers as a frozen backbone and fine-tunes
 
 - [x] Define a standard Python package/layout structure (e.g. `src/` with `data/`, `models/`, `training/`, `configs/`).[cite:23]
 - [x] Add a `requirements.txt` listing core dependencies: `transformers`, image libraries, `peft`, `accelerate`, `torch`, metric libraries.[cite:23]
-- [x] Expand `README.md` with a short description, design decisions, and dataset conversion instructions.[cite:28]
+- [x] Expand `README.md` with a short description, design decisions, dataset conversion instructions, and baseline model description.[cite:46]
 
 ### 2. Data pipeline
 
@@ -84,10 +84,10 @@ This project uses DINOv3 vision transformers as a frozen backbone and fine-tunes
 
 ### 3. Baseline model (no PEFT)
 
-- [ ] Implement a DINOv3 classifier module that:
-  - [ ] Loads a pre-trained DINOv3 backbone from `transformers`.
-  - [ ] Freezes all backbone weights.
-  - [ ] Adds a trainable linear classification head for 2 classes.
+- [x] Implement a DINOv3 classifier module that:
+  - [x] Loads a pre-trained DINOv3 backbone from `transformers`.
+  - [x] Freezes all backbone weights by default.
+  - [x] Adds a configurable classification head (depth, hidden_dim, dropout) for 2 or more classes.
 - [ ] Integrate this model into `Trainer` with a standard cross-entropy loss.
 - [ ] Run a first baseline experiment and log metrics (accuracy, precision, recall, F1, AUROC, confusion matrix).
 
@@ -129,7 +129,7 @@ This project uses DINOv3 vision transformers as a frozen backbone and fine-tunes
 ### 8. Ablation study setup
 
 - [ ] Define a set of initial ablation experiments in configs, for example:
-  - [ ] Baseline: frozen DINOv3 + linear head, no PEFT, standard cross-entropy.
+  - [ ] Baseline: frozen DINOv3 + configurable head, no PEFT, standard cross-entropy.
   - [ ] LoRA with small rank on q/v in the last N blocks.
   - [ ] LoRA with medium rank or more blocks.
   - [ ] Adapters with small bottleneck in the last N blocks.
