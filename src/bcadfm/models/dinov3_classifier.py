@@ -23,7 +23,7 @@ class HeadConfig:
     dropout: float = 0.0
 
 
-class BatteryDinoV3Classifier(nn.Module):
+class DinoV3Classifier(nn.Module):
     """Frozen DINOv3 backbone + configurable classification head.
 
     - Backbone: loaded from Hugging Face `transformers` using `AutoModel`.
@@ -51,7 +51,7 @@ class BatteryDinoV3Classifier(nn.Module):
         if hidden_size is None:
             raise ValueError(
                 "Could not infer hidden_size from backbone config. "
-                "Check the DINOv3 model and adjust BatteryDinoV3Classifier accordingly."
+                "Check the DINOv3 model and adjust DinoV3Classifier accordingly."
             )
 
         if head_config is None:
@@ -67,7 +67,7 @@ class BatteryDinoV3Classifier(nn.Module):
 
         # Store label mappings for convenience (used by Trainer / saving config later)
         if id2label is None:
-            id2label = {0: "normal", 1: "abnormal"}
+            id2label = {0: "class_0", 1: "class_1"}
         if label2id is None:
             label2id = {v: k for k, v in id2label.items()}
         self.id2label = id2label
@@ -90,7 +90,7 @@ class BatteryDinoV3Classifier(nn.Module):
                 raise ValueError("hidden_dim must be set when depth > 1")
 
             in_dim = input_dim
-            for layer_idx in range(cfg.depth - 1):
+            for _ in range(cfg.depth - 1):
                 layers.append(nn.Linear(in_dim, cfg.hidden_dim))
                 if cfg.dropout > 0:
                     layers.append(nn.Dropout(cfg.dropout))
