@@ -8,10 +8,10 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
   - All image data is handled **locally** due to privacy constraints.
   - Raw data is expected in a detection-style format under a directory such as `split_base/` with `train/` and `val/` subfolders containing paired `*.png` and `*.xml` files.
   - A conversion script transforms this raw layout into a classification dataset under `data/`.
-  - The `.gitignore` file is configured to ignore `data/`, `raw_data/`, `processed_data/`, and other local artifacts (checkpoints, logs, wandb, etc.).
+  - The `.gitignore` file is configured to ignore `data/`, `raw_data/`, `processed_data`, and other local artifacts (checkpoints, logs, wandb, etc.).
 
 - **Backbone and preprocessing**
-  - The backbone is a **DINOv3** model loaded from Hugging Face `transformers` (starting with a smaller variant, e.g. `facebook/dinov3-vitb16-pretrain-lvd1689m`).
+  - The backbone is a **DINOv3** model loaded from Hugging Face `transformers` (starting with a smaller variant, e.g. `facebook/dinov3-vitb16-pretrain-lvd1689m`).[web:3]
   - Preprocessing (resize, normalization, RGB handling) is delegated to the corresponding **DINOv3 image processor** from `transformers`. By default, the processor’s **native resolution and normalization** are used.[web:3]
   - The configuration will include an optional `image_size` placeholder so input resolution can be overridden later if necessary.
 
@@ -24,6 +24,14 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
     - Color jitter (brightness, contrast, saturation, hue).
     - HSV-like adjustment (implemented via color jitter or custom transform).
     - Light Gaussian noise.
+
+- **Baseline model**
+  - A generic `DinoV3Classifier` module lives in `src/bcadfm/models/dinov3_classifier.py`.
+  - It loads a pretrained DINOv3 backbone via `AutoModel.from_pretrained`, freezes it by default, and attaches a configurable classification head.
+  - The classification head depth is configurable through `HeadConfig`:
+    - `depth=1` → single linear layer.
+    - `depth>1` → multi-layer MLP with GELU activations and optional dropout.
+  - The classifier expects `pixel_values` from the DINOv3 image processor and outputs logits (and, if labels are provided, a cross-entropy loss) suitable for use with `Trainer`.
 
 - **Metrics and objective**
   - Target task: binary classification (normal vs abnormal) on highly imbalanced battery cell data.
@@ -42,8 +50,8 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
 
 - **Training stack**
   - Use **Hugging Face Trainer** as the main training interface.
-  - Rely on Trainer’s integration with **Accelerate** for multi-GPU and mixed-precision training (no custom training loop planned at this stage).
-  - Initial experiments will use a **frozen DINOv3 backbone** plus a **trainable linear classification head** as the baseline (no PEFT).
+  - Rely on Trainer’s integration with **Accelerate** for multi-GPU and mixed-precision training (no custom training loop planned at this stage).[web:7]
+  - Initial experiments will use a **frozen DINOv3 backbone** plus a **configurable classification head** as the baseline (no PEFT).
 
 - **PEFT plans (later stages)**
   - Integrate PEFT methods such as **LoRA**, **adapters**, and **visual prompt tuning** on top of the DINOv3 backbone.[web:12][web:15]
@@ -70,10 +78,10 @@ Each `*.xml` file contains bounding box annotations for the corresponding image.
 To convert this detection-style dataset into a classification dataset compatible with the training pipeline, use the conversion script:
 
 ```bash
-python scripts/convert_split_base_to_classification.py \ 
-  --source-root /path/to/split_base \ 
-  --target-root data \ 
-  --abnormal-labels burnt crack \ 
+python scripts/convert_split_base_to_classification.py \
+  --source-root /path/to/split_base \
+  --target-root data \
+  --abnormal-labels burnt crack \
   # --use-symlinks  # optional: use symlinks instead of copying
 ```
 
