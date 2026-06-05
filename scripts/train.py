@@ -99,6 +99,7 @@ def main() -> None:
         lr_scheduler_type=cfg.scheduler.lr_scheduler_type,
         warmup_steps=0,
         load_best_model_at_end=False,
+        metric_for_best_model=cfg.metric_for_best,
         remove_unused_columns=False,
         report_to=[],
         fp16=cfg.amp.fp16,
