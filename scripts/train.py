@@ -87,6 +87,9 @@ def main() -> None:
     model.to(device)
 
     # Training arguments (scheduler + AMP included)
+    # NOTE: Transformers 5.x deprecates some older strategy arguments and requires
+    # load_best_model_at_end to match eval/save strategies. For now we let
+    # our custom callback handle best models and keep strategies at defaults.
     training_args = TrainingArguments(
         output_dir=str(run_dir),
         num_train_epochs=cfg.num_epochs,
@@ -94,14 +97,8 @@ def main() -> None:
         per_device_eval_batch_size=cfg.batch_size,
         learning_rate=cfg.learning_rate,
         lr_scheduler_type=cfg.scheduler.lr_scheduler_type,
-        warmup_ratio=cfg.scheduler.warmup_ratio,
-        evaluation_strategy="epoch",
-        save_strategy="epoch",
-        logging_strategy="steps",
-        logging_steps=50,
-        load_best_model_at_end=True,
-        metric_for_best_model=cfg.metric_for_best,
-        greater_is_better=cfg.greater_is_better,
+        warmup_steps=0,
+        load_best_model_at_end=False,
         remove_unused_columns=False,
         report_to=[],
         fp16=cfg.amp.fp16,
