@@ -21,6 +21,7 @@ from transformers import EarlyStoppingCallback, Trainer, TrainingArguments
 
 from bcadfm.data.dataset import BatteryCellDataset, build_augmentation_pipeline
 from bcadfm.metrics.cls_metrics import compute_cls_metrics
+from bcadfm.metrics.cls_callbacks import SaveTwoBestClsModelsCallback
 from bcadfm.models.dinov3_classifier import DinoV3Classifier
 from bcadfm.utils.config import TrainingConfig, load_yaml_config
 
@@ -107,7 +108,8 @@ def main() -> None:
     callbacks = [
         EarlyStoppingCallback(
             early_stopping_patience=cfg.early_stopping_patience,
-        )
+        ),
+        SaveTwoBestClsModelsCallback(run_dir=str(run_dir)),
     ]
 
     trainer = Trainer(
