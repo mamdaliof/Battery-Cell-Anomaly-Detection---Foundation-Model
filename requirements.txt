@@ -1,9 +1,19 @@
-torch
-transformers
+# Core deep learning stack
+# Pin versions known to work well together for DINOv3 + Transformers
+
+# PyTorch + CUDA (adjust these if using a different CUDA or CPU-only build)
+# For CUDA 11.8, this pair is consistent; see https://pytorch.org/get-started/locally/
+torch==2.4.0
+torchvision==0.19.0
+
+# Transformers ecosystem
+transformers==4.42.0
 peft
 accelerate
+
+# Metrics and data handling
 scikit-learn
 Pillow
-# Optional: either torchvision or datasets for image loading
-# torchvision
+
+# Optional: either torchvision or datasets for image loading beyond our custom dataset
 # datasets
