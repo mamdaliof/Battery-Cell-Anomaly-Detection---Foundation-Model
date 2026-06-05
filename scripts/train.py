@@ -12,6 +12,9 @@ For DDP/multi-GPU, launch with `torchrun` or `accelerate launch`.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
+from pathlib import Path
+import shutil
 
 import torch
 from transformers import EarlyStoppingCallback, Trainer, TrainingArguments
@@ -38,6 +41,16 @@ def main() -> None:
     cfg: TrainingConfig = load_yaml_config(args.config)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Create run-specific output directory: outputs/{safe_model_name}/{timestamp}
+    base_out = Path(cfg.output_dir)
+    safe_model_name = cfg.model_name.replace("/", "-")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_dir = base_out / safe_model_name / timestamp
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    # Copy the used config file into the run directory for reproducibility
+    shutil.copy2(args.config, run_dir / "config.yaml")
 
     # Build datasets
     train_transform = build_augmentation_pipeline(cfg.data, split="train")
@@ -68,13 +81,15 @@ def main() -> None:
     )
     model.to(device)
 
-    # Training arguments
+    # Training arguments (scheduler + AMP included)
     training_args = TrainingArguments(
-        output_dir=cfg.output_dir,
+        output_dir=str(run_dir),
         num_train_epochs=cfg.num_epochs,
         per_device_train_batch_size=cfg.batch_size,
         per_device_eval_batch_size=cfg.batch_size,
         learning_rate=cfg.learning_rate,
+        lr_scheduler_type=cfg.scheduler.lr_scheduler_type,
+        warmup_ratio=cfg.scheduler.warmup_ratio,
         evaluation_strategy="epoch",
         save_strategy="epoch",
         logging_strategy="steps",
@@ -84,6 +99,8 @@ def main() -> None:
         greater_is_better=cfg.greater_is_better,
         remove_unused_columns=False,
         report_to=[],
+        fp16=cfg.amp.fp16,
+        bf16=cfg.amp.bf16,
     )
 
     callbacks = [

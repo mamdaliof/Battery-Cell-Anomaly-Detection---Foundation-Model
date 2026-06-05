@@ -46,3 +46,13 @@ learning_rate: 0.0005  # initial learning rate for the optimizer
 early_stopping_patience: 3  # number of evaluation steps (epochs) with no improvement before early stopping
 metric_for_best: "eval_loss"  # metric tracked for selecting the best model checkpoint (e.g. eval_loss, eval_f1)
 greater_is_better: false  # set to true if higher metric values are better (e.g. for F1), false for loss
+
+# Learning rate scheduler configuration
+scheduler:
+  lr_scheduler_type: "linear"  # type of learning rate scheduler: linear, cosine, cosine_with_restarts, constant, etc.
+  warmup_ratio: 0.0  # fraction of total training steps used for linear warmup of the learning rate
+
+# Automatic mixed precision (AMP) configuration
+amp:
+  fp16: false  # use 16-bit floating point training if supported; reduces memory and may speed up training
+  bf16: false  # use bfloat16 training if supported; often preferred on newer NVIDIA GPUs
