@@ -1,38 +1,48 @@
-model_name: "facebook/dinov3-vitb16-pretrain-lvd1689m"
-output_dir: "outputs/baseline"
+model_name: "facebook/dinov3-vitb16-pretrain-lvd1689m"  # DINOv3 backbone identifier on the Hugging Face Hub
+output_dir: "outputs"  # base directory where all experiment runs will be stored
 
 # Data configuration
 data:
-  data_dir: "data"
-  train_subdir: "train"
-  val_subdir: "val"
-  normal_class_name: "normal"
-  abnormal_class_name: "abnormal"
-  image_size: null  # use DINOv3 processor default
+  data_dir: "data"  # root directory containing train/ and val/ classification folders
+  train_subdir: "train"  # subdirectory name for training split under data_dir
+  val_subdir: "val"  # subdirectory name for validation split under data_dir
+  normal_class_name: "normal"  # folder name for the normal class
+  abnormal_class_name: "abnormal"  # folder name for the abnormal class
+  image_size: null  # if null, use DINOv3 processor default size; otherwise override with this value
 
-  augmentations_enabled: true
-  horizontal_flip_prob: 0.5
-  rotation_degrees: 10.0
-  random_resized_crop_scale: [0.9, 1.0]
-  random_resized_crop_ratio: [0.9, 1.1]
-  color_jitter_brightness: 0.1
-  color_jitter_contrast: 0.1
-  color_jitter_saturation: 0.1
-  color_jitter_hue: 0.02
-  gaussian_noise_std: 0.01
+  augmentations_enabled: true  # master switch to turn all training-time augmentations on/off
+  aug_global_prob: 1.0  # probability that any augmentation is applied to a given training image
+  aug_max_transforms: 3  # maximum number of different transforms applied to one image in sequence
+
+  horizontal_flip_prob: 0.5  # relative probability of selecting horizontal flip when augmenting
+  rotation_degrees: 10.0  # maximum absolute rotation angle in degrees when rotation is used
+  rotation_prob: 0.3  # relative probability of selecting rotation when augmenting
+
+  random_resized_crop_scale: [0.9, 1.0]  # min/max scale for random resized crop (fraction of original area)
+  random_resized_crop_ratio: [0.9, 1.1]  # min/max aspect ratio for random resized crop
+  random_resized_crop_prob: 0.7  # relative probability of selecting random resized crop when augmenting
+
+  color_jitter_brightness: 0.1  # magnitude of brightness jitter in color jitter
+  color_jitter_contrast: 0.1  # magnitude of contrast jitter in color jitter
+  color_jitter_saturation: 0.1  # magnitude of saturation jitter in color jitter
+  color_jitter_hue: 0.02  # magnitude of hue jitter in color jitter
+  color_jitter_prob: 0.9  # relative probability of selecting color jitter when augmenting
+
+  gaussian_noise_std: 0.01  # standard deviation of Gaussian noise added to image pixels
+  gaussian_noise_prob: 0.4  # relative probability of selecting Gaussian noise when augmenting
 
 # Classification head configuration
 head:
-  num_labels: 2
-  depth: 1
-  hidden_dim: null
-  dropout: 0.0
+  num_labels: 2  # number of output classes for classification
+  depth: 1  # number of linear layers in the head (1 = simple linear classifier)
+  hidden_dim: null  # hidden dimension for head layers when depth > 1; ignored if depth == 1
+  dropout: 0.0  # dropout probability applied between head layers when depth > 1
 
 # Training hyperparameters
-num_epochs: 5
-batch_size: 16
-learning_rate: 0.0005
+num_epochs: 5  # total number of training epochs
+batch_size: 16  # per-device batch size for both training and evaluation
+learning_rate: 0.0005  # initial learning rate for the optimizer
 
-early_stopping_patience: 3
-metric_for_best: "eval_loss"  # later can switch to eval_f1 once metrics are added
-greater_is_better: false
+early_stopping_patience: 3  # number of evaluation steps (epochs) with no improvement before early stopping
+metric_for_best: "eval_loss"  # metric tracked for selecting the best model checkpoint (e.g. eval_loss, eval_f1)
+greater_is_better: false  # set to true if higher metric values are better (e.g. for F1), false for loss

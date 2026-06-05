@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional
+
+import random
 
 import torch
 from PIL import Image
@@ -124,27 +126,45 @@ def build_augmentation_pipeline(config: DataConfig, split: str) -> Optional[Call
 
     from torchvision import transforms as T
 
-    t_list: List[Callable] = []
+    # Base transforms (individual ops)
+    ops: List[tuple[str, float, Callable[[Image.Image], Image.Image]]] = []
 
-    # Random resized crop (slight)
-    t_list.append(
-        T.RandomResizedCrop(
+    # Random resized crop
+    def rnd_resized_crop_op(img: Image.Image) -> Image.Image:
+        return T.RandomResizedCrop(
             size=config.image_size or 224,
             scale=config.random_resized_crop_scale,
             ratio=config.random_resized_crop_ratio,
-        )
-    )
+        )(img)
+
+    if config.random_resized_crop_prob > 0:
+        ops.append(("random_resized_crop", config.random_resized_crop_prob, rnd_resized_crop_op))
 
     # Horizontal flip
+    def hflip_op(img: Image.Image) -> Image.Image:
+        return T.functional.hflip(img)
+
     if config.horizontal_flip_prob > 0:
-        t_list.append(T.RandomHorizontalFlip(p=config.horizontal_flip_prob))
+        ops.append(("horizontal_flip", config.horizontal_flip_prob, hflip_op))
 
-    # Small rotation
-    if config.rotation_degrees > 0:
-        t_list.append(T.RandomRotation(degrees=config.rotation_degrees))
+    # Rotation
+    def rotate_op(img: Image.Image) -> Image.Image:
+        return T.RandomRotation(degrees=config.rotation_degrees)(img)
 
-    # Color jitter (can approximate HSV changes)
-    if any(
+    if config.rotation_prob > 0 and config.rotation_degrees > 0:
+        ops.append(("rotation", config.rotation_prob, rotate_op))
+
+    # Color jitter (approximates HSV adjustments)
+    def color_jitter_op(img: Image.Image) -> Image.Image:
+        cj = T.ColorJitter(
+            brightness=config.color_jitter_brightness,
+            contrast=config.color_jitter_contrast,
+            saturation=config.color_jitter_saturation,
+            hue=config.color_jitter_hue,
+        )
+        return cj(img)
+
+    if config.color_jitter_prob > 0 and any(
         x > 0
         for x in [
             config.color_jitter_brightness,
@@ -153,28 +173,70 @@ def build_augmentation_pipeline(config: DataConfig, split: str) -> Optional[Call
             config.color_jitter_hue,
         ]
     ):
-        t_list.append(
-            T.ColorJitter(
-                brightness=config.color_jitter_brightness,
-                contrast=config.color_jitter_contrast,
-                saturation=config.color_jitter_saturation,
-                hue=config.color_jitter_hue,
-            )
-        )
+        ops.append(("color_jitter", config.color_jitter_prob, color_jitter_op))
 
-    # Gaussian noise: implement as a simple transform on tensors
+    # Gaussian noise
     class AddGaussianNoise:
         def __init__(self, std: float) -> None:
             self.std = std
 
         def __call__(self, img: Image.Image) -> Image.Image:
-            # Convert to tensor, add noise, convert back to PIL
             t = T.ToTensor()(img)
             noise = torch.randn_like(t) * self.std
             t = torch.clamp(t + noise, 0.0, 1.0)
             return T.ToPILImage()(t)
 
-    if config.gaussian_noise_std > 0:
-        t_list.append(AddGaussianNoise(config.gaussian_noise_std))
+    def noise_op(img: Image.Image) -> Image.Image:
+        return AddGaussianNoise(config.gaussian_noise_std)(img)
 
-    return T.Compose(t_list)
+    if config.gaussian_noise_prob > 0 and config.gaussian_noise_std > 0:
+        ops.append(("gaussian_noise", config.gaussian_noise_prob, noise_op))
+
+    if not ops:
+        return None
+
+    class RandomAugmentationCombo:
+        """Apply up to N transforms per image, sampled by per-op probabilities."""
+
+        def __init__(self, ops: List[tuple[str, float, Callable]], global_prob: float, max_transforms: int) -> None:
+            self.ops = ops
+            self.global_prob = global_prob
+            self.max_transforms = max_transforms
+
+        def __call__(self, img: Image.Image) -> Image.Image:
+            # Decide whether to apply any augmentation at all
+            if random.random() > self.global_prob:
+                return img
+
+            # Sample which operations to apply, up to max_transforms, without replacement
+            # First, build a list of candidate indices weighted by probability
+            candidates = list(range(len(self.ops)))
+            chosen_indices: List[int] = []
+
+            # Normalize probabilities for sampling
+            probs = [p for (_, p, _) in self.ops]
+            total_p = sum(probs)
+            if total_p == 0:
+                return img
+            norm_probs = [p / total_p for p in probs]
+
+            # We sample iteratively to avoid duplicates (simple approach for small op list)
+            for _ in range(min(self.max_transforms, len(candidates))):
+                idx = random.choices(candidates, weights=[norm_probs[i] for i in candidates], k=1)[0]
+                chosen_indices.append(idx)
+                candidates.remove(idx)
+                if not candidates:
+                    break
+
+            # Apply chosen transforms in a fixed order (order of sampling)
+            for idx in chosen_indices:
+                _, _, op = self.ops[idx]
+                img = op(img)
+
+            return img
+
+    return RandomAugmentationCombo(
+        ops=ops,
+        global_prob=config.aug_global_prob,
+        max_transforms=config.aug_max_transforms,
+    )
