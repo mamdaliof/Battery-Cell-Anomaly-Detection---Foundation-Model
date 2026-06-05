@@ -44,11 +44,14 @@ def main() -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Create run-specific output directory: outputs/{safe_model_name}/{timestamp}
+    # Task name prefix to avoid local directory name conflicts with HF repos
+    task_name = "cls"  # classification; later other tasks (e.g. seg, det) can use different prefixes
+
+    # Create run-specific output directory: outputs/{task_name}__{safe_model_name}/{timestamp}
     base_out = Path(cfg.output_dir)
     safe_model_name = cfg.model_name.replace("/", "-")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_dir = base_out / safe_model_name / timestamp
+    run_dir = base_out / f"{task_name}__{safe_model_name}" / timestamp
     run_dir.mkdir(parents=True, exist_ok=True)
 
     # Copy the used config file into the run directory for reproducibility
