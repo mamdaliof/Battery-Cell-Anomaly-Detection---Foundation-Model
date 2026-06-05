@@ -12,12 +12,12 @@ This project uses DINOv3 vision transformers as a frozen backbone and fine-tunes
    - Provide class labels and metadata required for imbalance handling (class counts/weights).
 
 2. **Model module (DINOv3 + classifier)**
-   - Load a DINOv3 backbone from `transformers` (start with a smaller variant, e.g. ViT-B/16).
+   - Load a DINOv3 backbone from `transformers` (start with a smaller variant, e.g. ViT-B/16).[web:3]
    - Freeze the DINOv3 backbone by default and add a linear classification head for binary classification.
    - Implement a pure baseline: frozen DINOv3 + linear head, trained without PEFT.
 
 3. **PEFT integration module**
-   - Integrate Hugging Face PEFT for parameter-efficient fine-tuning.
+   - Integrate Hugging Face PEFT for parameter-efficient fine-tuning.[web:12][web:15]
    - Support multiple PEFT methods via configuration:
      - LoRA: targeting selected attention/MLP modules (e.g. q, v, or full qkv; number of blocks configurable).
      - Adapters: small bottleneck modules inserted in selected transformer blocks.
@@ -26,7 +26,7 @@ This project uses DINOv3 vision transformers as a frozen backbone and fine-tunes
    - Ensure that PEFT configuration (type, target modules, ranks, number of prompt tokens, etc.) is fully driven by a config file.
 
 4. **Training pipeline (Trainer + Accelerate)**
-   - Use Hugging Face `Trainer` as the main training interface, relying on its built-in integration with `accelerate` for multi-GPU and mixed precision training.
+   - Use Hugging Face `Trainer` as the main training interface, relying on its built-in integration with `accelerate` for multi-GPU and mixed precision training.[web:7]
    - Configure training hyperparameters through a config file (learning rate, batch size, epochs, optimizer, scheduler, gradient accumulation, fp16/bf16, etc.).
    - Support multi-GPU training on up to 8 GPUs (12 GB each) without writing a custom training loop.
 
@@ -68,17 +68,18 @@ This project uses DINOv3 vision transformers as a frozen backbone and fine-tunes
 
 ### 1. Repository setup
 
-- [ ] Define a standard Python package/layout structure (e.g. `src/` with `data/`, `models/`, `training/`, `configs/`).
-- [ ] Add a `pyproject.toml` or `requirements.txt` listing core dependencies: `transformers`, `datasets` or `image` libraries, `peft`, `accelerate`, `torch`, metric libraries.
-- [ ] Expand `README.md` with a short description and a link to this project spec.
+- [x] Define a standard Python package/layout structure (e.g. `src/` with `data/`, `models/`, `training/`, `configs/`).[cite:23]
+- [x] Add a `requirements.txt` listing core dependencies: `transformers`, image libraries, `peft`, `accelerate`, `torch`, metric libraries.[cite:23]
+- [x] Expand `README.md` with a short description, design decisions, and dataset conversion instructions.[cite:28]
 
 ### 2. Data pipeline
 
-- [ ] Implement a data loading module that:
-  - [ ] Reads train/val splits from the battery cell dataset.
-  - [ ] Applies DINOv3-compatible image preprocessing (resize, normalization, etc.).
-  - [ ] Adds optional augmentations (config-controlled).
-  - [ ] Exposes a `Dataset` compatible with Hugging Face `Trainer`.
+- [x] Implement a data loading module that:
+  - [x] Reads train/val splits from the battery cell dataset (via `BatteryCellDataset` operating on `data/train/{normal,abnormal}` and `data/val/{normal,abnormal}`).[cite:25]
+  - [x] Applies DINOv3-compatible image preprocessing (resize, normalization, etc.) via the DINOv3 image processor.[web:3][cite:25]
+  - [x] Adds optional augmentations (config-controlled) such as flips, rotations, color jitter, and Gaussian noise.[cite:25]
+  - [x] Exposes a `Dataset` compatible with Hugging Face `Trainer`.
+- [x] Add a conversion script that transforms the raw detection-style `split_base/` layout into the classification layout under `data/`.[cite:26]
 - [ ] Add a config section for dataset parameters (paths, resolution, augmentations, batch size).
 
 ### 3. Baseline model (no PEFT)
