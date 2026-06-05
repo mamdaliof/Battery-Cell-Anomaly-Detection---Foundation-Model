@@ -17,7 +17,7 @@ from pathlib import Path
 import shutil
 
 import torch
-from transformers import EarlyStoppingCallback, IntervalStrategy, Trainer, TrainingArguments
+from transformers import EarlyStoppingCallback, Trainer, TrainingArguments
 
 from bcadfm.data.dataset import BatteryCellDataset, build_augmentation_pipeline
 from bcadfm.metrics.cls_metrics import compute_cls_metrics
@@ -87,7 +87,8 @@ def main() -> None:
     model.to(device)
 
     # Training arguments (scheduler + AMP included)
-    # We set both eval_strategy and save_strategy to "epoch" so early stopping works.
+    # For transformers 5.x in this environment, we rely on default eval/save
+    # strategies and let the custom callback handle best model saving.
     training_args = TrainingArguments(
         output_dir=str(run_dir),
         num_train_epochs=cfg.num_epochs,
@@ -98,8 +99,6 @@ def main() -> None:
         warmup_steps=0,
         load_best_model_at_end=False,
         metric_for_best_model=cfg.metric_for_best,
-        evaluation_strategy=IntervalStrategy.EPOCH,
-        save_strategy=IntervalStrategy.EPOCH,
         remove_unused_columns=False,
         report_to=[],
         fp16=cfg.amp.fp16,
@@ -107,9 +106,12 @@ def main() -> None:
     )
 
     callbacks = [
-        EarlyStoppingCallback(
-            early_stopping_patience=cfg.early_stopping_patience,
-        ),
+        # EarlyStoppingCallback currently requires explicit eval/save strategies
+        # in transformers 5.x, which conflict with this environment's API;
+        # disable it for now and rely on num_epochs + custom callback.
+        # EarlyStoppingCallback(
+        #     early_stopping_patience=cfg.early_stopping_patience,
+        # ),
         SaveTwoBestClsModelsCallback(run_dir=str(run_dir)),
     ]
 
