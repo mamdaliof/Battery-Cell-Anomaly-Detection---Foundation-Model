@@ -1,0 +1,38 @@
+model_name: "facebook/dinov3-vitb16-pretrain-lvd1689m"
+output_dir: "outputs/baseline"
+
+# Data configuration
+data:
+  data_dir: "data"
+  train_subdir: "train"
+  val_subdir: "val"
+  normal_class_name: "normal"
+  abnormal_class_name: "abnormal"
+  image_size: null  # use DINOv3 processor default
+
+  augmentations_enabled: true
+  horizontal_flip_prob: 0.5
+  rotation_degrees: 10.0
+  random_resized_crop_scale: [0.9, 1.0]
+  random_resized_crop_ratio: [0.9, 1.1]
+  color_jitter_brightness: 0.1
+  color_jitter_contrast: 0.1
+  color_jitter_saturation: 0.1
+  color_jitter_hue: 0.02
+  gaussian_noise_std: 0.01
+
+# Classification head configuration
+head:
+  num_labels: 2
+  depth: 1
+  hidden_dim: null
+  dropout: 0.0
+
+# Training hyperparameters
+num_epochs: 5
+batch_size: 16
+learning_rate: 0.0005
+
+early_stopping_patience: 3
+metric_for_best: "eval_loss"  # later can switch to eval_f1 once metrics are added
+greater_is_better: false
