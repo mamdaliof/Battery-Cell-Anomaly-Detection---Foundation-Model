@@ -9,6 +9,10 @@ This script wires together:
 
 Later, this will be driven entirely by a config file; for now, key
 hyperparameters are hardcoded for smoke-testing on a small subset.
+
+DDP/multi-GPU is handled by launching this script with `torchrun` or
+`accelerate launch`. Early stopping and saving the best model are
+enabled via Trainer callbacks and arguments.
 """
 
 from __future__ import annotations
@@ -17,7 +21,7 @@ import argparse
 from pathlib import Path
 
 import torch
-from transformers import Trainer, TrainingArguments
+from transformers import EarlyStoppingCallback, Trainer, TrainingArguments
 
 from bcadfm.data.config import DataConfig
 from bcadfm.data.dataset import BatteryCellDataset, build_augmentation_pipeline
@@ -50,9 +54,28 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--head-dropout", type=float, default=0.1, help="Dropout probability in the classification head")
 
     # Lightweight training hyperparameters (will be moved to config later)
-    parser.add_argument("--num-epochs", type=int, default=3)
+    parser.add_argument("--num-epochs", type=int, default=10)
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--learning-rate", type=float, default=5e-4)
+
+    # Early stopping / best model
+    parser.add_argument(
+        "--early-stopping-patience",
+        type=int,
+        default=3,
+        help="Number of evaluation steps (epochs here) with no improvement before stopping",
+    )
+    parser.add_argument(
+        "--metric-for-best",
+        type=str,
+        default="eval_loss",
+        help="Metric name to monitor for early stopping and best model (e.g. eval_loss, eval_f1)",
+    )
+    parser.add_argument(
+        "--greater-is-better",
+        action="store_true",
+        help="Set if higher metric values are better (e.g. F1); default assumes lower is better (e.g. loss)",
+    )
 
     return parser.parse_args()
 
@@ -113,16 +136,26 @@ def main() -> None:
         save_strategy="epoch",
         logging_strategy="steps",
         logging_steps=50,
-        load_best_model_at_end=False,
+        load_best_model_at_end=True,
+        metric_for_best_model=args.metric_for_best,
+        greater_is_better=args.greater_is_better,
         remove_unused_columns=False,  # important for custom vision models
         report_to=[],  # disable W&B etc. by default
     )
+
+    # Early stopping callback (patience measured in evaluation steps, here epochs)
+    callbacks = [
+        EarlyStoppingCallback(
+            early_stopping_patience=args.early_stopping_patience,
+        )
+    ]
 
     trainer = Trainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
+        callbacks=callbacks,
     )
 
     trainer.train()
