@@ -27,8 +27,8 @@ This project uses DINOv3 vision transformers as a frozen backbone and fine-tunes
 
 4. **Training pipeline (Trainer + Accelerate)**
    - Use Hugging Face `Trainer` as the main training interface, relying on its built-in integration with `accelerate` for multi-GPU and mixed precision training.[web:7]
-   - Configure training hyperparameters through a config file (learning rate, batch size, epochs, optimizer, scheduler, gradient accumulation, fp16/bf16, etc.).
-   - Support multi-GPU training on up to 8 GPUs (12 GB each) without writing a custom training loop.
+   - Configure training hyperparameters through a YAML config file (epochs, batch size, learning rate, scheduler, AMP, etc.).
+   - Each run creates a unique output directory and stores the exact config used.
 
 5. **Imbalance handling module**
    - Implement multiple imbalance handling strategies, all configurable:
@@ -40,7 +40,7 @@ This project uses DINOv3 vision transformers as a frozen backbone and fine-tunes
 6. **Evaluation and metrics module**
    - Implement custom `compute_metrics` for `Trainer` to return:
      - Accuracy.
-     - Precision, recall, F1 (with focus on abnormal class if needed).
+     - Precision, recall, F1 (with F1 as the main selection metric).
      - AUROC.
      - Confusion matrix cell counts (TN, FP, FN, TP) as absolute values.
    - Optionally support class-wise metrics if useful.
@@ -56,13 +56,13 @@ This project uses DINOv3 vision transformers as a frozen backbone and fine-tunes
    - Use config files to define each experiment setting so runs are reproducible.
 
 8. **Experiment management and logging**
-   - Central configuration system (YAML/JSON/pyconfig) to specify:
+   - Central YAML configuration system to specify:
      - Dataset paths and splits.
      - Model and backbone options.
      - PEFT method and its hyperparameters.
-     - Training hyperparameters.
+     - Training hyperparameters and scheduler/AMP options.
      - Imbalance handling options.
-   - Logging of metrics and configuration for each run (e.g. to local files, TensorBoard, or WandB).
+   - Logging of metrics and configuration for each run (e.g. via run directories and optional external loggers).
 
 ## TODOs and implementation steps
 
@@ -70,25 +70,25 @@ This project uses DINOv3 vision transformers as a frozen backbone and fine-tunes
 
 - [x] Define a standard Python package/layout structure (e.g. `src/` with `data/`, `models/`, `training/`, `configs/`).[cite:23]
 - [x] Add a `requirements.txt` listing core dependencies: `transformers`, image libraries, `peft`, `accelerate`, `torch`, metric libraries.[cite:23]
-- [x] Expand `README.md` with a short description, design decisions, dataset conversion instructions, and baseline model description.[cite:46]
+- [x] Expand `README.md` with a short description, design decisions, dataset conversion instructions, baseline model description, and config-driven training.[cite:54]
 
 ### 2. Data pipeline
 
 - [x] Implement a data loading module that:
   - [x] Reads train/val splits from the battery cell dataset (via `BatteryCellDataset` operating on `data/train/{normal,abnormal}` and `data/val/{normal,abnormal}`).[cite:25]
   - [x] Applies DINOv3-compatible image preprocessing (resize, normalization, etc.) via the DINOv3 image processor.[web:3][cite:25]
-  - [x] Adds optional augmentations (config-controlled) such as flips, rotations, color jitter, and Gaussian noise.[cite:25]
+  - [x] Adds optional augmentations (config-controlled) such as flips, rotations, color jitter, Gaussian noise, with global augmentation probability and per-transform probabilities.[cite:52]
   - [x] Exposes a `Dataset` compatible with Hugging Face `Trainer`.
 - [x] Add a conversion script that transforms the raw detection-style `split_base/` layout into the classification layout under `data/`.[cite:26]
-- [ ] Add a config section for dataset parameters (paths, resolution, augmentations, batch size).
+- [x] Add a YAML config section for dataset parameters (paths, resolution, augmentations, batch size).
 
 ### 3. Baseline model (no PEFT)
 
 - [x] Implement a DINOv3 classifier module that:
   - [x] Loads a pre-trained DINOv3 backbone from `transformers`.
   - [x] Freezes all backbone weights by default.
-  - [x] Adds a configurable classification head (depth, hidden_dim, dropout) for 2 or more classes.
-- [ ] Integrate this model into `Trainer` with a standard cross-entropy loss.
+  - [x] Adds a configurable classification head (depth, hidden_dim, dropout) for 2 or more classes.[cite:44]
+- [x] Integrate this model into `Trainer` with a standard cross-entropy loss.[cite:50]
 - [ ] Run a first baseline experiment and log metrics (accuracy, precision, recall, F1, AUROC, confusion matrix).
 
 ### 4. PEFT integration
@@ -110,10 +110,10 @@ This project uses DINOv3 vision transformers as a frozen backbone and fine-tunes
 
 ### 6. Training and multi-GPU
 
-- [ ] Define `TrainingArguments` for `Trainer`, including:
-  - [ ] Learning rate, weight decay, epochs, warmup, scheduler.
-  - [ ] Mixed precision (fp16/bf16) and gradient accumulation.
-  - [ ] Logging and evaluation frequency.
+- [x] Define `TrainingArguments` for `Trainer`, including:
+  - [x] Learning rate, weight decay (optional), epochs, warmup, scheduler.[cite:53]
+  - [x] Mixed precision (fp16/bf16) and gradient accumulation (if needed) via YAML config.[cite:53]
+  - [x] Logging and evaluation frequency.
 - [ ] Confirm multi-GPU training works by launching with `accelerate launch` or `torchrun` and verifying that all 8 GPUs are used.
 - [ ] Add gradient checkpointing or other memory optimizations if needed when scaling to larger DINOv3 models.
 
@@ -124,7 +124,7 @@ This project uses DINOv3 vision transformers as a frozen backbone and fine-tunes
   - [ ] Computes precision, recall, F1 (with F1 as the main selection metric).
   - [ ] Computes AUROC.
   - [ ] Computes confusion matrix and returns TN, FP, FN, TP.
-- [ ] Add support for saving best checkpoints according to F1.
+- [ ] Add support for saving best checkpoints according to F1 (update `metric_for_best` to `eval_f1`).
 
 ### 8. Ablation study setup
 
