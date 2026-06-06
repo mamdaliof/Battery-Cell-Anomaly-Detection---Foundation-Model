@@ -94,9 +94,9 @@ class BatteryCellDataset(Dataset):
             self.processor = AutoImageProcessor.from_pretrained(model_name_or_path)
         except Exception as e:  # pragma: no cover - defensive fallback
             print(
-                f"[BatteryCellDataset] Warning: AutoImageProcessor.from_pretrained("
+                f"⚠️ [BatteryCellDataset] Warning: AutoImageProcessor.from_pretrained("
                 f"'{model_name_or_path}') failed with: {e}.\n"
-                "Falling back to manual torchvision preprocessing (DINOv3-style)."
+                "ℹ️ Falling back to manual torchvision preprocessing (DINOv3-style)."
             )
             size = image_size_override or (self.config.image_size or 518)
             self.manual_processor = build_dinov3_base_transform(size)
@@ -104,8 +104,11 @@ class BatteryCellDataset(Dataset):
         # Optional override of image size when using the HF processor
         if self.processor is not None and image_size_override is not None:
             if isinstance(self.processor.size, dict):
-                self.processor.size["height"] = image_size_override
-                self.processor.size["width"] = image_size_override
+                if "shortest_edge" in self.processor.size:
+                    self.processor.size["shortest_edge"] = image_size_override
+                else:
+                    self.processor.size["height"] = image_size_override
+                    self.processor.size["width"] = image_size_override
             else:
                 self.processor.size = image_size_override
 
@@ -269,8 +272,8 @@ def build_augmentation_pipeline(config: DataConfig, split: str) -> Optional[Call
                 if not candidates:
                     break
 
-            # Apply chosen transforms in a fixed order (order of sampling)
-            for idx in chosen_indices:
+            # Apply chosen transforms in a fixed, logical order (order of definition in self.ops)
+            for idx in sorted(chosen_indices):
                 _, _, op = self.ops[idx]
                 img = op(img)
 

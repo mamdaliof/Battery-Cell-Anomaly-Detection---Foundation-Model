@@ -103,6 +103,7 @@ def main() -> None:
         report_to=[],
         fp16=cfg.amp.fp16,
         bf16=cfg.amp.bf16,
+        ddp_find_unused_parameters=False,
     )
 
     callbacks = [
@@ -125,6 +126,9 @@ def main() -> None:
     )
 
     trainer.train()
+
+    if torch.distributed.is_initialized():
+        torch.distributed.destroy_process_group()
 
 
 if __name__ == "__main__":

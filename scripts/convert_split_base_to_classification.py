@@ -32,6 +32,7 @@ By default, files are COPIED. You can optionally use symlinks instead.
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -83,7 +84,7 @@ def find_image_xml_pairs(split_dir: Path) -> List[tuple[Path, Path]]:
         xml_path = img_path.with_suffix(".xml")
         if not xml_path.exists():
             # You can choose to warn or skip strictly
-            print(f"[WARN] XML not found for image: {img_path}")
+            print(f"⚠️ [WARN] XML not found for image: {img_path}")
             continue
         pairs.append((img_path, xml_path))
     return pairs
@@ -100,7 +101,7 @@ def extract_labels_from_xml(xml_path: Path) -> List[str]:
         tree = ET.parse(xml_path)
         root = tree.getroot()
     except ET.ParseError as e:
-        print(f"[WARN] Failed to parse XML {xml_path}: {e}")
+        print(f"⚠️ [WARN] Failed to parse XML {xml_path}: {e}")
         return []
 
     labels: List[str] = []
@@ -122,7 +123,7 @@ def copy_or_link(src: Path, dst: Path, use_symlinks: bool) -> None:
         if dst.exists():
             dst.unlink()
         # Create relative symlink for portability
-        rel_src = src.relative_to(dst.parent)
+        rel_src = os.path.relpath(src, dst.parent)
         dst.symlink_to(rel_src)
     else:
         shutil.copy2(src, dst)
@@ -139,10 +140,10 @@ def convert_split(
     if not split_src.is_dir():
         raise FileNotFoundError(f"Split directory not found: {split_src}")
 
-    print(f"[INFO] Processing split: {split_name}")
+    print(f"ℹ️ [INFO] Processing split: {split_name}")
 
     pairs = find_image_xml_pairs(split_src)
-    print(f"[INFO] Found {len(pairs)} image-XML pairs in {split_src}")
+    print(f"ℹ️ [INFO] Found {len(pairs)} image-XML pairs in {split_src}")
 
     for img_path, xml_path in pairs:
         labels = extract_labels_from_xml(xml_path)
@@ -154,7 +155,7 @@ def convert_split(
 
         copy_or_link(img_path, dst_path, use_symlinks)
 
-    print(f"[INFO] Finished split: {split_name}")
+    print(f"✅ [INFO] Finished split: {split_name}")
 
 
 def main() -> None:
@@ -163,10 +164,10 @@ def main() -> None:
     target_root: Path = args.target_root
     abnormal_labels: Set[str] = {lbl.strip() for lbl in args.abnormal_labels}
 
-    print(f"[INFO] Source root: {source_root}")
-    print(f"[INFO] Target root: {target_root}")
-    print(f"[INFO] Abnormal labels: {sorted(abnormal_labels)}")
-    print(f"[INFO] Using symlinks: {args.use_symlinks}")
+    print(f"ℹ️ [INFO] Source root: {source_root}")
+    print(f"ℹ️ [INFO] Target root: {target_root}")
+    print(f"ℹ️ [INFO] Abnormal labels: {sorted(abnormal_labels)}")
+    print(f"ℹ️ [INFO] Using symlinks: {args.use_symlinks}")
 
     for split_name in ("train", "val"):
         convert_split(
@@ -177,7 +178,7 @@ def main() -> None:
             use_symlinks=bool(args.use_symlinks),
         )
 
-    print("[INFO] Conversion completed.")
+    print("🎉 [INFO] Conversion completed.")
 
 
 if __name__ == "__main__":
