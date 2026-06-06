@@ -197,6 +197,18 @@ Notes:
 - The `batch_size` in the YAML config is **per GPU**. For example, `batch_size: 64` with 2 GPUs results in an effective global batch size of 128.
 - Training metrics and model checkpoints are written to the run directory under `outputs/` as described above.
 
+### 🔬 GPU VRAM & DDP Isolation Verification
+
+Two lightweight helper scripts are available to verify GPU visibility, isolation, and process group setups without loading datasets or full models:
+1. **Single-GPU Isolation**: Allocates 4 GB of VRAM on local `cuda:0` of the visible device:
+   ```bash
+   CUDA_VISIBLE_DEVICES=1 python3 scripts/gpu_alloc_test.py --duration 60
+   ```
+2. **Multi-GPU DDP NCCL Group**: Initializes NCCL distributed group and allocates 4 GB on each participating device. Specify `--master_port` for parallel launches to avoid port conflict:
+   ```bash
+   CUDA_VISIBLE_DEVICES=3,4 torchrun --nproc_per_node=2 --master_port=29501 scripts/ddp_alloc_test.py
+   ```
+
 ## 📅 Project planning
 
 A more detailed project specification and TODO list is maintained in [`PROJECT_PLAN.md`](./PROJECT_PLAN.md).

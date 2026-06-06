@@ -253,3 +253,25 @@ graph TD
     
     seq1 --> Block1["Transformer Block 1 (Frozen)"]
 ```
+
+---
+
+## 🔬 4. GPU VRAM & DDP Isolation Verification Utilities
+
+To verify independent access to the 8 GPUs on the NVIDIA A16 system, two lightweight validation scripts are provided in the `scripts/` directory:
+
+### 4.1. Single-GPU VRAM Allocator (`scripts/gpu_alloc_test.py`)
+This script isolates the target GPUs using `CUDA_VISIBLE_DEVICES` and performs a clean 4.0 GB memory allocation:
+- **Allocation logic**: Allocates a tensor of shape `(1024, 1024, 1024)` of `torch.float32` (exactly 4,294,967,296 bytes) on `cuda:0` of the isolated environment.
+- **VRAM Verification**: Sleeps for a user-specified duration (`--duration`) keeping the tensor in memory so you can run `nvidia-smi` to inspect process placement.
+
+### 4.2. Dummy DDP Process Group Allocator (`scripts/ddp_alloc_test.py`)
+This script initializes the PyTorch distributed process group using the NCCL backend and allocates 4.0 GB on each participating GPU:
+- **NCCL initialization**: Triggers `dist.init_process_group(backend="nccl")`.
+- **Rank routing**: Resolves local GPU placement using the `LOCAL_RANK` environment variable, selects the device via `torch.cuda.set_device`, and allocates the 4.0 GB tensor.
+- **Port Conflict Prevention**: To run multiple independent DDP training/validation loops simultaneously, you must override the default master port (`29500`) using the `--master_port` flag:
+  ```bash
+  CUDA_VISIBLE_DEVICES=3,4 torchrun --nproc_per_node=2 --master_port=29501 scripts/ddp_alloc_test.py
+  CUDA_VISIBLE_DEVICES=5,6 torchrun --nproc_per_node=2 --master_port=29502 scripts/ddp_alloc_test.py
+  ```
+
