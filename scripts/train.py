@@ -116,8 +116,6 @@ def main() -> None:
         print("=" * 80 + "\n")
 
     # Training arguments (scheduler + AMP included)
-    # For transformers 5.x in this environment, we rely on default eval/save
-    # strategies and let the custom callback handle best model saving.
     training_args = TrainingArguments(
         output_dir=str(run_dir),
         num_train_epochs=cfg.num_epochs,
@@ -126,8 +124,18 @@ def main() -> None:
         learning_rate=cfg.learning_rate,
         lr_scheduler_type=cfg.scheduler.lr_scheduler_type,
         warmup_ratio=cfg.scheduler.warmup_ratio,
-        load_best_model_at_end=False,
+        # ── Evaluation & checkpointing: once per epoch ─────────────────────
+        eval_strategy="epoch",
+        save_strategy="epoch",
+        logging_strategy="epoch",
+        load_best_model_at_end=True,
         metric_for_best_model=cfg.metric_for_best,
+        greater_is_better=True,
+        save_total_limit=2,
+        # ── Data loading ───────────────────────────────────────────────────
+        dataloader_num_workers=4,         # parallel CPU workers; eliminates GPU idle time
+        dataloader_pin_memory=True,       # faster CPU→GPU transfer
+        # ── Misc ───────────────────────────────────────────────────────────
         remove_unused_columns=False,
         report_to=[],
         fp16=cfg.amp.fp16,
@@ -136,12 +144,9 @@ def main() -> None:
     )
 
     callbacks = [
-        # EarlyStoppingCallback currently requires explicit eval/save strategies
-        # in transformers 5.x, which conflict with this environment's API;
-        # disable it for now and rely on num_epochs + custom callback.
-        # EarlyStoppingCallback(
-        #     early_stopping_pvariance=cfg.early_stopping_pvariance,
-        # ),
+        EarlyStoppingCallback(
+            early_stopping_patience=cfg.early_stopping_patience,
+        ),
         SaveTwoBestClsModelsCallback(run_dir=str(run_dir)),
         BeautifulLoggingCallback(),
     ]
