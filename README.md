@@ -1,21 +1,21 @@
-# Battery Cell Anomaly Detection with Foundation Models
+# 🔋 Battery Cell Anomaly Detection with Foundation Models
 
 This repository explores **battery cell anomaly detection** using **DINOv3** vision transformers as frozen backbones, combined with **classifier heads** and **parameter-efficient fine-tuning (PEFT)** methods.
 
-## Current design decisions
+## 🎯 Current design decisions
 
-- **Data handling**
+- **📦 Data handling**
   - All image data is handled **locally** due to privacy constraints.
   - Raw data is expected in a detection-style format under a directory such as `split_base/` with `train/` and `val` subfolders containing paired `*.png` and `*.xml` files.
   - A conversion script transforms this raw layout into a classification dataset under `data/`.
   - The `.gitignore` file is configured to ignore `data/`, `raw_data/`, `processed_data`, and other local artifacts (checkpoints, logs, wandb, etc.).
 
-- **Backbone and preprocessing**
+- **🧠 Backbone and preprocessing**
   - The backbone is a **DINOv3** model loaded from Hugging Face `transformers` (starting with a smaller variant, e.g. `facebook/dinov3-vitb16-pretrain-lvd1689m`).
   - Preprocessing (resize, normalization, RGB handling) is delegated to the corresponding **image processor** from `transformers`. By default, the processor’s **native resolution and normalization** are used.
   - The configuration includes an optional `image_size` placeholder so input resolution can be overridden later if necessary.
 
-- **Augmentations**
+- **🎨 Augmentations**
   - Augmentations are applied **only on the training split**, on top of the backbone-compatible preprocessing.
   - Augmentations are configured via a YAML file and support:
     - A global probability (`aug_global_prob`) that any augmentation is applied.
@@ -27,7 +27,7 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
       - Color jitter (brightness, contrast, saturation, hue).
       - Gaussian noise.
 
-- **Baseline model**
+- **🧱 Baseline model**
   - A generic classifier module lives in `src/bcadfm/models/dinov3_classifier.py` (for DINOv3 backbones) and can also be instantiated with other ViT-style backbones such as `google/vit-base-patch16-224`.
   - It loads a pretrained backbone via `AutoModel.from_pretrained`, freezes it by default, and attaches a configurable classification head.
   - The classification head depth is configurable through `HeadConfig`:
@@ -35,7 +35,7 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
     - `depth > 1` → multi-layer MLP with GELU activations and optional dropout.
   - The classifier expects `pixel_values` from the corresponding image processor and outputs logits (and, if labels are provided, a cross-entropy loss) suitable for use with `Trainer`.
 
-- **Training configuration and orchestration**
+- **🚀 Training configuration and orchestration**
   - Training is driven by a YAML configuration file (see `configs/baseline.yaml`) loaded into a `TrainingConfig` dataclass.
   - Configuration covers:
     - Model name and output directory.
@@ -47,7 +47,7 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
     - Automatic mixed precision (`fp16`, `bf16`) when GPUs are available.
   - Each training run creates a unique run directory `outputs/{task_name}__{model_name}/{timestamp}/` and copies the used YAML config into that directory as `config.yaml` for reproducibility.
 
-- **Metrics and objective**
+- **📊 Metrics and objective**
   - Target task: binary classification (normal vs abnormal) on highly imbalanced battery cell data.
   - Primary optimization metric: **F1 score** (with emphasis on the abnormal class).
   - Metrics are computed via a custom `compute_cls_metrics` function and include:
@@ -57,20 +57,20 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
     - AUROC.
     - Confusion matrix absolute counts: TN, FP, FN, TP.
 
-- **Imbalance handling (Implemented)**
+- **⚖️ Imbalance handling (Implemented)**
   - Class-weighted cross-entropy based on label frequencies.
   - Focal loss incorporating gamma and alpha coefficients.
   - Dynamic dataset-level minority class oversampling (fully compatible with multi-GPU DDP training).
   - Sampler-level oversampling (`WeightedRandomSampler`).
   - Configured and activated through the central `imbalance` configuration section.
 
-- **PEFT Integration (Implemented)**
+- **⚡ PEFT Integration (Implemented)**
   - **LoRA**: Parameter-efficient fine-tuning via Hugging Face `peft` targeting specific attention projections (`q_proj`, `v_proj`).
   - **Bottleneck Adapters**: Pfeiffer-style bottleneck adapters wrapping transformer feed-forward blocks.
   - **Visual Prompt Tuning (VPT)**: Support for Shallow (input-level prompt parameters) and Deep (layer-wise prompt replacement wrappers) prompt tuning.
   - Supports dynamic model structure routing (handles standard `encoder.layer`/`layers` and DINOv3's `model.layer` format).
 
-## Dataset conversion and usage
+## 📂 Dataset conversion and usage
 
 The raw dataset is assumed to live under a directory like `split_base/` with the following structure:
 
@@ -110,9 +110,9 @@ data/
 
 where each image is assigned to `normal` or `abnormal` depending on whether any of its XML labels match the provided abnormal labels.
 
-## How to run the code
+## 💻 How to run the code
 
-### 1. Create and activate the environment
+### 1. ⚙️ Create and activate the environment
 
 Create a Python 3.10+ environment and install dependencies, for example with `pip`:
 
@@ -139,7 +139,7 @@ print("device_count:", torch.cuda.device_count())
 EOF
 ```
 
-### 2. Prepare the dataset
+### 2. 🔄 Prepare the dataset
 
 Convert the detection-style dataset into the classification layout under `data/`:
 
@@ -150,7 +150,7 @@ python scripts/convert_split_base_to_classification.py \
   --abnormal-labels burnt crack
 ```
 
-### 3. Single-process (CPU or 1 GPU) smoke test
+### 3. 🧪 Single-process (CPU or 1 GPU) smoke test
 
 From the repository root:
 
@@ -174,7 +174,7 @@ outputs/cls__{model_name}/{timestamp}/
 
 containing `config.yaml`, checkpoints, and the two best-model snapshots `best_loss.pt` and `best_f1.pt`.
 
-### 4. Multi-GPU training with torchrun (DDP)
+### 4. 🔗 Distributed multi-GPU training with torchrun (DDP)
 
 If you have 2 GPUs available (for example on a machine with two NVIDIA A10s), you can launch distributed training via `torchrun`:
 
@@ -196,8 +196,9 @@ Notes:
 - The `batch_size` in the YAML config is **per GPU**. For example, `batch_size: 64` with 2 GPUs results in an effective global batch size of 128.
 - Training metrics and model checkpoints are written to the run directory under `outputs/` as described above.
 
-## Project planning
+## 📅 Project planning
 
 A more detailed project specification and TODO list is maintained in [`PROJECT_PLAN.md`](./PROJECT_PLAN.md).
 
 As the project evolves, this README will be updated with setup instructions, usage examples, and experiment summaries.
+

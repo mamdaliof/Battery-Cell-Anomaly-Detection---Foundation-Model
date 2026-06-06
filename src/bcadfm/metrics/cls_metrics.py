@@ -39,9 +39,9 @@ def compute_cls_metrics(eval_pred) -> Dict[str, float]:
 
     # AUROC: only defined when there are at least two classes present in labels
     try:
-        # Use probability/logit for the positive class (assumed to be class 1)
+        # Use probability/logit difference for the positive class (assumed to be class 1)
         if logits.shape[1] == 2:
-            pos_scores = logits[:, 1]
+            pos_scores = logits[:, 1] - logits[:, 0]
         else:
             # Fall back to max logit as score if more than 2 classes
             pos_scores = np.max(logits, axis=1)

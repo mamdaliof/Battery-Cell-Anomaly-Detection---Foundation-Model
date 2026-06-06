@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Union
 
 import torch
 from torch import nn
@@ -13,13 +13,16 @@ class HeadConfig:
     """Configuration of the classification head.
 
     depth: number of linear layers in the head (>= 1).
-    hidden_dim: size of hidden layers when depth > 1.
+    hidden_dim: size of hidden layers when depth > 1. Can be:
+                - int: absolute number of neurons.
+                - float: multiplier of input embedding dimension (e.g. 0.5).
+                - str: multiplier of input embedding dimension with 'X' suffix (e.g. "0.5X").
     dropout: dropout probability between layers.
     """
 
     num_labels: int = 2
     depth: int = 1
-    hidden_dim: Optional[int] = None
+    hidden_dim: Optional[Union[int, float, str]] = None
     dropout: float = 0.0
 
 
@@ -392,13 +395,31 @@ class DinoV3Classifier(nn.Module):
             if cfg.hidden_dim is None:
                 raise ValueError("hidden_dim must be set when depth > 1")
 
+            # Resolve hidden_dim if float or string
+            hidden_dim_resolved = cfg.hidden_dim
+            if isinstance(hidden_dim_resolved, str):
+                val_str = hidden_dim_resolved.lower().strip()
+                if val_str.endswith("x"):
+                    val_str = val_str[:-1]
+                try:
+                    factor = float(val_str)
+                    hidden_dim_resolved = int(factor * input_dim)
+                except ValueError:
+                    raise ValueError(f"Could not parse hidden_dim string: {cfg.hidden_dim}")
+            elif isinstance(hidden_dim_resolved, float):
+                hidden_dim_resolved = int(hidden_dim_resolved * input_dim)
+            elif isinstance(hidden_dim_resolved, int):
+                pass
+            else:
+                raise ValueError(f"Invalid type for hidden_dim: {type(cfg.hidden_dim)}")
+
             in_dim = input_dim
             for _ in range(cfg.depth - 1):
-                layers.append(nn.Linear(in_dim, cfg.hidden_dim))
+                layers.append(nn.Linear(in_dim, hidden_dim_resolved))
                 if cfg.dropout > 0:
                     layers.append(nn.Dropout(cfg.dropout))
                 layers.append(nn.GELU())
-                in_dim = cfg.hidden_dim
+                in_dim = hidden_dim_resolved
 
             layers.append(nn.Linear(in_dim, cfg.num_labels))
 

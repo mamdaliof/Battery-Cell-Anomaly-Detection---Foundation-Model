@@ -115,6 +115,31 @@ def run_verification():
     assert summary_vpt_deep["trainable"] > summary_vpt_shallow["trainable"], "Deep VPT should have more trainable parameters than Shallow VPT"
     print("✅ Deep VPT Test Passed!\n")
 
+    # 6. Test Proportional Hidden Dimensions
+    print("🔹 Testing Proportional Hidden Dimensions...")
+    # Float proportional test (0.5 * 768 = 384)
+    head_config_float = HeadConfig(num_labels=2, depth=2, hidden_dim=0.5, dropout=0.1)
+    model_float = DinoV3Classifier(
+        model_name_or_path=model_name,
+        head_config=head_config_float,
+        peft_config=peft_none,
+        freeze_backbone=True
+    )
+    float_linear_in = model_float.classifier[0]
+    assert float_linear_in.out_features == 384, f"Expected hidden_dim of 384, got {float_linear_in.out_features}"
+    
+    # String proportional test ("1.1X" * 768 = 844)
+    head_config_str = HeadConfig(num_labels=2, depth=2, hidden_dim="1.1X", dropout=0.1)
+    model_str = DinoV3Classifier(
+        model_name_or_path=model_name,
+        head_config=head_config_str,
+        peft_config=peft_none,
+        freeze_backbone=True
+    )
+    str_linear_in = model_str.classifier[0]
+    assert str_linear_in.out_features == 844, f"Expected hidden_dim of 844, got {str_linear_in.out_features}"
+    print("✅ Proportional Hidden Dimensions Test Passed!\n")
+
     print("=================================================================")
     print("🎉 ALL PEFT INTEGRATION VERIFICATION TESTS PASSED SUCCESSFULLY!")
     print("=================================================================")
