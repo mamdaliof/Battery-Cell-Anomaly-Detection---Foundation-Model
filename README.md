@@ -33,6 +33,7 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
   - The classification head depth is configurable through `HeadConfig`:
     - `depth = 1` → single linear layer.
     - `depth > 1` → multi-layer MLP with GELU activations and optional dropout.
+    - `hidden_dim` can be defined as an absolute size (e.g. `256`), a multiplier float (e.g. `0.5` times DINOv3's dimension), or a multiplier string (e.g. `"1.1X"`).
   - The classifier expects `pixel_values` from the corresponding image processor and outputs logits (and, if labels are provided, a cross-entropy loss) suitable for use with `Trainer`.
 
 - **🚀 Training configuration and orchestration**
