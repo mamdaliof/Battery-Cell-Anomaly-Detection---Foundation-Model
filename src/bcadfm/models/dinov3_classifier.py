@@ -81,10 +81,16 @@ def apply_adapters(
     target_blocks: Optional[List[int]] = None,
 ) -> None:
     """Recursively search for MLP blocks and wrap them with Pfeiffer adapters."""
-    if not hasattr(backbone, "encoder") or not hasattr(backbone.encoder, "layer"):
-        raise ValueError("Backbone model must have encoder.layer to apply adapters.")
+    if hasattr(backbone, "encoder") and hasattr(backbone.encoder, "layer"):
+        layers = backbone.encoder.layer
+    elif hasattr(backbone, "model") and hasattr(backbone.model, "layer"):
+        layers = backbone.model.layer
+    elif hasattr(backbone, "layer"):
+        layers = backbone.layer
+    else:
+        raise ValueError("Backbone model must have a layer attribute (encoder.layer, model.layer, or layer) to apply adapters.")
 
-    num_layers = len(backbone.encoder.layer)
+    num_layers = len(layers)
     blocks_to_wrap = target_blocks if target_blocks is not None else list(range(num_layers))
 
     # Freeze backbone parameters
@@ -95,7 +101,7 @@ def apply_adapters(
     for idx in blocks_to_wrap:
         if idx < 0 or idx >= num_layers:
             continue
-        layer = backbone.encoder.layer[idx]
+        layer = layers[idx]
         if hasattr(layer, "mlp"):
             layer.mlp = AdapterWrappedMLP(layer.mlp, bottleneck_dim, dropout)
             # Make adapter parameters trainable
@@ -148,7 +154,16 @@ class VptWrappedBackbone(nn.Module):
         for param in self.original_backbone.parameters():
             param.requires_grad = False
 
-        num_layers = len(self.original_backbone.encoder.layer)
+        if hasattr(original_backbone, "encoder") and hasattr(original_backbone.encoder, "layer"):
+            self.layers = original_backbone.encoder.layer
+        elif hasattr(original_backbone, "model") and hasattr(original_backbone.model, "layer"):
+            self.layers = original_backbone.model.layer
+        elif hasattr(original_backbone, "layer"):
+            self.layers = original_backbone.layer
+        else:
+            raise ValueError("Backbone model must have a layer attribute (encoder.layer, model.layer, or layer) to apply VPT.")
+
+        num_layers = len(self.layers)
         self.target_layers = target_blocks if target_blocks is not None else list(range(num_layers))
 
         # Shallow/input prompts
@@ -168,8 +183,8 @@ class VptWrappedBackbone(nn.Module):
                 self.deep_prompts[f"layer_{idx}"] = p
 
                 # Wrap layer l with prompt replacement
-                layer = self.original_backbone.encoder.layer[idx]
-                self.original_backbone.encoder.layer[idx] = VptLayerWrapper(
+                layer = self.layers[idx]
+                self.layers[idx] = VptLayerWrapper(
                     layer, num_tokens, self.deep_prompts[f"layer_{idx}"]
                 )
 
@@ -183,7 +198,14 @@ class VptWrappedBackbone(nn.Module):
         return_dict: Optional[bool] = None,
     ):
         # 1. Base patch embeddings (with pos encoding added)
-        x = self.original_backbone.embeddings(pixel_values, bool_masked_pos=bool_masked_pos)
+        if hasattr(self.original_backbone, "embeddings"):
+            embeddings_module = self.original_backbone.embeddings
+        elif hasattr(self.original_backbone, "model") and hasattr(self.original_backbone.model, "embeddings"):
+            embeddings_module = self.original_backbone.model.embeddings
+        else:
+            raise ValueError("Could not find embeddings module in backbone.")
+
+        x = embeddings_module(pixel_values, bool_masked_pos=bool_masked_pos)
 
         # 2. Prepend prompt tokens after CLS token (at index 1)
         cls_token = x[:, :1, :]
@@ -194,7 +216,14 @@ class VptWrappedBackbone(nn.Module):
         x = torch.cat([cls_token, prompts, patch_tokens], dim=1)
 
         # 3. Pass through encoder
-        encoder_outputs = self.original_backbone.encoder(
+        if hasattr(self.original_backbone, "encoder"):
+            encoder_module = self.original_backbone.encoder
+        elif hasattr(self.original_backbone, "model") and hasattr(self.original_backbone.model, "encoder"):
+            encoder_module = self.original_backbone.model.encoder
+        else:
+            raise ValueError("Could not find encoder module in backbone.")
+
+        encoder_outputs = encoder_module(
             x,
             head_mask=head_mask,
             output_attentions=output_attentions,
@@ -281,7 +310,7 @@ class DinoV3Classifier(nn.Module):
                 target_blocks = peft_config.get("lora_target_blocks", None)
 
             if target_modules is None:
-                target_modules = ["query", "value"]
+                target_modules = ["q_proj", "v_proj"]
 
             lora_kwargs = {
                 "r": r,
@@ -292,7 +321,14 @@ class DinoV3Classifier(nn.Module):
             }
             if target_blocks is not None and len(target_blocks) > 0:
                 lora_kwargs["layers_to_transform"] = target_blocks
-                lora_kwargs["layers_pattern"] = "encoder.layer"
+                if hasattr(self.backbone, "encoder") and hasattr(self.backbone.encoder, "layer"):
+                    lora_kwargs["layers_pattern"] = "encoder.layer"
+                elif hasattr(self.backbone, "model") and hasattr(self.backbone.model, "layer"):
+                    lora_kwargs["layers_pattern"] = "model.layer"
+                elif hasattr(self.backbone, "layer"):
+                    lora_kwargs["layers_pattern"] = "layer"
+                else:
+                    lora_kwargs["layers_pattern"] = "model.layer"
 
             peft_lora_config = LoraConfig(**lora_kwargs)
             self.backbone = get_peft_model(self.backbone, peft_lora_config)

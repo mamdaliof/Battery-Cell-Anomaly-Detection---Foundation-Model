@@ -40,7 +40,7 @@ def run_verification():
         lora_r=8,
         lora_alpha=16,
         lora_dropout=0.1,
-        lora_target_modules=["query", "value"]
+        lora_target_modules=["q_proj", "v_proj"]
     )
     model_lora = DinoV3Classifier(
         model_name_or_path=model_name,
