@@ -93,7 +93,8 @@ def main() -> None:
         else "🛠️ Fallback manual torchvision preprocessor (DINOv3-style)"
     )
 
-    is_main_process = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+    import os
+    is_main_process = int(os.environ.get("LOCAL_RANK", "0")) == 0
     if is_main_process:
         print("\n" + "=" * 80)
         print("🚀 STARTING TRAINING PIPELINE")
