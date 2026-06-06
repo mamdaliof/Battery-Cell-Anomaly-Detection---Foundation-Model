@@ -86,7 +86,7 @@ def main():
                         "lora_r": rank,
                         "lora_alpha": rank * 2,
                         "lora_dropout": 0.1,
-                        "lora_target_modules": ["q_proj", "v_proj"],
+                        "lora_target_modules": ["query", "value"],
                         "lora_target_blocks": blocks,
                         "adapter_bottleneck_dim": 64,
                         "adapter_dropout": 0.0,

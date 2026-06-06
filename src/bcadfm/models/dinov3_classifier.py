@@ -317,7 +317,7 @@ class DinoV3Classifier(nn.Module):
                 target_blocks = peft_config.get("lora_target_blocks", None)
 
             if target_modules is None:
-                target_modules = ["q_proj", "v_proj"]
+                target_modules = ["query", "value"]
 
             lora_kwargs = {
                 "r": r,
@@ -328,14 +328,21 @@ class DinoV3Classifier(nn.Module):
             }
             if target_blocks is not None and len(target_blocks) > 0:
                 lora_kwargs["layers_to_transform"] = target_blocks
-                if hasattr(self.backbone, "encoder") and hasattr(self.backbone.encoder, "layer"):
+                # Auto-detect the layer pattern from the backbone structure
+                # DINOv3 / standard ViT: encoder.layer
+                # Some ViTs: model.encoder.layer or just layer
+                backbone = self.backbone
+                if hasattr(backbone, "encoder") and hasattr(backbone.encoder, "layer"):
                     lora_kwargs["layers_pattern"] = "encoder.layer"
-                elif hasattr(self.backbone, "model") and hasattr(self.backbone.model, "layer"):
+                elif hasattr(backbone, "model") and hasattr(backbone.model, "encoder") and hasattr(backbone.model.encoder, "layer"):
+                    lora_kwargs["layers_pattern"] = "model.encoder.layer"
+                elif hasattr(backbone, "model") and hasattr(backbone.model, "layer"):
                     lora_kwargs["layers_pattern"] = "model.layer"
-                elif hasattr(self.backbone, "layer"):
+                elif hasattr(backbone, "layer"):
                     lora_kwargs["layers_pattern"] = "layer"
                 else:
-                    lora_kwargs["layers_pattern"] = "model.layer"
+                    # Fallback: don't set layers_pattern — all layers will be adapted
+                    pass
 
             peft_lora_config = LoraConfig(**lora_kwargs)
             self.backbone = get_peft_model(self.backbone, peft_lora_config)
