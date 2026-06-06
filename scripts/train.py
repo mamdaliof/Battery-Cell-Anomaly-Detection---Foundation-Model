@@ -168,6 +168,9 @@ def main() -> None:
         print(f"📉 Final Train Loss:   {metrics.get('train_loss', 0.0):.4f}")
         print(f"🔁 Total Epochs:       {metrics.get('epoch', 0.0):.1f}")
         print("=" * 80 + "\n")
+        
+        # Touch DONE file to mark successful completion
+        (run_dir / "DONE").touch()
 
     if torch.distributed.is_initialized():
         torch.distributed.destroy_process_group()
