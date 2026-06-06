@@ -1,4 +1,4 @@
-model_name: "google/vit-base-patch16-224"  # standard public ViT backbone for verification
+model_name: "facebook/dinov3-vitb16-pretrain-lvd1689m"
 output_dir: "outputs"
 
 # Data configuration
