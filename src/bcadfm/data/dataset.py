@@ -21,25 +21,25 @@ class ImageSample:
     label: int
 
 
-def build_dinov3_base_transform(image_size: int = 518) -> T.Compose:
-    """Fallback preprocessing for DINOv3-style models.
-
-    Uses ImageNet-style normalization and a simple resize+center-crop pipeline.
-    This is used only when the Hugging Face image processor cannot be loaded
-    (e.g. for some DINOv3 checkpoints without a proper preprocessor_config).
-    """
-
-    return T.Compose(
-        [
-            T.Resize(image_size, interpolation=T.InterpolationMode.BICUBIC),
-            T.CenterCrop(image_size),
-            T.ToTensor(),
-            T.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225],
-            ),
-        ]
-    )
+# def build_dinov3_base_transform(image_size: int = 518) -> T.Compose:
+#     """Fallback preprocessing for DINOv3-style models.
+# 
+#     Uses ImageNet-style normalization and a simple resize+center-crop pipeline.
+#     This is used only when the Hugging Face image processor cannot be loaded
+#     (e.g. for some DINOv3 checkpoints without a proper preprocessor_config).
+#     """
+# 
+#     return T.Compose(
+#         [
+#             T.Resize(image_size, interpolation=T.InterpolationMode.BICUBIC),
+#             T.CenterCrop(image_size),
+#             T.ToTensor(),
+#             T.Normalize(
+#                 mean=[0.485, 0.456, 0.406],
+#                 std=[0.229, 0.224, 0.225],
+#             ),
+#         ]
+#     )
 
 
 class BatteryCellDataset(Dataset):
@@ -87,19 +87,7 @@ class BatteryCellDataset(Dataset):
         # repository does not ship a usable preprocessor_config.json or
         # image_processor_type, which is a known transformers/DINOv3 issue.
         # In that case, fall back to a manual torchvision-based transform.
-        self.processor: Optional[AutoImageProcessor] = None
-        self.manual_processor: Optional[Callable[[Image.Image], torch.Tensor]] = None
-
-        try:
-            self.processor = AutoImageProcessor.from_pretrained(model_name_or_path)
-        except Exception as e:  # pragma: no cover - defensive fallback
-            print(
-                f"⚠️ [BatteryCellDataset] Warning: AutoImageProcessor.from_pretrained("
-                f"'{model_name_or_path}') failed with: {e}.\n"
-                "ℹ️ Falling back to manual torchvision preprocessing (DINOv3-style)."
-            )
-            size = image_size_override or (self.config.image_size or 518)
-            self.manual_processor = build_dinov3_base_transform(size)
+        self.processor: AutoImageProcessor = AutoImageProcessor.from_pretrained(model_name_or_path)
 
         # Optional override of image size when using the HF processor
         if self.processor is not None and image_size_override is not None:
@@ -145,15 +133,10 @@ class BatteryCellDataset(Dataset):
         if self.transform is not None:
             image = self.transform(image)
 
-        if self.processor is not None:
-            # HF processor path (ViT and backbones that ship a proper
-            # preprocessor_config.json / image_processor_type)
-            encoded = self.processor(images=image, return_tensors="pt")
-            pixel_values = encoded["pixel_values"][0]
-        else:
-            # Manual transform path (e.g., DINOv3 checkpoints without a usable
-            # image processor in the current transformers version).
-            pixel_values = self.manual_processor(image)
+        # HF processor path (ViT and backbones that ship a proper
+        # preprocessor_config.json / image_processor_type)
+        encoded = self.processor(images=image, return_tensors="pt")
+        pixel_values = encoded["pixel_values"][0]
 
         return {
             "pixel_values": pixel_values,
