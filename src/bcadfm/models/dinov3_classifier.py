@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Any
 
 import torch
 from torch import nn
@@ -23,11 +23,202 @@ class HeadConfig:
     dropout: float = 0.0
 
 
+class BottleneckAdapter(nn.Module):
+    """Bottleneck adapter module (Pfeiffer-style) inserted after FFN/MLP."""
+
+    def __init__(self, input_dim: int, bottleneck_dim: int, dropout: float = 0.0):
+        super().__init__()
+        self.down_proj = nn.Linear(input_dim, bottleneck_dim)
+        self.non_linear = nn.GELU()
+        self.up_proj = nn.Linear(bottleneck_dim, input_dim)
+        self.dropout = nn.Dropout(dropout)
+
+        # Initialize weights: down-proj with Kaiming, up-proj with zeros to act as identity
+        nn.init.kaiming_uniform_(self.down_proj.weight, a=5**0.5)
+        nn.init.zeros_(self.down_proj.bias)
+        nn.init.zeros_(self.up_proj.weight)
+        nn.init.zeros_(self.up_proj.bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        out = self.down_proj(x)
+        out = self.non_linear(out)
+        out = self.dropout(out)
+        out = self.up_proj(out)
+        return x + out
+
+
+class AdapterWrappedMLP(nn.Module):
+    """Wraps the original MLP of a transformer block with a bottleneck adapter."""
+
+    def __init__(self, original_mlp: nn.Module, bottleneck_dim: int, dropout: float = 0.0):
+        super().__init__()
+        self.original_mlp = original_mlp
+
+        # Determine input/output dimension from original MLP's final linear layer
+        if hasattr(original_mlp, "fc2"):
+            input_dim = original_mlp.fc2.out_features
+        elif hasattr(original_mlp, "dense"):
+            input_dim = original_mlp.dense.out_features
+        else:
+            # Fallback to look at parameters
+            fc_layers = [m for m in original_mlp.modules() if isinstance(m, nn.Linear)]
+            if len(fc_layers) > 0:
+                input_dim = fc_layers[-1].out_features
+            else:
+                raise ValueError("Could not determine embedding dimension of MLP.")
+
+        self.adapter = BottleneckAdapter(input_dim, bottleneck_dim, dropout)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        mlp_out = self.original_mlp(x)
+        return self.adapter(mlp_out)
+
+
+def apply_adapters(
+    backbone: nn.Module,
+    bottleneck_dim: int = 64,
+    dropout: float = 0.0,
+    target_blocks: Optional[List[int]] = None,
+) -> None:
+    """Recursively search for MLP blocks and wrap them with Pfeiffer adapters."""
+    if not hasattr(backbone, "encoder") or not hasattr(backbone.encoder, "layer"):
+        raise ValueError("Backbone model must have encoder.layer to apply adapters.")
+
+    num_layers = len(backbone.encoder.layer)
+    blocks_to_wrap = target_blocks if target_blocks is not None else list(range(num_layers))
+
+    # Freeze backbone parameters
+    for param in backbone.parameters():
+        param.requires_grad = False
+
+    # Apply adapters to target blocks
+    for idx in blocks_to_wrap:
+        if idx < 0 or idx >= num_layers:
+            continue
+        layer = backbone.encoder.layer[idx]
+        if hasattr(layer, "mlp"):
+            layer.mlp = AdapterWrappedMLP(layer.mlp, bottleneck_dim, dropout)
+            # Make adapter parameters trainable
+            for param in layer.mlp.adapter.parameters():
+                param.requires_grad = True
+
+
+class VptLayerWrapper(nn.Module):
+    """Wraps a transformer block to inject new visual prompts for Deep VPT."""
+
+    def __init__(self, original_layer: nn.Module, num_tokens: int, prompt_parameter: nn.Parameter):
+        super().__init__()
+        self.original_layer = original_layer
+        self.num_tokens = num_tokens
+        self.prompt = prompt_parameter
+
+    def forward(self, hidden_states: torch.Tensor, *args, **kwargs):
+        # hidden_states: (batch_size, seq_len, hidden_size)
+        # Discard the prompt tokens from the previous layer (indices 1 to num_tokens+1)
+        cls_token = hidden_states[:, :1, :]
+        patch_tokens = hidden_states[:, 1 + self.num_tokens :, :]
+        batch_size = hidden_states.shape[0]
+
+        # Prepend new prompt tokens
+        new_prompts = self.prompt.expand(batch_size, -1, -1)
+        x = torch.cat([cls_token, new_prompts, patch_tokens], dim=1)
+
+        return self.original_layer(x, *args, **kwargs)
+
+
+class VptWrappedBackbone(nn.Module):
+    """Wraps a DINOv3 backbone to support Shallow and Deep Visual Prompt Tuning."""
+
+    def __init__(
+        self,
+        original_backbone: nn.Module,
+        num_tokens: int = 10,
+        deep: bool = False,
+        target_blocks: Optional[List[int]] = None,
+    ):
+        super().__init__()
+        self.original_backbone = original_backbone
+        self.num_tokens = num_tokens
+        self.deep = deep
+        self.target_blocks = target_blocks
+        self.hidden_size = original_backbone.config.hidden_size
+        self.config = original_backbone.config
+
+        # Freeze original backbone
+        for param in self.original_backbone.parameters():
+            param.requires_grad = False
+
+        num_layers = len(self.original_backbone.encoder.layer)
+        self.target_layers = target_blocks if target_blocks is not None else list(range(num_layers))
+
+        # Shallow/input prompts
+        self.prompt = nn.Parameter(torch.zeros(1, num_tokens, self.hidden_size))
+        nn.init.xavier_uniform_(self.prompt)
+        self.prompt.requires_grad = True
+
+        if self.deep:
+            self.deep_prompts = nn.ParameterDict()
+            for idx in self.target_layers:
+                # Prompt for layer 0 is already handled by self.prompt
+                if idx == 0:
+                    continue
+                p = nn.Parameter(torch.zeros(1, num_tokens, self.hidden_size))
+                nn.init.xavier_uniform_(p)
+                p.requires_grad = True
+                self.deep_prompts[f"layer_{idx}"] = p
+
+                # Wrap layer l with prompt replacement
+                layer = self.original_backbone.encoder.layer[idx]
+                self.original_backbone.encoder.layer[idx] = VptLayerWrapper(
+                    layer, num_tokens, self.deep_prompts[f"layer_{idx}"]
+                )
+
+    def forward(
+        self,
+        pixel_values: torch.Tensor,
+        bool_masked_pos: Optional[torch.Tensor] = None,
+        head_mask: Optional[torch.Tensor] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+    ):
+        # 1. Base patch embeddings (with pos encoding added)
+        x = self.original_backbone.embeddings(pixel_values, bool_masked_pos=bool_masked_pos)
+
+        # 2. Prepend prompt tokens after CLS token (at index 1)
+        cls_token = x[:, :1, :]
+        patch_tokens = x[:, 1:, :]
+        batch_size = x.shape[0]
+
+        prompts = self.prompt.expand(batch_size, -1, -1)
+        x = torch.cat([cls_token, prompts, patch_tokens], dim=1)
+
+        # 3. Pass through encoder
+        encoder_outputs = self.original_backbone.encoder(
+            x,
+            head_mask=head_mask,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+
+        if isinstance(encoder_outputs, tuple):
+            return encoder_outputs
+
+        from transformers.modeling_outputs import BaseModelOutputWithPooling
+        return BaseModelOutputWithPooling(
+            last_hidden_state=encoder_outputs.last_hidden_state,
+            pooler_output=None,
+            hidden_states=encoder_outputs.hidden_states,
+            attentions=encoder_outputs.attentions,
+        )
+
+
 class DinoV3Classifier(nn.Module):
-    """Frozen DINOv3 backbone + configurable classification head.
+    """Frozen DINOv3 backbone + configurable classification head, with PEFT support.
 
     - Backbone: loaded from Hugging Face `transformers` using `AutoModel`.
-      It is frozen by default (no gradient updates).
+      PEFT integration wraps the backbone with LoRA, Adapters, or VPT.
     - Head: a configurable MLP ending in `num_labels` logits.
 
     The model expects `pixel_values` as input, as produced by the
@@ -38,6 +229,7 @@ class DinoV3Classifier(nn.Module):
         self,
         model_name_or_path: str,
         head_config: Optional[HeadConfig] = None,
+        peft_config: Optional[Any] = None,
         freeze_backbone: bool = True,
         id2label: Optional[dict[int, str]] = None,
         label2id: Optional[dict[str, int]] = None,
@@ -58,14 +250,90 @@ class DinoV3Classifier(nn.Module):
             head_config = HeadConfig(num_labels=2, depth=1, hidden_dim=None, dropout=0.0)
         self.head_config = head_config
 
-        if freeze_backbone:
+        # 1. Parse PEFT configurations
+        peft_type = "none"
+        if peft_config is not None:
+            if hasattr(peft_config, "type"):
+                peft_type = peft_config.type
+            elif isinstance(peft_config, dict):
+                peft_type = peft_config.get("type", "none")
+
+        # 2. Freeze backbone by default (needed if freeze_backbone is True or PEFT is enabled)
+        if freeze_backbone or peft_type != "none":
             for param in self.backbone.parameters():
                 param.requires_grad = False
 
-        # Build classification head
+        # 3. Apply requested PEFT wrapping on backbone
+        if peft_type == "lora":
+            from peft import LoraConfig, get_peft_model
+
+            if hasattr(peft_config, "lora_r"):
+                r = peft_config.lora_r
+                alpha = peft_config.lora_alpha
+                dropout = peft_config.lora_dropout
+                target_modules = peft_config.lora_target_modules
+                target_blocks = peft_config.lora_target_blocks
+            else:
+                r = peft_config.get("lora_r", 8)
+                alpha = peft_config.get("lora_alpha", 16)
+                dropout = peft_config.get("lora_dropout", 0.0)
+                target_modules = peft_config.get("lora_target_modules", None)
+                target_blocks = peft_config.get("lora_target_blocks", None)
+
+            if target_modules is None:
+                target_modules = ["query", "value"]
+
+            lora_kwargs = {
+                "r": r,
+                "lora_alpha": alpha,
+                "lora_dropout": dropout,
+                "target_modules": target_modules,
+                "bias": "none",
+            }
+            if target_blocks is not None and len(target_blocks) > 0:
+                lora_kwargs["layers_to_transform"] = target_blocks
+                lora_kwargs["layers_pattern"] = "encoder.layer"
+
+            peft_lora_config = LoraConfig(**lora_kwargs)
+            self.backbone = get_peft_model(self.backbone, peft_lora_config)
+
+        elif peft_type == "adapter":
+            if hasattr(peft_config, "adapter_bottleneck_dim"):
+                bottleneck_dim = peft_config.adapter_bottleneck_dim
+                dropout = peft_config.adapter_dropout
+                target_blocks = peft_config.adapter_target_blocks
+            else:
+                bottleneck_dim = peft_config.get("adapter_bottleneck_dim", 64)
+                dropout = peft_config.get("adapter_dropout", 0.0)
+                target_blocks = peft_config.get("adapter_target_blocks", None)
+
+            apply_adapters(self.backbone, bottleneck_dim, dropout, target_blocks)
+
+        elif peft_type == "visual_prompt":
+            if hasattr(peft_config, "vpt_num_tokens"):
+                num_tokens = peft_config.vpt_num_tokens
+                deep = peft_config.vpt_deep
+                target_blocks = peft_config.vpt_target_blocks
+            else:
+                num_tokens = peft_config.get("vpt_num_tokens", 10)
+                deep = peft_config.get("vpt_deep", False)
+                target_blocks = peft_config.get("vpt_target_blocks", None)
+
+            self.backbone = VptWrappedBackbone(
+                self.backbone,
+                num_tokens=num_tokens,
+                deep=deep,
+                target_blocks=target_blocks,
+            )
+
+        # Build classification head (remains trainable)
         self.classifier = self._build_head(input_dim=hidden_size, cfg=head_config)
 
-        # Store label mappings for convenience (used by Trainer / saving config later)
+        # Ensure head parameters require grad (always trainable)
+        for param in self.classifier.parameters():
+            param.requires_grad = True
+
+        # Store label mappings for convenience
         if id2label is None:
             id2label = {0: "class_0", 1: "class_1"}
         if label2id is None:
@@ -75,12 +343,7 @@ class DinoV3Classifier(nn.Module):
 
     @staticmethod
     def _build_head(input_dim: int, cfg: HeadConfig) -> nn.Module:
-        """Create a (possibly multi-layer) classification head.
-
-        If cfg.depth == 1, this is just a single Linear layer.
-        If cfg.depth > 1, it builds: Linear -> (Dropout) -> GELU -> ... -> Linear.
-        """
-
+        """Create a classification head (linear or MLP)."""
         layers: List[nn.Module] = []
 
         if cfg.depth <= 1:
@@ -97,7 +360,6 @@ class DinoV3Classifier(nn.Module):
                 layers.append(nn.GELU())
                 in_dim = cfg.hidden_dim
 
-            # Final classification layer
             layers.append(nn.Linear(in_dim, cfg.num_labels))
 
         return nn.Sequential(*layers)
@@ -107,20 +369,12 @@ class DinoV3Classifier(nn.Module):
         pixel_values: torch.Tensor,
         labels: Optional[torch.Tensor] = None,
     ) -> dict:
-        """Forward pass.
-
-        Returns a dict with at least `logits`. If `labels` are provided,
-        also returns `loss` (cross-entropy by default).
-        """
-
-        # Backbone forward: DINOv3 outputs last_hidden_state and optionally pooled output
+        """Forward pass through backbone + head."""
         outputs = self.backbone(pixel_values=pixel_values)
 
-        # Prefer pooled output if available; otherwise use CLS token from last_hidden_state
         if hasattr(outputs, "pooler_output") and outputs.pooler_output is not None:
             features = outputs.pooler_output
         else:
-            # Assume CLS token is at position 0
             features = outputs.last_hidden_state[:, 0]
 
         logits = self.classifier(features)

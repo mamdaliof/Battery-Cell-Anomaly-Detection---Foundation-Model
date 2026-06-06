@@ -1,4 +1,4 @@
-model_name: "facebook/dinov3-vitb16-pretrain-lvd1689m"  # DINOv3 backbone identifier on the Hugging Face Hub
+model_name: "google/vit-base-patch16-224"  # standard public ViT backbone for verification
 output_dir: "outputs"  # base directory where all experiment runs will be stored
 
 # Data configuration
@@ -38,6 +38,21 @@ head:
   hidden_dim: null  # not used when depth == 1
   dropout: 0.0  # no dropout for a quick test
 
+# PEFT Configuration
+peft:
+  type: "none"  # PEFT method: none, lora, adapter, visual_prompt
+  lora_r: 8
+  lora_alpha: 16
+  lora_dropout: 0.0
+  lora_target_modules: ["query", "value"]
+  lora_target_blocks: null
+  adapter_bottleneck_dim: 64
+  adapter_dropout: 0.0
+  adapter_target_blocks: null
+  vpt_num_tokens: 10
+  vpt_deep: false
+  vpt_target_blocks: null
+
 # Training hyperparameters
 num_epochs: 1  # single epoch for a fast sanity check
 batch_size: 4  # small batch size to reduce memory and speed up test
@@ -56,3 +71,11 @@ scheduler:
 amp:
   fp16: false  # AMP off for simpler debugging
   bf16: false  # AMP off for simpler debugging
+
+# Imbalance handling configuration
+imbalance:
+  loss_type: "cross_entropy"       # loss type: "cross_entropy", "focal"
+  class_weights: "none"            # class weights: "none", "balanced", "inverse"
+  focal_gamma: 2.0                 # gamma parameter for Focal Loss (used if loss_type is "focal")
+  focal_alpha: null                # alpha parameter for Focal Loss (used if loss_type is "focal")
+  oversampling_method: "none"      # oversampling method: "none", "weighted_sampler", "data_level"

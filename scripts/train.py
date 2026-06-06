@@ -15,15 +15,19 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 import shutil
+from dataclasses import asdict
+import os
 
 import torch
-from transformers import EarlyStoppingCallback, Trainer, TrainingArguments
+from transformers import EarlyStoppingCallback, TrainingArguments
 
 from bcadfm.data.dataset import BatteryCellDataset, build_augmentation_pipeline
 from bcadfm.metrics.cls_metrics import compute_cls_metrics
 from bcadfm.metrics.cls_callbacks import BeautifulLoggingCallback, SaveTwoBestClsModelsCallback
 from bcadfm.models.dinov3_classifier import DinoV3Classifier
+from bcadfm.training import ImbalanceTrainer
 from bcadfm.utils.config import TrainingConfig, load_yaml_config
+from bcadfm.utils.model_utils import log_parameter_summary
 
 
 def parse_args() -> argparse.Namespace:
@@ -61,12 +65,15 @@ def main() -> None:
     train_transform = build_augmentation_pipeline(cfg.data, split="train")
     val_transform = None
 
+    oversample_data = cfg.imbalance.oversampling_method == "data_level"
+
     train_dataset = BatteryCellDataset(
         split="train",
         data_config=cfg.data,
         model_name_or_path=cfg.model_name,
         transform=train_transform,
         image_size_override=cfg.data.image_size,
+        oversample=oversample_data,
     )
     eval_dataset = BatteryCellDataset(
         split="val",
@@ -80,11 +87,15 @@ def main() -> None:
     model = DinoV3Classifier(
         model_name_or_path=cfg.model_name,
         head_config=cfg.head,
+        peft_config=cfg.peft,
         freeze_backbone=True,
         id2label={0: "normal", 1: "abnormal"},
         label2id={"normal": 0, "abnormal": 1},
     )
     model.to(device)
+
+    # Log parameters summary
+    log_parameter_summary(model, "DinoV3Classifier")
 
     # Check preprocessor type and prepare logs
     is_official = train_dataset.processor is not None
@@ -93,7 +104,6 @@ def main() -> None:
         else "🛠️ Fallback manual torchvision preprocessor (DINOv3-style)"
     )
 
-    import os
     is_main_process = int(os.environ.get("LOCAL_RANK", "0")) == 0
     if is_main_process:
         print("\n" + "=" * 80)
@@ -130,19 +140,20 @@ def main() -> None:
         # in transformers 5.x, which conflict with this environment's API;
         # disable it for now and rely on num_epochs + custom callback.
         # EarlyStoppingCallback(
-        #     early_stopping_patience=cfg.early_stopping_patience,
+        #     early_stopping_pvariance=cfg.early_stopping_pvariance,
         # ),
         SaveTwoBestClsModelsCallback(run_dir=str(run_dir)),
         BeautifulLoggingCallback(),
     ]
 
-    trainer = Trainer(
+    trainer = ImbalanceTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         compute_metrics=compute_cls_metrics,
         callbacks=callbacks,
+        imbalance_config=asdict(cfg.imbalance),
     )
 
     train_result = trainer.train()

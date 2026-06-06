@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
 import random
+import os
 
 import torch
 from PIL import Image
@@ -19,27 +20,6 @@ from .config import DataConfig
 class ImageSample:
     image_path: Path
     label: int
-
-
-# def build_dinov3_base_transform(image_size: int = 518) -> T.Compose:
-#     """Fallback preprocessing for DINOv3-style models.
-# 
-#     Uses ImageNet-style normalization and a simple resize+center-crop pipeline.
-#     This is used only when the Hugging Face image processor cannot be loaded
-#     (e.g. for some DINOv3 checkpoints without a proper preprocessor_config).
-#     """
-# 
-#     return T.Compose(
-#         [
-#             T.Resize(image_size, interpolation=T.InterpolationMode.BICUBIC),
-#             T.CenterCrop(image_size),
-#             T.ToTensor(),
-#             T.Normalize(
-#                 mean=[0.485, 0.456, 0.406],
-#                 std=[0.229, 0.224, 0.225],
-#             ),
-#         ]
-#     )
 
 
 class BatteryCellDataset(Dataset):
@@ -65,6 +45,7 @@ class BatteryCellDataset(Dataset):
         model_name_or_path: str,
         transform: Optional[Callable] = None,
         image_size_override: Optional[int] = None,
+        oversample: bool = False,
     ) -> None:
         assert split in {"train", "val"}, f"Unsupported split: {split}"
         self.split = split
@@ -81,6 +62,9 @@ class BatteryCellDataset(Dataset):
 
         self.samples: List[ImageSample] = []
         self._collect_samples()
+
+        if split == "train" and oversample:
+            self.oversample_dataset()
 
         # Try to use the Hugging Face image processor first. For some models
         # (e.g. certain DINOv3 checkpoints), this can fail because the
@@ -121,6 +105,42 @@ class BatteryCellDataset(Dataset):
             self.samples.append(ImageSample(image_path=p, label=0))
         for p in abnormal_images:
             self.samples.append(ImageSample(image_path=p, label=1))
+
+    def oversample_dataset(self) -> None:
+        """Perform data-level minority class oversampling."""
+        class_counts = {}
+        for sample in self.samples:
+            class_counts[sample.label] = class_counts.get(sample.label, 0) + 1
+
+        if len(class_counts) <= 1:
+            return
+
+        max_size = max(class_counts.values())
+
+        grouped: Dict[int, List[ImageSample]] = {}
+        for sample in self.samples:
+            grouped.setdefault(sample.label, []).append(sample)
+
+        oversampled_samples: List[ImageSample] = []
+        for label, samples_list in grouped.items():
+            if len(samples_list) < max_size:
+                # Replicate minority class samples
+                replicated = random.choices(samples_list, k=max_size)
+                oversampled_samples.extend(replicated)
+            else:
+                oversampled_samples.extend(samples_list)
+
+        # Shuffle to mix classes
+        random.shuffle(oversampled_samples)
+
+        if int(os.environ.get("LOCAL_RANK", "0")) == 0:
+            print(f"🔄 Data-level oversampling applied. Sample counts changed from {class_counts} to:")
+            new_counts = {}
+            for s in oversampled_samples:
+                new_counts[s.label] = new_counts.get(s.label, 0) + 1
+            print(f"   => {new_counts}")
+
+        self.samples = oversampled_samples
 
     def __len__(self) -> int:  # type: ignore[override]
         return len(self.samples)
