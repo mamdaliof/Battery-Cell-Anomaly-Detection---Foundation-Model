@@ -15,7 +15,8 @@ def main():
         base_cfg: Dict[str, Any] = yaml.safe_load(f)
 
     # Apply updated global configs
-    base_cfg["data"]["data_dir"] = "cls_v1.0"
+    base_cfg["data"]["data_dir"] = "data/cls_v1.0"
+    base_cfg["data"]["abnormal_class_name"] = "abnormal"
     base_cfg["batch_size"] = 64
     base_cfg["num_epochs"] = 300
     base_cfg["early_stopping_patience"] = 20
