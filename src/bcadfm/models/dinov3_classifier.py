@@ -87,8 +87,10 @@ def apply_adapters(
         layers = backbone.model.layer
     elif hasattr(backbone, "layer"):
         layers = backbone.layer
+    elif hasattr(backbone, "layers"):
+        layers = backbone.layers
     else:
-        raise ValueError("Backbone model must have a layer attribute (encoder.layer, model.layer, or layer) to apply adapters.")
+        raise ValueError("Backbone model must have a layer attribute (encoder.layer, model.layer, layer, or layers) to apply adapters.")
 
     num_layers = len(layers)
     blocks_to_wrap = target_blocks if target_blocks is not None else list(range(num_layers))
@@ -160,8 +162,10 @@ class VptWrappedBackbone(nn.Module):
             self.layers = original_backbone.model.layer
         elif hasattr(original_backbone, "layer"):
             self.layers = original_backbone.layer
+        elif hasattr(original_backbone, "layers"):
+            self.layers = original_backbone.layers
         else:
-            raise ValueError("Backbone model must have a layer attribute (encoder.layer, model.layer, or layer) to apply VPT.")
+            raise ValueError("Backbone model must have a layer attribute (encoder.layer, model.layer, layer, or layers) to apply VPT.")
 
         num_layers = len(self.layers)
         self.target_layers = target_blocks if target_blocks is not None else list(range(num_layers))
