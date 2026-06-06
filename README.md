@@ -57,22 +57,18 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
     - AUROC.
     - Confusion matrix absolute counts: TN, FP, FN, TP.
 
-- **Imbalance handling (to be implemented)**
+- **Imbalance handling (Implemented)**
   - Class-weighted cross-entropy based on label frequencies.
-  - Focal loss as an alternative loss function.
-  - Potential data-level strategies (e.g. oversampling) via custom samplers or collators.
-  - All imbalance strategies will be toggled/configured via a central config file.
+  - Focal loss incorporating gamma and alpha coefficients.
+  - Dynamic dataset-level minority class oversampling (fully compatible with multi-GPU DDP training).
+  - Sampler-level oversampling (`WeightedRandomSampler`).
+  - Configured and activated through the central `imbalance` configuration section.
 
-- **Training stack**
-  - Use **Hugging Face Trainer** as the main training interface.
-  - Use `torchrun` for multi-GPU training with DistributedDataParallel (DDP); no custom low-level DDP loop is required.
-  - Initial experiments use a **frozen DINOv3 or ViT backbone** plus a **configurable classification head** as the baseline (no PEFT).
-
-- **PEFT plans (later stages)**
-  - Integrate PEFT methods such as **LoRA**, **adapters**, and **visual prompt tuning** on top of the backbone.
-  - LoRA will likely target selected attention/MLP modules (e.g. q/v or full qkv) and possibly only the last few transformer blocks.
-  - Visual prompt tuning will use learnable visual tokens prepended to patch embeddings.
-  - All PEFT hyperparameters (type, ranks, target blocks, number of prompt tokens, etc.) will be defined in configs.
+- **PEFT Integration (Implemented)**
+  - **LoRA**: Parameter-efficient fine-tuning via Hugging Face `peft` targeting specific attention projections (`q_proj`, `v_proj`).
+  - **Bottleneck Adapters**: Pfeiffer-style bottleneck adapters wrapping transformer feed-forward blocks.
+  - **Visual Prompt Tuning (VPT)**: Support for Shallow (input-level prompt parameters) and Deep (layer-wise prompt replacement wrappers) prompt tuning.
+  - Supports dynamic model structure routing (handles standard `encoder.layer`/`layers` and DINOv3's `model.layer` format).
 
 ## Dataset conversion and usage
 
