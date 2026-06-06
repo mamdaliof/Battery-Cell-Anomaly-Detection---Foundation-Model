@@ -44,6 +44,10 @@ class SaveTwoBestClsModelsCallback(TrainerCallback):
         self.best_f1 = float("-inf")
 
     def on_evaluate(self, args, state, control, metrics, **kwargs):  # type: ignore[override]
+        # Only save checkpoints on the main process to avoid DDP race conditions
+        if not state.is_world_process_zero:
+            return control
+
         model = kwargs.get("model")
         if model is None:
             return control
@@ -51,16 +55,58 @@ class SaveTwoBestClsModelsCallback(TrainerCallback):
         loss = metrics.get("eval_loss")
         f1 = metrics.get("eval_f1")
 
+        # Unwrap DDP wrapper to save clean state dicts
+        unwrapped_model = model.module if hasattr(model, "module") else model
+        state_dict = unwrapped_model.state_dict()
+
         # Save best by eval_loss (lower is better)
         if loss is not None and loss < self.best_loss:
             self.best_loss = loss
             path_loss = os.path.join(self.run_dir, self.config.filename_best_loss)
-            torch.save(model.state_dict(), path_loss)
+            torch.save(state_dict, path_loss)
 
         # Save best by eval_f1 (higher is better)
         if f1 is not None and f1 > self.best_f1:
             self.best_f1 = f1
             path_f1 = os.path.join(self.run_dir, self.config.filename_best_f1)
-            torch.save(model.state_dict(), path_f1)
+            torch.save(state_dict, path_f1)
 
+        return control
+
+
+class BeautifulLoggingCallback(TrainerCallback):
+    """Trainer callback to pretty-print metrics and evaluations in a human-friendly format."""
+
+    def on_log(self, args, state, control, logs=None, **kwargs):  # type: ignore[override]
+        if not state.is_world_process_zero:
+            return control
+
+        if logs:
+            if "loss" in logs:
+                epoch = logs.get("epoch", 0.0)
+                step = state.global_step
+                loss = logs["loss"]
+                lr = logs.get("learning_rate", 0.0)
+                print(f"📈 [Epoch {epoch:.2f} | Step {step}] Loss: {loss:.4f} | LR: {lr:.2e}")
+        return control
+
+    def on_evaluate(self, args, state, control, metrics=None, **kwargs):  # type: ignore[override]
+        if not state.is_world_process_zero:
+            return control
+
+        if metrics:
+            print("\n📊 EVALUATION RESULTS:")
+            print("─" * 50)
+            for k, v in sorted(metrics.items()):
+                if k.startswith("eval_"):
+                    name = k[5:].replace("_", " ").title()
+                    # Check if v is float and check for NaN (v != v)
+                    if isinstance(v, float):
+                        if v != v:
+                            print(f"  🔹 {name:<25}: NaN")
+                        else:
+                            print(f"  🔹 {name:<25}: {v:.4f}")
+                    else:
+                        print(f"  🔹 {name:<25}: {v}")
+            print("─" * 50 + "\n")
         return control

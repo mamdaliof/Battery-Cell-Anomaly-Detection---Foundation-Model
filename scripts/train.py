@@ -21,7 +21,7 @@ from transformers import EarlyStoppingCallback, Trainer, TrainingArguments
 
 from bcadfm.data.dataset import BatteryCellDataset, build_augmentation_pipeline
 from bcadfm.metrics.cls_metrics import compute_cls_metrics
-from bcadfm.metrics.cls_callbacks import SaveTwoBestClsModelsCallback
+from bcadfm.metrics.cls_callbacks import BeautifulLoggingCallback, SaveTwoBestClsModelsCallback
 from bcadfm.models.dinov3_classifier import DinoV3Classifier
 from bcadfm.utils.config import TrainingConfig, load_yaml_config
 
@@ -86,6 +86,24 @@ def main() -> None:
     )
     model.to(device)
 
+    # Check preprocessor type and prepare logs
+    is_official = train_dataset.processor is not None
+    preprocessor_str = (
+        "🤖 Official Hugging Face AutoImageProcessor" if is_official
+        else "🛠️ Fallback manual torchvision preprocessor (DINOv3-style)"
+    )
+
+    is_main_process = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+    if is_main_process:
+        print("\n" + "=" * 80)
+        print("🚀 STARTING TRAINING PIPELINE")
+        print("=" * 80)
+        print(f"📄 Config: {args.config}")
+        print(f"📦 Model:  {cfg.model_name}")
+        print(f"📂 Output: {run_dir}")
+        print(f"⚙️ Preprocessor: {preprocessor_str}")
+        print("=" * 80 + "\n")
+
     # Training arguments (scheduler + AMP included)
     # For transformers 5.x in this environment, we rely on default eval/save
     # strategies and let the custom callback handle best model saving.
@@ -114,6 +132,7 @@ def main() -> None:
         #     early_stopping_patience=cfg.early_stopping_patience,
         # ),
         SaveTwoBestClsModelsCallback(run_dir=str(run_dir)),
+        BeautifulLoggingCallback(),
     ]
 
     trainer = Trainer(
@@ -125,7 +144,18 @@ def main() -> None:
         callbacks=callbacks,
     )
 
-    trainer.train()
+    train_result = trainer.train()
+
+    if is_main_process:
+        metrics = train_result.metrics
+        print("\n" + "=" * 80)
+        print("🎉 TRAINING COMPLETED SUCCESSFULLY")
+        print("=" * 80)
+        print(f"⏱️ Runtime:            {metrics.get('train_runtime', 0.0):.2f} seconds")
+        print(f"📊 Samples/sec:        {metrics.get('train_samples_per_second', 0.0):.2f}")
+        print(f"📉 Final Train Loss:   {metrics.get('train_loss', 0.0):.4f}")
+        print(f"🔁 Total Epochs:       {metrics.get('epoch', 0.0):.1f}")
+        print("=" * 80 + "\n")
 
     if torch.distributed.is_initialized():
         torch.distributed.destroy_process_group()
