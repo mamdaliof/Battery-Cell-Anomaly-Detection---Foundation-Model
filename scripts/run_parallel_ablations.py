@@ -117,11 +117,12 @@ def main():
         while pending or running_jobs:
             # 1. Clean up completed processes
             finished_gpus = []
-            for gpu_idx, (proc, cfg_name) in running_jobs.items():
+            for gpu_idx, (proc, cfg_name, log_file) in running_jobs.items():
                 ret = proc.poll()
                 if ret is not None:
                     # Process completed
                     finished_gpus.append(gpu_idx)
+                    log_file.close()  # Close the file descriptor
                     if ret == 0:
                         print(f"✅ [GPU {gpu_idx}] Completed: {cfg_name}")
                     else:
@@ -150,15 +151,21 @@ def main():
                 env["CUDA_VISIBLE_DEVICES"] = str(gpu_idx)
                 env["PYTHONPATH"] = f"{os.getcwd()}/src:" + env.get("PYTHONPATH", "")
 
+                # Create log file for this config
+                log_dir = Path("outputs/logs")
+                log_dir.mkdir(parents=True, exist_ok=True)
+                log_file_path = log_dir / f"{cfg_path.stem}.log"
+                log_file = open(log_file_path, "w")
+
                 # Run process
                 cmd = ["python3", "scripts/train.py", "--config", str(cfg_path)]
                 proc = subprocess.Popen(
                     cmd,
                     env=env,
-                    stdout=subprocess.DEVNULL, # keep stdout/stderr quiet to avoid interleaving; metrics are saved in files
-                    stderr=subprocess.DEVNULL
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT
                 )
-                running_jobs[gpu_idx] = (proc, cfg_name)
+                running_jobs[gpu_idx] = (proc, cfg_name, log_file)
 
             # 4. Wait a bit before checking again
             if pending or running_jobs:
@@ -166,9 +173,10 @@ def main():
 
     except KeyboardInterrupt:
         print("\n🛑 KeyboardInterrupt received! Terminating all running training processes...")
-        for gpu_idx, (proc, cfg_name) in running_jobs.items():
+        for gpu_idx, (proc, cfg_name, log_file) in running_jobs.items():
             print(f"💀 Killing training on GPU {gpu_idx}: {cfg_name}")
             proc.terminate()
+            log_file.close()
             try:
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
