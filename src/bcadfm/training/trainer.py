@@ -96,22 +96,23 @@ class ImbalanceTrainer(Trainer):
         else:
             raise ValueError(f"Unsupported loss_type: {loss_type}")
 
-    def _get_train_sampler(self) -> torch.utils.data.Sampler | None:
-        if self.train_dataset is None:
+    def _get_train_sampler(self, *args, **kwargs) -> torch.utils.data.Sampler | None:
+        dataset = args[0] if args else kwargs.get("dataset", self.train_dataset)
+        if dataset is None:
             return None
 
         oversampling_method = self.imbalance_config.get("oversampling_method", "none")
         if oversampling_method == "weighted_sampler":
             labels = self._get_train_labels()
             if not labels:
-                return super()._get_train_sampler()
+                return super()._get_train_sampler(*args, **kwargs)
 
             class_counts = {}
             for l in labels:
                 class_counts[l] = class_counts.get(l, 0) + 1
 
             if len(class_counts) <= 1:
-                return super()._get_train_sampler()
+                return super()._get_train_sampler(*args, **kwargs)
 
             # Compute balanced weights specifically for sampler
             weights_tensor = compute_class_weights(class_counts, method="balanced")
@@ -137,7 +138,7 @@ class ImbalanceTrainer(Trainer):
                 generator=generator,
             )
 
-        return super()._get_train_sampler()
+        return super()._get_train_sampler(*args, **kwargs)
 
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
         """Compute loss using custom loss function and imbalance strategies."""
