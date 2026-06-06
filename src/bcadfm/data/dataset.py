@@ -173,44 +173,37 @@ def build_augmentation_pipeline(config: DataConfig, split: str) -> Optional[Call
     if split != "train" or not config.augmentations_enabled:
         return None
 
+    import numpy as np
+
     # Base transforms (individual ops)
+    # ── Fix: build transform objects ONCE here, not inside the closure ──────
     ops: List[tuple[str, float, Callable[[Image.Image], Image.Image]]] = []
 
     # Random resized crop
-    def rnd_resized_crop_op(img: Image.Image) -> Image.Image:
-        return T.RandomResizedCrop(
+    if config.random_resized_crop_prob > 0:
+        _crop = T.RandomResizedCrop(
             size=config.image_size or 224,
             scale=config.random_resized_crop_scale,
             ratio=config.random_resized_crop_ratio,
-        )(img)
-
-    if config.random_resized_crop_prob > 0:
+        )
+        def rnd_resized_crop_op(img: Image.Image, _t=_crop) -> Image.Image:
+            return _t(img)
         ops.append(("random_resized_crop", config.random_resized_crop_prob, rnd_resized_crop_op))
 
     # Horizontal flip
-    def hflip_op(img: Image.Image) -> Image.Image:
-        return T.functional.hflip(img)
-
     if config.horizontal_flip_prob > 0:
+        def hflip_op(img: Image.Image) -> Image.Image:
+            return T.functional.hflip(img)
         ops.append(("horizontal_flip", config.horizontal_flip_prob, hflip_op))
 
     # Rotation
-    def rotate_op(img: Image.Image) -> Image.Image:
-        return T.RandomRotation(degrees=config.rotation_degrees)(img)
-
     if config.rotation_prob > 0 and config.rotation_degrees > 0:
+        _rotate = T.RandomRotation(degrees=config.rotation_degrees)
+        def rotate_op(img: Image.Image, _t=_rotate) -> Image.Image:
+            return _t(img)
         ops.append(("rotation", config.rotation_prob, rotate_op))
 
-    # Color jitter (approximates HSV adjustments)
-    def color_jitter_op(img: Image.Image) -> Image.Image:
-        cj = T.ColorJitter(
-            brightness=config.color_jitter_brightness,
-            contrast=config.color_jitter_contrast,
-            saturation=config.color_jitter_saturation,
-            hue=config.color_jitter_hue,
-        )
-        return cj(img)
-
+    # Color jitter
     if config.color_jitter_prob > 0 and any(
         x > 0
         for x in [
@@ -220,23 +213,25 @@ def build_augmentation_pipeline(config: DataConfig, split: str) -> Optional[Call
             config.color_jitter_hue,
         ]
     ):
+        _cj = T.ColorJitter(
+            brightness=config.color_jitter_brightness,
+            contrast=config.color_jitter_contrast,
+            saturation=config.color_jitter_saturation,
+            hue=config.color_jitter_hue,
+        )
+        def color_jitter_op(img: Image.Image, _t=_cj) -> Image.Image:
+            return _t(img)
         ops.append(("color_jitter", config.color_jitter_prob, color_jitter_op))
 
     # Gaussian noise
-    class AddGaussianNoise:
-        def __init__(self, std: float) -> None:
-            self.std = std
-
-        def __call__(self, img: Image.Image) -> Image.Image:
-            t = T.ToTensor()(img)
-            noise = torch.randn_like(t) * self.std
-            t = torch.clamp(t + noise, 0.0, 1.0)
-            return T.ToPILImage()(t)
-
-    def noise_op(img: Image.Image) -> Image.Image:
-        return AddGaussianNoise(config.gaussian_noise_std)(img)
-
+    # ── Fix: use NumPy to avoid PIL→Tensor→PIL round-trip ───────────────────
     if config.gaussian_noise_prob > 0 and config.gaussian_noise_std > 0:
+        _noise_std = float(config.gaussian_noise_std)
+        def noise_op(img: Image.Image, _std=_noise_std) -> Image.Image:
+            arr = np.array(img, dtype=np.float32) / 255.0
+            arr += np.random.randn(*arr.shape).astype(np.float32) * _std
+            arr = np.clip(arr * 255.0, 0.0, 255.0).astype(np.uint8)
+            return Image.fromarray(arr)
         ops.append(("gaussian_noise", config.gaussian_noise_prob, noise_op))
 
     if not ops:

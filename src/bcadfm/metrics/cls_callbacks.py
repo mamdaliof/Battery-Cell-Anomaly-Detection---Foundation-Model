@@ -55,21 +55,23 @@ class SaveTwoBestClsModelsCallback(TrainerCallback):
         loss = metrics.get("eval_loss")
         f1 = metrics.get("eval_f1")
 
-        # Unwrap DDP wrapper to save clean state dicts
-        unwrapped_model = model.module if hasattr(model, "module") else model
-        state_dict = unwrapped_model.state_dict()
+        improved_loss = loss is not None and loss < self.best_loss
+        improved_f1   = f1  is not None and f1  > self.best_f1
 
-        # Save best by eval_loss (lower is better)
-        if loss is not None and loss < self.best_loss:
-            self.best_loss = loss
-            path_loss = os.path.join(self.run_dir, self.config.filename_best_loss)
-            torch.save(state_dict, path_loss)
+        # Only pay the cost of state_dict() when at least one metric improved
+        if improved_loss or improved_f1:
+            unwrapped_model = model.module if hasattr(model, "module") else model
+            state_dict = unwrapped_model.state_dict()   # one copy, shared if both improve
 
-        # Save best by eval_f1 (higher is better)
-        if f1 is not None and f1 > self.best_f1:
-            self.best_f1 = f1
-            path_f1 = os.path.join(self.run_dir, self.config.filename_best_f1)
-            torch.save(state_dict, path_f1)
+            if improved_loss:
+                self.best_loss = loss
+                path_loss = os.path.join(self.run_dir, self.config.filename_best_loss)
+                torch.save(state_dict, path_loss)
+
+            if improved_f1:
+                self.best_f1 = f1
+                path_f1 = os.path.join(self.run_dir, self.config.filename_best_f1)
+                torch.save(state_dict, path_f1)
 
         return control
 

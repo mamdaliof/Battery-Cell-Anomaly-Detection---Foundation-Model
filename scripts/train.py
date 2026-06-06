@@ -92,7 +92,8 @@ def main() -> None:
         id2label={0: "normal", 1: "abnormal"},
         label2id={"normal": 0, "abnormal": 1},
     )
-    model.to(device)
+    # Note: model.to(device) is intentionally omitted — the HF Trainer
+    # manages device placement internally.
 
     # Log parameters summary
     log_parameter_summary(model, "DinoV3Classifier")
@@ -123,7 +124,10 @@ def main() -> None:
         per_device_eval_batch_size=cfg.batch_size,
         learning_rate=cfg.learning_rate,
         lr_scheduler_type=cfg.scheduler.lr_scheduler_type,
-        warmup_ratio=cfg.scheduler.warmup_ratio,
+        # Compute warmup_steps from actual dataset size (warmup_ratio is deprecated in v5.2)
+        warmup_steps=int(
+            (len(train_dataset) / cfg.batch_size) * cfg.num_epochs * cfg.scheduler.warmup_ratio
+        ),
         # ── Evaluation & checkpointing: once per epoch ─────────────────────
         eval_strategy="epoch",
         save_strategy="epoch",
