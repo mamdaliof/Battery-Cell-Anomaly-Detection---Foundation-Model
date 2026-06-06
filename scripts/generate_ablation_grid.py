@@ -35,8 +35,8 @@ def main():
 
     # Swept models
     models = [
-        ("vits14", "facebook/dinov3-vits14-pretrain-lvd1689m"),
-        ("vitb14", "facebook/dinov3-vitb14-pretrain-lvd1689m")
+        ("vits16", "facebook/dinov3-vits16-pretrain-lvd1689m"),
+        ("vitb16", "facebook/dinov3-vitb16-pretrain-lvd1689m")
     ]
 
     # 1. Baseline Runs (2 runs: Small, Base)
