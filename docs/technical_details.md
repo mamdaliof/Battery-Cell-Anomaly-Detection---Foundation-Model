@@ -138,6 +138,12 @@ Constructs custom training transforms. Builds `RandomAugmentationCombo` which im
 2. Limit count: sample up to `aug_max_transforms` unique operations.
 3. Order-stable sequential application.
 
+### ⚙️ 2.5. Scheduler & Hyperparameter Config (`src/bcadfm/utils/config.py`)
+
+Handles configuration parsing and routing for learning rate schedulers and warmup:
+- **`SchedulerConfig`**: Contains `lr_scheduler_type` (e.g. `"cosine"`, `"linear"`) and `warmup_ratio` (percentage of total steps for linear warmup, e.g. `0.1`).
+- **Warmup and Decay Integration**: The `warmup_ratio` is routed directly to the Hugging Face `TrainingArguments` in `scripts/train.py`. The trainer dynamically calculates the exact number of warmup steps based on epochs, batch size, and GPU count, applying a linear warmup followed by the selected decay schedule (such as cosine decay).
+
 ---
 
 ## 📐 3. PEFT Methods: Theory & Architecture

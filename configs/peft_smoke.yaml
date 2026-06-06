@@ -67,8 +67,8 @@ greater_is_better: true
 
 # Learning rate scheduler configuration
 scheduler:
-  lr_scheduler_type: "linear"
-  warmup_ratio: 0.0
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.1
 
 # Automatic mixed precision (AMP) configuration
 amp:

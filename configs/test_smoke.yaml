@@ -64,8 +64,8 @@ greater_is_better: true  # higher F1 is better
 
 # Learning rate scheduler configuration
 scheduler:
-  lr_scheduler_type: "linear"  # simple linear scheduler for test
-  warmup_ratio: 0.0  # no warmup for the test run
+  lr_scheduler_type: "cosine"  # cosine scheduler with warmup
+  warmup_ratio: 0.1  # warmup ratio
 
 # Automatic mixed precision (AMP) configuration
 amp:

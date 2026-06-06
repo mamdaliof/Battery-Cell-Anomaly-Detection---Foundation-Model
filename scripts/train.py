@@ -125,7 +125,7 @@ def main() -> None:
         per_device_eval_batch_size=cfg.batch_size,
         learning_rate=cfg.learning_rate,
         lr_scheduler_type=cfg.scheduler.lr_scheduler_type,
-        warmup_steps=0,
+        warmup_ratio=cfg.scheduler.warmup_ratio,
         load_best_model_at_end=False,
         metric_for_best_model=cfg.metric_for_best,
         remove_unused_columns=False,

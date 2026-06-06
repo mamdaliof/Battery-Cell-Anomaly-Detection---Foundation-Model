@@ -64,8 +64,8 @@ greater_is_better: false  # set to true if higher metric values are better (e.g.
 
 # Learning rate scheduler configuration
 scheduler:
-  lr_scheduler_type: "linear"  # type of learning rate scheduler: linear, cosine, cosine_with_restarts, constant, etc.
-  warmup_ratio: 0.0  # fraction of total training steps used for linear warmup of the learning rate
+  lr_scheduler_type: "cosine"  # type of learning rate scheduler: linear, cosine, cosine_with_restarts, constant, etc.
+  warmup_ratio: 0.1  # fraction of total training steps used for linear warmup of the learning rate
 
 # Automatic mixed precision (AMP) configuration
 amp:

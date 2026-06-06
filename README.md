@@ -44,7 +44,7 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
     - Classification head settings (`HeadConfig`).
     - Training hyperparameters: epochs, batch size, learning rate.
     - Best model selection via a custom callback that saves both `best_loss.pt` and `best_f1.pt`.
-    - Learning rate scheduler (`lr_scheduler_type`, `warmup_steps`).
+    - Learning rate scheduler (`lr_scheduler_type`, `warmup_ratio`).
     - Automatic mixed precision (`fp16`, `bf16`) when GPUs are available.
   - Each training run creates a unique run directory `outputs/{task_name}__{model_name}/{timestamp}/` and copies the used YAML config into that directory as `config.yaml` for reproducibility.
 
