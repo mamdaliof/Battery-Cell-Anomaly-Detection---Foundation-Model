@@ -56,8 +56,8 @@ peft:
   lora_r: 16
   lora_target_blocks: null
   lora_target_modules:
-  - query
-  - value
+  - q_proj
+  - v_proj
   type: lora
   vpt_deep: false
   vpt_num_tokens: 10

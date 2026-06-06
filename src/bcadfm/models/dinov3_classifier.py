@@ -317,7 +317,7 @@ class DinoV3Classifier(nn.Module):
                 target_blocks = peft_config.get("lora_target_blocks", None)
 
             if target_modules is None:
-                target_modules = ["query", "value"]
+                target_modules = ["q_proj", "v_proj"]
 
             lora_kwargs = {
                 "r": r,
