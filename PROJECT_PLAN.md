@@ -152,4 +152,126 @@ This project uses DINOv3 vision transformers as a frozen backbone and fine-tunes
 - [ ] Experiment with partially unfreezing the top-most layers of the backbone (e.g., last 2 blocks) alongside PEFT.
 - [ ] Integrate hyperparameter search for learning rate, LoRA rank, and focal loss parameters.
 
+---
+
+## YOLO26 + DINOv3 (ViTDet) & Custom Loss Implementation Details
+
+### 1. ViTDet-Style Simple Feature Pyramid (SFP) Wrapper Design
+Based on Detectron2's `SimpleFeaturePyramid` implementation:
+- **`DinoV3Backbone`**:
+  - Load the DINOv3 model (`facebook/dinov3-vitb16-pretrain-lvd1689m`).
+  - Extract the patch tokens from the final encoder layer.
+  - Reshape from `(B, H_patch * W_patch, D)` to 2D feature grid `(B, D, H_patch, W_patch)`.
+- **`DinoV3SFP_P3` (Stride 8)**:
+  - Input: `(B, D, H_patch, W_patch)` (stride 16 relative to input).
+  - Layers:
+    - `nn.ConvTranspose2d(D, D // 2, kernel_size=2, stride=2)` -> Stride 8.
+    - `nn.LayerNorm` (or `BatchNorm2d`) + `nn.GELU()`.
+    - `nn.Conv2d(D // 2, out_channels, kernel_size=1)` (project to neck channel dimension, e.g., 256).
+    - `nn.LayerNorm` (or `BatchNorm2d`).
+    - `nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)` (spatial smoothing).
+    - `nn.LayerNorm` (or `BatchNorm2d`).
+- **`DinoV3SFP_P4` (Stride 16)**:
+  - Input: `(B, D, H_patch, W_patch)` (stride 16).
+  - Layers:
+    - `nn.Conv2d(D, out_channels, kernel_size=1)` (channel projection, e.g., 512).
+    - `nn.LayerNorm` (or `BatchNorm2d`).
+    - `nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)` (spatial smoothing).
+    - `nn.LayerNorm` (or `BatchNorm2d`).
+- **`DinoV3SFP_P5` (Stride 32)**:
+  - Input: `(B, D, H_patch, W_patch)` (stride 16).
+  - Layers:
+    - `nn.MaxPool2d(kernel_size=2, stride=2)` -> Stride 32.
+    - `nn.Conv2d(D, out_channels, kernel_size=1)` (channel projection, e.g., 1024).
+    - `nn.LayerNorm` (or `BatchNorm2d`).
+    - `nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)` (spatial smoothing).
+    - `nn.LayerNorm` (or `BatchNorm2d`).
+
+### 2. Dynamic Namespace Patching (Monkey-Patching)
+To register the custom layers inside the `ultralytics` package without altering vendor code:
+```python
+import ultralytics.nn.tasks
+from src.bcadfm.models.yolo_dino import DinoV3Backbone, DinoV3SFP_P3, DinoV3SFP_P4, DinoV3SFP_P5
+
+# Dynamically inject the custom classes into the globals of ultralytics.nn.tasks
+# so that eval("DinoV3Backbone") resolves correctly during YAML configuration parsing.
+setattr(ultralytics.nn.tasks, "DinoV3Backbone", DinoV3Backbone)
+setattr(ultralytics.nn.tasks, "DinoV3SFP_P3", DinoV3SFP_P3)
+setattr(ultralytics.nn.tasks, "DinoV3SFP_P4", DinoV3SFP_P4)
+setattr(ultralytics.nn.tasks, "DinoV3SFP_P5", DinoV3SFP_P5)
+```
+
+### 3. Custom Loss Integration (Class Imbalance Handling)
+To apply class weighting or focal loss within the YOLO26 training pipeline:
+- **`YOLODetectionLoss`**:
+  - Subclasses the standard Ultralytics detection loss class.
+  - Overrides the classification loss component (typically computed using `nn.BCEWithLogitsLoss`) to inject custom class weights or focal loss parameters.
+- **`YOLODetectionTrainer`**:
+  - Inherits from `ultralytics.models.yolo.detect.DetectionTrainer`.
+  - Overrides `init_criterion(self)` to return our custom `YOLODetectionLoss`.
+- **Training Invocation**:
+  - Pass the custom trainer class explicitly to `model.train()`:
+    ```python
+    model = YOLO("configs/yolo26_dino.yaml")
+    model.train(data="data/battery_detection.yaml", trainer=YOLODetectionTrainer, ...)
+    ```
+
+---
+
+## Object Detection Pipeline (YOLO26 + DINOv3) TODOs
+
+### Sub-Task 1: Dynamic Module Registration & Env Verification
+- [x] **Conceptualize dynamic registration wrapper**: Map custom modules to the `ultralytics.nn.tasks` namespace at runtime to avoid modifying vendor code. (Done)
+- [x] **Conceptualize verification script layout**: Structure a mock script that loads a dummy YAML configuration to verify layer instantiation. (Done)
+- [ ] Implement the dynamic module registration helper in `src/bcadfm/utils/yolo_utils.py`.
+- [ ] Implement the registration verification script in `scripts/test_yolo_registration.py`.
+- [ ] Execute `python scripts/test_yolo_registration.py` and resolve any package import or runtime configuration issues.
+
+### Sub-Task 2: DinoV3 & SFP PyTorch Modules
+- [x] **Conceptualize DinoV3Backbone**: Design patch token sequence extraction, CLS token removal, and 2D tensor reshaping. (Done)
+- [x] **Conceptualize DinoV3SFP_P3/P4/P5 Layers**: Design stride-8, stride-16, and stride-32 convolutional/pooling modules with Channel-wise GroupNorm (as LayerNorm) and spatial smoothing blocks. (Done)
+- [ ] Implement `DinoV3Backbone` module in `src/bcadfm/models/yolo_dino.py`.
+- [ ] Implement `DinoV3SFP_P3`, `DinoV3SFP_P4`, and `DinoV3SFP_P5` modules in `src/bcadfm/models/yolo_dino.py`.
+- [ ] Write shapes unit tests in `tests/test_yolo_shapes.py` to ensure feature maps align with strides 8, 16, and 32 on a $640 \times 640$ input tensor.
+
+### Sub-Task 3: Custom YOLO26 Config (configs/yolo26_dino.yaml)
+- [x] **Conceptualize custom network architecture mapping**: Map custom backbone layers (P3, P4, P5 at layers 1, 2, 3) to neck upsamplers, concats, and detection heads. (Done)
+- [ ] Write the custom network architecture YAML file `configs/yolo26_dino.yaml`.
+- [ ] Verify initialization by loading the configuration via the Ultralytics model class (`model = YOLO("configs/yolo26_dino.yaml")`) in a validation script.
+
+### Sub-Task 4: Custom Loss and Trainer (Imbalance Handling)
+- [x] **Conceptualize custom loss subclassing**: Design class-weighted BCE / Focal Loss integration in YOLO detection loss. (Done)
+- [x] **Conceptualize custom trainer subclassing**: Design custom trainer overriding `init_criterion` to inject weighted detection loss. (Done)
+- [ ] Implement `YOLODetectionLoss` in `src/bcadfm/training/losses_yolo.py`.
+- [ ] Implement `YOLODetectionTrainer` in `src/bcadfm/training/trainer_yolo.py`.
+- [ ] Create dataset yaml `data/battery_detection.yaml` referencing train/val splits.
+
+### Sub-Task 5: Training Pipeline & Ablations
+- [x] **Conceptualize DDP training execution**: Design script with multi-process dynamic module registration and argument parsers for multi-GPU training. (Done)
+- [x] **Conceptualize ablation study configurations**: Detail the training recipes for standard YOLO26, YOLO26 + DINOv3 + SFP, and YOLO26 + DINOv3-LoRA + SFP. (Done)
+- [ ] Implement training script `scripts/train_yolo.py`.
+- [ ] Run standard YOLO26 baseline.
+- [ ] Run YOLO26 + Frozen DINOv3 + SFP.
+- [ ] Run YOLO26 + Fine-Tuned DINOv3 (LoRA) + SFP.
+- [ ] Log and compare mAP@0.5 and abnormal class F1 metrics across all runs.
+
+---
+
+## Ablation Analysis & Visualization (Classification & Detection) TODOs
+
+### Step 1: Folder Completion Checker & Configuration Comparer
+- [x] **Conceptualize folder scan & configuration comparer**: Design logic to detect incomplete runs (missing `DONE` files) and compile parameters from `config.yaml` files. (Done)
+- [ ] Implement `scripts/check_runs.py` to identify incomplete folders, list completed runs, and output a summary of completed hyperparameters.
+
+### Step 2: Interactive Jupyter Notebook Visualizer
+- [x] **Conceptualize Jupyter notebook visualizer**: Design `ipywidgets` + `plotly` selection logic to select and display metrics interactively inside a notebook. (Done)
+- [ ] Create `notebooks/visualize_results.ipynb` containing the interactive training curves and leaderboard tables.
+
+### Step 3: Streamlit Web Visualizer Enhancement (`visualize.py`)
+- [x] **Conceptualize Streamlit/Plotly visualizer enhancements**: Compare with the existing `visualize.py` code, and outline updates to handle Hugging Face `trainer_state.json` formats, anomaly-specific metrics (F1, AUROC, confusion matrix counts), and PEFT configs. (Done)
+- [ ] Refactor `visualize.py` at the root of the project to add native support for Hugging Face trainer files, PEFT parameters, and battery anomaly detection metrics.
+
+
+
+
 
