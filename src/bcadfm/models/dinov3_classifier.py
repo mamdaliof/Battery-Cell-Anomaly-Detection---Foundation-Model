@@ -222,21 +222,57 @@ class VptWrappedBackbone(nn.Module):
         prompts = self.prompt.expand(batch_size, -1, -1)
         x = torch.cat([cls_token, prompts, patch_tokens], dim=1)
 
-        # 3. Pass through encoder
+        # 3. Pass through encoder or layers sequentially
         if hasattr(self.original_backbone, "encoder"):
             encoder_module = self.original_backbone.encoder
+            encoder_outputs = encoder_module(
+                x,
+                head_mask=head_mask,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
         elif hasattr(self.original_backbone, "model") and hasattr(self.original_backbone.model, "encoder"):
             encoder_module = self.original_backbone.model.encoder
+            encoder_outputs = encoder_module(
+                x,
+                head_mask=head_mask,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
         else:
-            raise ValueError("Could not find encoder module in backbone.")
-
-        encoder_outputs = encoder_module(
-            x,
-            head_mask=head_mask,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
+            # Fallback: execute layers sequentially
+            hidden_states = x
+            all_hidden_states = () if output_hidden_states else None
+            all_self_attentions = () if output_attentions else None
+            
+            for i, layer_module in enumerate(self.layers):
+                if output_hidden_states:
+                    all_hidden_states = all_hidden_states + (hidden_states,)
+                
+                layer_outputs = layer_module(
+                    hidden_states,
+                    head_mask[i] if head_mask is not None else None,
+                    output_attentions=output_attentions,
+                )
+                
+                if isinstance(layer_outputs, tuple):
+                    hidden_states = layer_outputs[0]
+                    if output_attentions:
+                        all_self_attentions = all_self_attentions + (layer_outputs[1],)
+                else:
+                    hidden_states = layer_outputs
+            
+            if output_hidden_states:
+                all_hidden_states = all_hidden_states + (hidden_states,)
+                
+            from transformers.modeling_outputs import BaseModelOutput
+            encoder_outputs = BaseModelOutput(
+                last_hidden_state=hidden_states,
+                hidden_states=all_hidden_states,
+                attentions=all_self_attentions,
+            )
 
         if isinstance(encoder_outputs, tuple):
             return encoder_outputs

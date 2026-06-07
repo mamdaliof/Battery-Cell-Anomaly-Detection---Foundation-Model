@@ -50,7 +50,7 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
   - **Efficient augmentations**: Gaussian noise augmentation uses direct **NumPy array injection**, avoiding costly PIL↔Tensor round-trips.
   - **Deferred checkpointing**: `state_dict()` is only called inside callbacks when an actual metric improvement is detected, reducing unnecessary I/O overhead.
   - **Evaluation & saving**: `eval_strategy='epoch'` and `save_strategy='epoch'` are configured and working correctly; `EarlyStoppingCallback` is currently disabled.
-  - Each training run creates a unique run directory `outputs/{task_name}__{model_name}/{timestamp}/` and copies the used YAML config into that directory as `config.yaml` for reproducibility.
+  - Each training run creates a unique run directory `outputs/{task_name}__{safe_model_name}__{cfg_stem}/{timestamp}/` to prevent concurrent folder write collisions when running parallel GPU runs, and copies the used YAML config into that directory as `config.yaml` for reproducibility.
 
 - **📊 Metrics and objective**
   - Target task: binary classification (normal vs abnormal) on highly imbalanced battery cell data.
@@ -74,6 +74,7 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
   - **Bottleneck Adapters**: Pfeiffer-style bottleneck adapters wrapping transformer feed-forward blocks.
   - **Visual Prompt Tuning (VPT)**: Support for Shallow (input-level prompt parameters) and Deep (layer-wise prompt replacement wrappers) prompt tuning.
   - Supports dynamic model structure routing (handles standard `encoder.layer`/`layers` and DINOv3's `model.layer` format).
+  - VPT (Visual Prompt Tuning) includes a sequential block execution fallback for architectures without a nested `encoder` module (such as DINOv3).
 
 - **🖥️ Parallel Training Dashboard**
   - `run_parallel_ablations.py` manages a job queue distributed across **8 GPUs**.
@@ -260,6 +261,7 @@ A more detailed project specification and TODO list is maintained in [`PROJECT_P
 Additional documentation resources:
 
 - 📓 **Dev logs**: Detailed development logs are maintained in the [`devlogs/`](./devlogs/) directory.
+  - [`devlogs/DEVLOG_VPT_FIX_AND_COLLISION_RESOLUTION.md`](./devlogs/DEVLOG_VPT_FIX_AND_COLLISION_RESOLUTION.md) (VPT compatibility & run directory collision fix)
 - 📘 **Technical reference**: In-depth implementation details are documented in [`docs/technical_details.md`](./docs/technical_details.md).
 - 📊 **PEFT & imbalance report**: Integration analysis and results are captured in [`PEFT_IMBALANCE_REPORT.md`](./PEFT_IMBALANCE_REPORT.md).
 

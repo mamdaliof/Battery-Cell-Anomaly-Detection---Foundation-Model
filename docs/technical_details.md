@@ -457,6 +457,13 @@ graph TD
 | **Resume support** | Skips configs with existing completed output directories |
 | **Graceful shutdown** | `Ctrl+C` handler terminates all subprocesses cleanly |
 
+#### Output Directory Collision Resolution
+
+When executing multiple parallel ablation runs concurrently, a race condition occurred where concurrent runs generated identical seconds-level timestamps. This caused directory name clashes, resulting in file access conflicts and `SafetensorError: I/O error` failures when attempting to save or load checkpoints.
+
+To resolve this, output directories are now isolated by appending the original configuration file's stem (`__cfg_stem`) before the timestamp:
+`outputs/cls__<safe_model_name>__<cfg_stem>/<timestamp>`
+
 #### Dashboard Display
 
 Each of the 8 lines displays:
@@ -519,3 +526,12 @@ for attr in ["encoder.layer", "model.layer", "layer", "layers"]:
 ```
 
 This ensures compatibility across standard ViT (`encoder.layer`), DINOv3 (`model.layer`), and other potential backbone architectures.
+
+### 🔄 7.5. Visual Prompt Tuning (VPT) Fallback Execution
+
+The DINOv3 `AutoModel` lacks an `encoder` attribute because its transformer blocks are located directly under the `layer` attribute. To support Deep and Shallow Visual Prompt Tuning (VPT) without altering the pre-trained model structure, a sequential fallback execution logic is implemented in `VptWrappedBackbone.forward`:
+
+- **Manual Iteration**: The forward pass manually loops through the resolved `self.layers` block-by-block.
+- **Propagation**: Hidden states and relevant metadata (such as `head_mask`) are manually passed to each transformer block.
+- **Aggregation**: It systematically collects and aggregates intermediate hidden states and self-attentions across all layers.
+- **API Matching**: The final output is wrapped in a standard Hugging Face `BaseModelOutput` container, ensuring the downstream classification head receives the structure it expects (e.g. `last_hidden_state`).
