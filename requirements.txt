@@ -17,3 +17,8 @@ Pillow
 
 # Optional: either torchvision or datasets for image loading beyond our custom dataset
 # datasets
+
+# Visualization and Analysis
+plotly
+ipywidgets
+streamlit
