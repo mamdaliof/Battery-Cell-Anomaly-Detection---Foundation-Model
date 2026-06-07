@@ -168,6 +168,10 @@ def main() -> None:
     train_result = trainer.train()
 
     if is_main_process:
+        # Save final model state and trainer state to the root run directory
+        trainer.save_model()
+        trainer.save_state()
+
         metrics = train_result.metrics
         print("\n" + "=" * 80)
         print("🎉 TRAINING COMPLETED SUCCESSFULLY")
