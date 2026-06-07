@@ -261,15 +261,15 @@ To apply class weighting or focal loss within the YOLO26 training pipeline:
 
 ### Step 1: Folder Completion Checker & Configuration Comparer
 - [x] **Conceptualize folder scan & configuration comparer**: Design logic to detect incomplete runs (missing `DONE` files) and compile parameters from `config.yaml` files. (Done)
-- [ ] Implement `scripts/check_runs.py` to identify incomplete folders, list completed runs, and output a summary of completed hyperparameters.
+- [x] Implement `scripts/check_runs.py` (completed as `scripts/check_ablation_status.py`) to identify incomplete folders, list completed runs, and output a summary of completed hyperparameters.
 
 ### Step 2: Interactive Jupyter Notebook Visualizer
 - [x] **Conceptualize Jupyter notebook visualizer**: Design `ipywidgets` + `plotly` selection logic to select and display metrics interactively inside a notebook. (Done)
-- [ ] Create `notebooks/visualize_results.ipynb` containing the interactive training curves and leaderboard tables.
+- [x] Create `notebooks/visualize_results.ipynb` containing the interactive training curves and leaderboard tables.
 
 ### Step 3: Streamlit Web Visualizer Enhancement (`visualize.py`)
 - [x] **Conceptualize Streamlit/Plotly visualizer enhancements**: Compare with the existing `visualize.py` code, and outline updates to handle Hugging Face `trainer_state.json` formats, anomaly-specific metrics (F1, AUROC, confusion matrix counts), and PEFT configs. (Done)
-- [ ] Refactor `visualize.py` at the root of the project to add native support for Hugging Face trainer files, PEFT parameters, and battery anomaly detection metrics.
+- [x] Refactor `visualize.py` at the root of the project to add native support for Hugging Face trainer files, PEFT parameters, and battery anomaly detection metrics.
 
 
 
