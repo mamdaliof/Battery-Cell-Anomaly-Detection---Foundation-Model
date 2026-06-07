@@ -83,6 +83,13 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
   - Shows: GPU ID, config name, epoch progress, tqdm bar, loss, F1, and completion status.
   - Full output per config is logged to `outputs/logs/<config_name>.log`.
 
+- **🎯 YOLO26 + DINOv3 SFP Object Detection**
+  - Integrated the frozen DINOv3 vision backbone and a **Simple Feature Pyramid (SFP)** neck with standard **Ultralytics YOLO26** object detection head and native losses.
+  - Custom layers (`DinoV3Backbone` with ImageNet normalization, `DinoV3SFP_P3/P4/P5` projections) are implemented in [yolo_dino.py](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/yolo_dino.py).
+  - Dynamic class registration and tasks parser wrapping (supporting width/depth channel scaling and metadata attribute preservation) is managed in [yolo_utils.py](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/yolo_utils.py).
+  - Configured via [yolo26_dino.yaml](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/configs/yolo26_dino.yaml).
+  - Fully verified and tested via shapes unit test suite [test_yolo_shapes.py](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/tests/test_yolo_shapes.py).
+
 ## 📂 Dataset conversion and usage
 
 The raw dataset is assumed to live under a directory like `split_base/` with the following structure:
@@ -255,6 +262,14 @@ To analyze and compare results from completed and in-progress ablation runs, we 
 2. **Jupyter Notebook Analyzer** ([`notebooks/visualize_results.ipynb`](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/notebooks/visualize_results.ipynb)):
    An interactive notebook with widgets and Plotly diagrams for quick local results exploration.
 
+### 🎯 YOLO26 + DINOv3 SFP Object Detection Verification
+
+To verify that the custom registered DINOv3 backbone, SFP neck, and the Ultralytics tasks parser work correctly, run the shapes unit test suite:
+```bash
+python3 tests/test_yolo_shapes.py
+```
+This script compiles the YOLO26 + DINOv3 model, runs a dummy forward pass, and verifies that the output prediction tensor shape matches expected resolutions.
+
 ### 🔬 GPU VRAM & DDP Isolation Verification
 
 Two lightweight helper scripts are available to verify GPU visibility, isolation, and process group setups without loading datasets or full models:
@@ -274,6 +289,7 @@ A more detailed project specification and TODO list is maintained in [`PROJECT_P
 Additional documentation resources:
 
 - 📓 **Dev logs**: Detailed development logs are maintained in the [`devlogs/`](./devlogs/) directory.
+  - [`devlogs/DEVLOG_YOLO_DINO_DETECTION_INTEGRATION.md`](./devlogs/DEVLOG_YOLO_DINO_DETECTION_INTEGRATION.md) (YOLO26 + DINOv3 object detection integration)
   - [`devlogs/DEVLOG_VPT_FIX_AND_COLLISION_RESOLUTION.md`](./devlogs/DEVLOG_VPT_FIX_AND_COLLISION_RESOLUTION.md) (VPT compatibility & run directory collision fix)
   - [`devlogs/DEVLOG_RESULTS_VISUALIZATION_SUITE.md`](./devlogs/DEVLOG_RESULTS_VISUALIZATION_SUITE.md) (Interactive Jupyter & Streamlit results visualization suite)
 - 📘 **Technical reference**: In-depth implementation details are documented in [`docs/technical_details.md`](./docs/technical_details.md).

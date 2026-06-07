@@ -568,3 +568,85 @@ A full-featured Streamlit application serving as a central hub for training diag
    - Aggregates best F1 scores across PEFT methods and learning rates.
    - Displays a **Parallel Coordinates Plot** correlating learning rate, PEFT parameter size (LoRA rank, adapter bottleneck dimensions, VPT token counts), and final F1 score.
 
+---
+
+## 🎯 9. YOLO26 + DINOv3 SFP Object Detection Integration
+
+To extend our foundation model pipeline from classification to object detection, we integrated the frozen DINOv3 vision backbone with a Simple Feature Pyramid (SFP) neck and the standard Ultralytics YOLO26 detection head.
+
+### 📐 9.1. Simple Feature Pyramid (SFP) Neck
+Vision Transformers process images at a single scale (typically producing patches at stride 16). Object detection networks, however, require multi-scale representations to handle objects of varying sizes. The SFP neck projects the single-scale DINOv3 output into a multi-scale representation corresponding to strides 8 (P3), 16 (P4), and 32 (P5):
+
+- **`DinoV3SFP_P3` (Stride 8)**: Upsamples features by a factor of 2:
+  $$h_{P3} = \text{Smooth}(\text{Project}(\text{ConvTranspose2d}(h_{stride16}, \text{stride}=2)))$$
+- **`DinoV3SFP_P4` (Stride 16)**: Direct mapping of features:
+  $$h_{P4} = \text{Smooth}(\text{Project}(h_{stride16}))$$
+- **`DinoV3SFP_P5` (Stride 32)**: Downsamples features by a factor of 2:
+  $$h_{P5} = \text{Smooth}(\text{Project}(\text{MaxPool2d}(h_{stride16}, \text{stride}=2)))$$
+
+```
+                               ┌─────────────────────────┐
+                               │ DINOv3 Backbone (Flat)  │
+                               │  Sequence of Patches    │
+                               └───────────┬─────────────┘
+                                           ▼
+                               ┌─────────────────────────┐
+                               │ 2D Grid (B, D, H/16, W) │
+                               └─────┬───┬─────────┬─────┘
+                  ┌──────────────────┘   │         └──────────────────┐
+                  ▼                      ▼                            ▼
+        ┌──────────────────┐   ┌──────────────────┐         ┌──────────────────┐
+        │ DinoV3SFP_P3     │   │ DinoV3SFP_P4     │         │ DinoV3SFP_P5     │
+        │ ConvTranspose2d  │   │   Conv2d (1x1)   │         │    MaxPool2d     │
+        └─────────┬────────┘   └─────────┬────────┘         └─────────┬────────┘
+                  ▼                      ▼                            ▼
+        ┌──────────────────┐   ┌──────────────────┐         ┌──────────────────┐
+        │ Stride 8 (P3)    │   │ Stride 16 (P4)   │         │ Stride 32 (P5)   │
+        └─────────┬────────┘   └─────────┬────────┘         └─────────┬────────┘
+                  │                      │                            │
+                  └──────────────────────┼────────────────────────────┘
+                                         ▼
+                               ┌──────────────────┐
+                               │  YOLO26 Head     │
+                               └──────────────────┘
+```
+
+### 🔌 9.2. Dynamic Ultralytics Registration Hook
+To inject custom classes (`DinoV3Backbone`, `DinoV3SFP_P3`, `DinoV3SFP_P4`, `DinoV3SFP_P5`) into the Ultralytics tasks parser dynamically without modifying vendor code, we implement a monkey-patching helper:
+
+1. **Globals Injection**: `setattr(ultralytics.nn.tasks, module_name, module_class)` binds the custom modules to the parsing module's namespace.
+2. **`sys.modules` Binding**: Registers the custom layers in `sys.modules["ultralytics.nn.tasks"]` to ensure compatibility with pickle serialization during checkpoint loading.
+3. **`parse_model` Interceptor**:
+   - The Ultralytics parser executes width and depth scaling on layers listed in the architecture YAML config. Because custom layers are not present in standard `base_modules`, the native parser cannot calculate scaled channel dimensions correctly.
+   - We intercept `parse_model` with a wrapper `custom_parse_model`. It temporary translates custom layer classes into standard `Conv` layers, runs the native parser to compute scaled dimensions (relying on standard YOLO logic), and then reconstructs the custom layers using the computed scaled channel sizes.
+   - **Attribute Preservation**: The native parser attaches vital metadata properties (`i` module index, `f` input index, `type` name, `np` parameter count) to instantiated PyTorch modules. When swapping out the placeholder `Conv` layers for custom modules, we explicitly copy these metadata attributes to the constructed modules:
+     ```python
+     for attr in ("i", "f", "type", "np"):
+         if hasattr(placeholder, attr):
+             setattr(actual_layer, attr, getattr(placeholder, attr))
+     ```
+
+### 🖼️ 9.3. Device-Safe Computation Graph Normalization
+To prevent preprocessing discrepancy between YOLO (scaling pixel values to $[0, 1]$) and DINOv3 (standardizing with ImageNet mean/std), image normalization is embedded directly inside the custom backbone module. The mean and standard deviation are registered as model buffers:
+```python
+self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1))
+self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1))
+```
+During the forward pass, standardization is executed on the GPU:
+$$x_{norm} = \frac{x - \mu}{\sigma}$$
+This guarantees device safety and avoids duplicating preprocessing overrides during training, ONNX export, or TensorRT deployment.
+
+### 🎟️ 9.4. Register Token Slicing
+DINOv3 standardizes on 4 learned register tokens to absorb high-norm outlier features. The token layout returned by the model is:
+$$\text{Tokens} = [\text{CLS}] \mathbin{\Vert} [\text{Reg}_1, \dots, \text{Reg}_4] \mathbin{\Vert} [\text{Patch}_1, \dots, \text{Patch}_M]$$
+To reshape the flat patch sequence back to a 2D grid, we slice the tokens sequence starting after the CLS and register tokens:
+$$h_{patches} = \text{last\_hidden\_state}[:, 1 + N_{registers} : 1 + N_{registers} + N_{patches}, :]$$
+
+### 🏃 9.5. Dynamic Position Embedding Interpolation
+During initialization, the Ultralytics parser calculates model strides by executing a forward pass using a $256 \times 256$ dummy tensor. Because pre-trained ViT architectures expect a fixed input resolution (e.g. $224 \times 224$), this raises shape validation exceptions. To support dynamic image sizes, we call the Hugging Face model forward pass with `interpolate_pos_encoding=True`:
+```python
+outputs = self.model(x_norm, interpolate_pos_encoding=True)
+```
+This enables the backbone to interpolate positional embeddings dynamically, allowing the integrated YOLO detector to handle input tensors of any size (e.g., standard $640 \times 640$).
+
+
