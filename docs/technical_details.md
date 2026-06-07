@@ -535,3 +535,36 @@ The DINOv3 `AutoModel` lacks an `encoder` attribute because its transformer bloc
 - **Propagation**: Hidden states and relevant metadata (such as `head_mask`) are manually passed to each transformer block.
 - **Aggregation**: It systematically collects and aggregates intermediate hidden states and self-attentions across all layers.
 - **API Matching**: The final output is wrapped in a standard Hugging Face `BaseModelOutput` container, ensuring the downstream classification head receives the structure it expects (e.g. `last_hidden_state`).
+
+---
+
+## 📊 8. Results Visualization & Analysis Suite
+
+To make the results of the DINOv3 + PEFT ablation study highly interpretable and interactive, we implement two primary analysis interfaces: a local Jupyter notebook and a Streamlit dashboard.
+
+### 📓 8.1. Interactive Jupyter Notebook (`notebooks/visualize_results.ipynb`)
+
+Designed for direct local analysis in the development environment, the notebook integrates:
+- **Recursive scanner**: Walks the `outputs/` folder structure, matching runs against original configurations in `configs/ablations/`.
+- **Fail-safe trainer state fallback**: Searches for the highest-indexed `checkpoint-*/trainer_state.json` inside a run folder if a top-level `trainer_state.json` does not exist (enabling real-time tracking of active or interrupted runs).
+- **Widgets Filtering**: Uses `ipywidgets` to dynamically filter the leaderboard by task, backbone size, PEFT method, learning rate, and class imbalance strategy.
+- **Line Comparators**: Uses Plotly to render curves for train loss, validation loss, validation accuracy, precision, recall, and F1 across multiple selected runs.
+
+### 🖥️ 8.2. Streamlit Web Dashboard (`visualize.py`)
+
+A full-featured Streamlit application serving as a central hub for training diagnostics.
+
+#### Dynamic Filters & Sidebar
+- Users can filter by Backbone Model, PEFT type, Learning Rate, and Imbalance Strategy.
+- **Future-proofing placeholders**: In accordance with system specifications, filters include placeholder entries for planned tasks (e.g. `Segmentation (Future)`, `Object Detection (Future)`) and upcoming hyperparameters (e.g. `SGD` or `ScheduleFree` optimizers, custom weight decay ranges). Selecting these display future performance predictions and design tables.
+
+#### Diagnostic Tabs
+1. **🏆 Leaderboard**: Generates a tabular view of all runs sorted descending by **Validation F1 Score**. Max F1 cells are highlighted.
+2. **📈 Trajectory Curves**: Plots multiple runs together. Enables optional curve truncation at the best epoch (to inspect metrics at the early-stopping boundary).
+3. **🔬 Single Run Inspector**:
+   - Inspects a single run's metadata and hyperparameter dictionaries.
+   - Computes and renders a **Validation Confusion Matrix** (TP, TN, FP, FN) for the best epoch using a Plotly heatmap.
+4. **📊 PEFT & Hyperparameter Analysis**:
+   - Aggregates best F1 scores across PEFT methods and learning rates.
+   - Displays a **Parallel Coordinates Plot** correlating learning rate, PEFT parameter size (LoRA rank, adapter bottleneck dimensions, VPT token counts), and final F1 score.
+

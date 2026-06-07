@@ -242,6 +242,19 @@ python scripts/validate_ablation_configs.py
 python scripts/run_parallel_ablations.py
 ```
 
+### 📊 Results Visualization Suite
+
+To analyze and compare results from completed and in-progress ablation runs, we provide two interactive tools:
+
+1. **Streamlit Dashboard** ([`visualize.py`](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/visualize.py)):
+   A feature-rich web dashboard containing an F1-prioritized leaderboard, confusion matrix heatmaps (TP/FP/TN/FN) computed at the best epoch, multi-run trajectory line plot comparisons, and PEFT parameter analysis charts.
+   Launch from the root folder:
+   ```bash
+   streamlit run visualize.py
+   ```
+2. **Jupyter Notebook Analyzer** ([`notebooks/visualize_results.ipynb`](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/notebooks/visualize_results.ipynb)):
+   An interactive notebook with widgets and Plotly diagrams for quick local results exploration.
+
 ### 🔬 GPU VRAM & DDP Isolation Verification
 
 Two lightweight helper scripts are available to verify GPU visibility, isolation, and process group setups without loading datasets or full models:
@@ -262,6 +275,7 @@ Additional documentation resources:
 
 - 📓 **Dev logs**: Detailed development logs are maintained in the [`devlogs/`](./devlogs/) directory.
   - [`devlogs/DEVLOG_VPT_FIX_AND_COLLISION_RESOLUTION.md`](./devlogs/DEVLOG_VPT_FIX_AND_COLLISION_RESOLUTION.md) (VPT compatibility & run directory collision fix)
+  - [`devlogs/DEVLOG_RESULTS_VISUALIZATION_SUITE.md`](./devlogs/DEVLOG_RESULTS_VISUALIZATION_SUITE.md) (Interactive Jupyter & Streamlit results visualization suite)
 - 📘 **Technical reference**: In-depth implementation details are documented in [`docs/technical_details.md`](./docs/technical_details.md).
 - 📊 **PEFT & imbalance report**: Integration analysis and results are captured in [`PEFT_IMBALANCE_REPORT.md`](./PEFT_IMBALANCE_REPORT.md).
 
