@@ -9,7 +9,30 @@ import sys
 import yaml
 import argparse
 
-def check_outputs(base_path="outputs"):
+def find_matching_config(run_cfg, configs_dir="configs/ablations"):
+    if not os.path.exists(configs_dir):
+        return None
+        
+    def is_equiv(a, b):
+        for k in ("model_name", "data", "head", "peft",
+                  "learning_rate", "num_epochs", "imbalance"):
+            if a.get(k) != b.get(k):
+                return False
+        return True
+
+    for file in sorted(os.listdir(configs_dir)):
+        if file.endswith(".yaml"):
+            cfg_path = os.path.join(configs_dir, file)
+            try:
+                with open(cfg_path, "r") as f:
+                    ablation_cfg = yaml.safe_load(f)
+                if ablation_cfg and is_equiv(run_cfg, ablation_cfg):
+                    return os.path.join(configs_dir, file)
+            except Exception:
+                pass
+    return None
+
+def check_outputs(base_path="outputs", configs_dir="configs/ablations"):
     incomplete_dirs = []
     completed_runs = []
 
@@ -27,7 +50,16 @@ def check_outputs(base_path="outputs"):
         if "config.yaml" in files or "args.yaml" in files:
             # Check if training finished successfully
             if "DONE" not in files:
-                incomplete_dirs.append(root)
+                config_path = os.path.join(root, "config.yaml")
+                matched_config = None
+                if os.path.exists(config_path):
+                    try:
+                        with open(config_path, "r") as f:
+                            run_cfg = yaml.safe_load(f)
+                        matched_config = find_matching_config(run_cfg, configs_dir)
+                    except Exception:
+                        pass
+                incomplete_dirs.append((root, matched_config))
             else:
                 # 2. Parse config.yaml to extract run parameters
                 config_path = os.path.join(root, "config.yaml")
@@ -59,8 +91,16 @@ def check_outputs(base_path="outputs"):
     
     if incomplete_dirs:
         print("\n🛑 List of Incomplete / Interrupted Runs:")
-        for directory in sorted(incomplete_dirs):
-            print(f"  - {directory}")
+        for directory, matched_cfg in sorted(incomplete_dirs, key=lambda x: x[0]):
+            if matched_cfg:
+                print(f"  - {directory}  ->  {matched_cfg}")
+            else:
+                print(f"  - {directory}  ->  (No matching ablation config found)")
+        
+        print("\n🛠️ Config files to run again:")
+        configs_to_run = sorted(list(set(item[1] for item in incomplete_dirs if item[1])))
+        for cfg_file in configs_to_run:
+            print(f"  {cfg_file}")
     else:
         print("\n🎉 No incomplete runs found!")
 
@@ -105,5 +145,11 @@ if __name__ == "__main__":
         default="outputs",
         help="Base outputs path to scan (default: outputs)"
     )
+    parser.add_argument(
+        "--configs-dir",
+        type=str,
+        default="configs/ablations",
+        help="Directory containing original ablation configs (default: configs/ablations)"
+    )
     args = parser.parse_args()
-    check_outputs(args.base_path)
+    check_outputs(args.base_path, args.configs_dir)
