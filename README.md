@@ -46,6 +46,10 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
     - Best model selection via a custom callback that saves both `best_loss.pt` and `best_f1.pt`.
     - Learning rate scheduler (`lr_scheduler_type`, `warmup_ratio`).
     - Automatic mixed precision (`fp16`, `bf16`) when GPUs are available.
+  - **Data loading performance**: `dataloader_num_workers=4` and `pin_memory=True` are enabled for efficient GPU data feeding.
+  - **Efficient augmentations**: Gaussian noise augmentation uses direct **NumPy array injection**, avoiding costly PIL↔Tensor round-trips.
+  - **Deferred checkpointing**: `state_dict()` is only called inside callbacks when an actual metric improvement is detected, reducing unnecessary I/O overhead.
+  - **Evaluation & saving**: `eval_strategy='epoch'` and `save_strategy='epoch'` are configured and working correctly; `EarlyStoppingCallback` is currently disabled.
   - Each training run creates a unique run directory `outputs/{task_name}__{model_name}/{timestamp}/` and copies the used YAML config into that directory as `config.yaml` for reproducibility.
 
 - **📊 Metrics and objective**
@@ -70,6 +74,13 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
   - **Bottleneck Adapters**: Pfeiffer-style bottleneck adapters wrapping transformer feed-forward blocks.
   - **Visual Prompt Tuning (VPT)**: Support for Shallow (input-level prompt parameters) and Deep (layer-wise prompt replacement wrappers) prompt tuning.
   - Supports dynamic model structure routing (handles standard `encoder.layer`/`layers` and DINOv3's `model.layer` format).
+
+- **🖥️ Parallel Training Dashboard**
+  - `run_parallel_ablations.py` manages a job queue distributed across **8 GPUs**.
+  - Uses **threading** to parse subprocess stdout in real-time.
+  - Fixed **8-line in-place ANSI terminal display** (no scrolling) for live monitoring.
+  - Shows: GPU ID, config name, epoch progress, tqdm bar, loss, F1, and completion status.
+  - Full output per config is logged to `outputs/logs/<config_name>.log`.
 
 ## 📂 Dataset conversion and usage
 
@@ -197,6 +208,39 @@ Notes:
 - The `batch_size` in the YAML config is **per GPU**. For example, `batch_size: 64` with 2 GPUs results in an effective global batch size of 128.
 - Training metrics and model checkpoints are written to the run directory under `outputs/` as described above.
 
+### 5. 🧪 Ablation Study (58 Configs)
+
+A comprehensive ablation study framework automates exploration of backbone, PEFT method, and hyperparameter combinations.
+
+#### 📐 Grid generation
+
+`scripts/generate_ablation_grid.py` generates **58 YAML configs** under `configs/ablations/` covering a combinatorial grid of:
+
+| Axis | Variants |
+|------|----------|
+| **Backbones** | ViT-S/16 (`dinov3-vits16-pretrain-lvd1689m`), ViT-B/16 (`dinov3-vitb16-pretrain-lvd1689m`) |
+| **PEFT methods** | Frozen baseline (no PEFT), LoRA (ranks 8/16 × all/last-4/last-2 layers), Bottleneck Adapters (dims 32/64 × all/last-4/last-2), VPT Shallow (8/16/32 tokens), VPT Deep (8/16/32 tokens × all/last-4/last-2) |
+| **Learning rates** | 3e-4, 5e-4 |
+
+#### ✅ Config validation
+
+`scripts/validate_ablation_configs.py` validates that **all 58 configs** (plus template configs, 67 total) can successfully load the model + processor without errors.
+
+#### 🚀 Parallel execution
+
+`scripts/run_parallel_ablations.py` distributes training across **8 GPUs** with a real-time in-place terminal dashboard showing per-GPU status, progress bars, and metrics.
+
+```bash
+# Generate ablation configs
+python scripts/generate_ablation_grid.py
+
+# Validate all configs
+python scripts/validate_ablation_configs.py
+
+# Launch parallel training on 8 GPUs
+python scripts/run_parallel_ablations.py
+```
+
 ### 🔬 GPU VRAM & DDP Isolation Verification
 
 Two lightweight helper scripts are available to verify GPU visibility, isolation, and process group setups without loading datasets or full models:
@@ -212,6 +256,12 @@ Two lightweight helper scripts are available to verify GPU visibility, isolation
 ## 📅 Project planning
 
 A more detailed project specification and TODO list is maintained in [`PROJECT_PLAN.md`](./PROJECT_PLAN.md).
+
+Additional documentation resources:
+
+- 📓 **Dev logs**: Detailed development logs are maintained in the [`devlogs/`](./devlogs/) directory.
+- 📘 **Technical reference**: In-depth implementation details are documented in [`docs/technical_details.md`](./docs/technical_details.md).
+- 📊 **PEFT & imbalance report**: Integration analysis and results are captured in [`PEFT_IMBALANCE_REPORT.md`](./PEFT_IMBALANCE_REPORT.md).
 
 As the project evolves, this README will be updated with setup instructions, usage examples, and experiment summaries.
 

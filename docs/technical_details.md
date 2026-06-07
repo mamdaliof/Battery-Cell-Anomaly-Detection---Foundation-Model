@@ -281,3 +281,241 @@ This script initializes the PyTorch distributed process group using the NCCL bac
   CUDA_VISIBLE_DEVICES=5,6 torchrun --nproc_per_node=2 --master_port=29502 scripts/ddp_alloc_test.py
   ```
 
+---
+
+## 🔄 5. Performance Optimizations
+
+Several performance optimizations were implemented across the data pipeline, augmentation logic, checkpoint management, and training configuration to reduce training wall-clock time and eliminate unnecessary GPU/CPU overhead.
+
+### ⚡ 5.1. Data Loading Pipeline
+
+The data loading pipeline in `scripts/train.py` is configured via `TrainingArguments` with the following optimizations:
+
+- **`dataloader_num_workers=4`**: Spawns 4 parallel worker processes for data loading. These workers prefetch and preprocess the next batches while the GPU is executing the forward/backward pass, overlapping I/O latency with computation.
+- **`pin_memory=True`**: Allocates host (CPU) tensors in page-locked (pinned) memory. This enables asynchronous DMA (Direct Memory Access) transfers from CPU→GPU via `cudaMemcpyAsync`, bypassing the pageable memory staging buffer and reducing data transfer latency.
+
+```mermaid
+graph LR
+    subgraph CPU Workers
+        W1["Worker 1"] --> Q["Prefetch Queue (pin_memory)"]
+        W2["Worker 2"] --> Q
+        W3["Worker 3"] --> Q
+        W4["Worker 4"] --> Q
+    end
+
+    Q -- "DMA Transfer (async)" --> GPU["GPU Compute"]
+    GPU -- "Backward Pass" --> GPU
+```
+
+### 🔧 5.2. Augmentation Pipeline
+
+Optimizations in `src/bcadfm/data/dataset.py` within `build_augmentation_pipeline()` and the dataset's `__getitem__`:
+
+- **Pre-built reusable transform objects**: Previously, transform objects (e.g., `ColorJitter`, `RandomRotation`, `RandomCrop`) were instantiated on every call to `__getitem__`. The optimized version instantiates all transform objects once in `build_augmentation_pipeline()` and reuses them across all dataset access calls.
+- **NumPy-based Gaussian noise**: The Gaussian noise augmentation was reimplemented to operate directly on float arrays using `np.random.normal`, eliminating the expensive round-trip conversion chain:
+
+  $$\text{PIL Image} \xrightarrow{\text{ToTensor}} \text{Tensor} \xrightarrow{\text{add noise}} \text{Tensor} \xrightarrow{\text{ToPIL}} \text{PIL Image}$$
+
+  The optimized path:
+
+  $$\text{np.array (float32)} \xrightarrow{\text{np.random.normal}} \text{np.array (float32)} \xrightarrow{\text{clip}} \text{np.array (uint8)}$$
+
+- **Single-instantiation transforms**: Color jitter, rotation, flip, and crop transforms are instantiated once and reused across all `__getitem__` calls, avoiding repeated object allocation overhead.
+
+### 💾 5.3. Checkpoint Saving Optimization
+
+In `src/bcadfm/metrics/cls_callbacks.py`, the `SaveTwoBestClsModelsCallback` was optimized to eliminate redundant memory operations:
+
+- **Before**: `model.state_dict()` was called on **every evaluation step**, creating a full RAM copy of model weights regardless of whether the current metrics improved.
+- **After**: `model.state_dict()` is called **only when a new best metric** (loss or F1) is actually achieved.
+
+This avoids redundant deep copies of the entire model parameter tensor set on non-improving evaluation steps, which is especially significant for large backbones:
+
+$$\text{Memory saved per non-improving eval} = |\theta_{\text{model}}| \times \text{sizeof(float32)}$$
+
+For a ViT-B/16 backbone ($|\theta| \approx 85.7\text{M}$ params), this saves $\approx 343\text{ MB}$ of RAM allocation per skipped checkpoint.
+
+### 🔩 5.4. Training Configuration Fixes
+
+Several configuration issues in `TrainingArguments` were resolved:
+
+| Issue | Resolution |
+|---|---|
+| `warmup_ratio` deprecation warning | Replaced with `warmup_steps` computed directly |
+| Implicit eval/save strategy | Set `eval_strategy='epoch'` and `save_strategy='epoch'` explicitly |
+| Redundant `model.to(device)` | Removed manual device placement calls that conflicted with `Trainer`'s internal device management |
+
+---
+
+## 🧪 6. Ablation Study Framework
+
+A complete ablation study infrastructure was built to systematically evaluate the impact of backbone size, PEFT method, hyperparameters, and layer targeting on classification performance.
+
+### 📋 6.1. Configuration Generation (`scripts/generate_ablation_grid.py`)
+
+Generates a combinatorial grid of **58 YAML configurations** under `configs/ablations/`.
+
+#### Grid Dimensions
+
+| Dimension | Values |
+|---|---|
+| **Backbone** | ViT-S/16 ($21.6\text{M}$ params), ViT-B/16 ($85.7\text{M}$ params) |
+| **PEFT Method** | None (frozen), LoRA, Bottleneck Adapters, VPT Shallow, VPT Deep |
+| **LoRA Rank** | $r \in \{8, 16\}$ |
+| **Adapter Bottleneck Dim** | $d_{\text{bottleneck}} \in \{32, 64\}$ |
+| **VPT Prompt Tokens** | $N \in \{8, 16, 32\}$ |
+| **Layer Targeting** | all, last-4, last-2 transformer blocks |
+| **Learning Rate** | $\eta \in \{3 \times 10^{-4},\ 5 \times 10^{-4}\}$ |
+
+#### Base Configuration (Inherited by All Configs)
+
+All ablation configs inherit the following shared settings:
+- **Epochs**: 300
+- **Batch size**: 64
+- **LR schedule**: Cosine decay with linear warmup
+- **Loss function**: Focal loss
+- **Class balancing**: Dataset-level oversampling
+
+#### Naming Convention
+
+```
+{index}_{peft}_{backbone}_{hyperparams}.yaml
+```
+
+Example: `007_lora_vit-b16_r16_last4_lr3e-4.yaml`
+
+```mermaid
+graph TD
+    subgraph Grid Dimensions
+        B["Backbone<br/>ViT-S/16, ViT-B/16"] --> Grid["Cartesian Product"]
+        P["PEFT Method<br/>None, LoRA, Adapter,<br/>VPT-S, VPT-D"] --> Grid
+        H["Hyperparameters<br/>rank, dim, tokens"] --> Grid
+        L["Layer Targeting<br/>all, last-4, last-2"] --> Grid
+        LR["Learning Rate<br/>3e-4, 5e-4"] --> Grid
+    end
+
+    Grid --> |"58 configs"| Out["configs/ablations/*.yaml"]
+```
+
+### ✅ 6.2. Configuration Validation (`scripts/validate_ablation_configs.py`)
+
+Loads each generated YAML config, instantiates the model and image processor, and performs validation checks:
+
+1. **Model loading**: Verifies the backbone loads from Hugging Face without errors.
+2. **PEFT wrapper application**: Confirms the correct PEFT method is applied (LoRA modules injected, adapters wrapped, VPT prompts registered).
+3. **Parameter count verification**: Checks that trainable parameter percentages match expectations for the given PEFT method and hyperparameters.
+
+Outputs a **PASS/FAIL report** with per-config parameter summaries:
+
+```
+[PASS] 007_lora_vit-b16_r16_last4_lr3e-4.yaml
+       Total: 85.7M | Trainable: 0.29M (0.34%) | PEFT: LoRA r=16
+[FAIL] 042_adapter_vit-s16_d32_all_lr5e-4.yaml
+       Error: Adapter dim 32 exceeds hidden_dim for ViT-S/16 block
+```
+
+### 🚀 6.3. Parallel Training Runner (`scripts/run_parallel_ablations.py`)
+
+Distributes training jobs across **8 GPUs** using a shared queue architecture.
+
+#### Execution Architecture
+
+```mermaid
+graph TD
+    subgraph Main Thread
+        Q["Job Queue<br/>(58 configs)"] --> Assign["GPU Slot Assignment"]
+        Assign --> |"CUDA_VISIBLE_DEVICES=i"| Sub0["subprocess.Popen<br/>GPU 0"]
+        Assign --> |"CUDA_VISIBLE_DEVICES=i"| Sub1["subprocess.Popen<br/>GPU 1"]
+        Assign --> |"..."| SubN["..."]
+        Assign --> |"CUDA_VISIBLE_DEVICES=i"| Sub7["subprocess.Popen<br/>GPU 7"]
+    end
+
+    subgraph Reader Threads (8x)
+        Sub0 --> R0["Thread 0<br/>stdout regex parser"]
+        Sub1 --> R1["Thread 1<br/>stdout regex parser"]
+        Sub7 --> R7["Thread 7<br/>stdout regex parser"]
+    end
+
+    subgraph Shared State
+        R0 --> Slots["_slots dict<br/>(threading.Lock)"]
+        R1 --> Slots
+        R7 --> Slots
+        Slots --> Dash["ANSI Dashboard<br/>(8-line in-place)"]
+    end
+```
+
+#### Key Design Details
+
+| Component | Implementation |
+|---|---|
+| **GPU isolation** | Each subprocess launched with `CUDA_VISIBLE_DEVICES` environment variable |
+| **Concurrency** | One config per GPU at a time; 8 jobs run in parallel |
+| **Progress parsing** | 8 reader threads parse subprocess stdout via regex for epoch, loss, and F1 |
+| **Thread safety** | Shared `_slots` dictionary guarded by `threading.Lock` |
+| **Terminal dashboard** | ANSI escape codes for fixed 8-line in-place display |
+| **Logging** | Full logs per config written to `outputs/logs/<config_name>.log` |
+| **Resume support** | Skips configs with existing completed output directories |
+| **Graceful shutdown** | `Ctrl+C` handler terminates all subprocesses cleanly |
+
+#### Dashboard Display
+
+Each of the 8 lines displays:
+
+```
+[GPU 3] 007_lora_vit-b16_r16 | Epoch 42/300 |████████░░| loss: 0.234 | F1: 0.891 | training
+```
+
+Fields: GPU ID, config name, epoch progress, tqdm-style bar, current loss, current F1 score, status (`loading` / `training` / `done` / `failed`).
+
+---
+
+## 📊 7. DINOv3 Architecture Notes
+
+During development, several DINOv3-specific architectural differences from standard ViT models were discovered and handled in the codebase.
+
+### 🏗️ 7.1. Attention Projection Naming
+
+DINOv3 uses a non-standard naming convention for its attention projection layers:
+
+| Standard ViT | DINOv3 |
+|---|---|
+| `query` | `q_proj` |
+| `key` | `k_proj` |
+| `value` | `v_proj` |
+| `output.dense` | `o_proj` |
+
+### 🔗 7.2. Layer Hierarchy
+
+The transformer block hierarchy differs from standard Hugging Face ViT implementations:
+
+```
+# Standard ViT (HuggingFace)
+model.encoder.layer.{i}.attention.attention.query
+
+# DINOv3
+model.layer.{i}.attention.q_proj
+```
+
+Note the absence of the `encoder` prefix and the flattened `attention` → `{proj_name}` structure (no nested `attention.attention`).
+
+### 🎯 7.3. LoRA Target Modules
+
+For LoRA injection, the standard target modules are:
+- `q_proj` (query projection)
+- `v_proj` (value projection)
+
+These are passed to `peft.LoraConfig(target_modules=["q_proj", "v_proj"])`.
+
+### 🔍 7.4. Dynamic Layer Resolution
+
+Because different model architectures expose transformer blocks under different attribute paths, the codebase dynamically resolves the layer structure by inspecting multiple candidate attributes in order:
+
+```python
+# Resolution priority in apply_adapters() and VptWrappedBackbone
+for attr in ["encoder.layer", "model.layer", "layer", "layers"]:
+    blocks = resolve_nested_attr(backbone, attr)
+    if blocks is not None:
+        break
+```
+
+This ensures compatibility across standard ViT (`encoder.layer`), DINOv3 (`model.layer`), and other potential backbone architectures.
