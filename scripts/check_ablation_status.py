@@ -35,11 +35,14 @@ def check_outputs(base_path="outputs"):
                     try:
                         with open(config_path, "r") as f:
                             cfg = yaml.safe_load(f)
+                        imb_cfg = cfg.get("imbalance", {})
+                        imb_strategy = imb_cfg.get("strategy") or imb_cfg.get("oversampling_method") or "none"
+                        
                         completed_runs.append({
                             "dir": root,
                             "model": cfg.get("model_name"),
                             "peft_type": cfg.get("peft", {}).get("type", "none"),
-                            "imbalance_strategy": cfg.get("imbalance", {}).get("oversampling_method", "none"),
+                            "imbalance_strategy": imb_strategy,
                             "lr": cfg.get("learning_rate"),
                             "epochs": cfg.get("num_epochs")
                         })
