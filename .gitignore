@@ -109,8 +109,11 @@ __marimo__/
 /data/
 raw_data/
 processed_data/
-outputs/
 checkpoints/
 logs/
 wandb/
+
+# Checkpoint weights
+*.pt
+*.pth
 
