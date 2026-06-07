@@ -63,10 +63,12 @@ def check_outputs(base_path="outputs", configs_dir="configs/ablations"):
             else:
                 # 2. Parse config.yaml to extract run parameters
                 config_path = os.path.join(root, "config.yaml")
+                matched_config = None
                 if os.path.exists(config_path):
                     try:
                         with open(config_path, "r") as f:
                             cfg = yaml.safe_load(f)
+                        matched_config = find_matching_config(cfg, configs_dir)
                         imb_cfg = cfg.get("imbalance", {})
                         imb_strategy = imb_cfg.get("strategy") or imb_cfg.get("oversampling_method") or "none"
                         
@@ -76,7 +78,8 @@ def check_outputs(base_path="outputs", configs_dir="configs/ablations"):
                             "peft_type": cfg.get("peft", {}).get("type", "none"),
                             "imbalance_strategy": imb_strategy,
                             "lr": cfg.get("learning_rate"),
-                            "epochs": cfg.get("num_epochs")
+                            "epochs": cfg.get("num_epochs"),
+                            "matched_cfg": matched_config
                         })
                     except Exception as e:
                         print(f"⚠️ Warning: Failed to parse config at {config_path}: {e}")
@@ -86,6 +89,9 @@ def check_outputs(base_path="outputs", configs_dir="configs/ablations"):
     print("📋 ABLATION STUDY RUN STATUS SUMMARY")
     print("=" * 80)
     
+    # Track which original ablation configs have already completed at least once
+    completed_configs = set(run["matched_cfg"] for run in completed_runs if run.get("matched_cfg"))
+    
     print(f"\n📊 Completed Runs: {len(completed_runs)}")
     print(f"❌ Incomplete / Interrupted Runs: {len(incomplete_dirs)}")
     
@@ -93,25 +99,36 @@ def check_outputs(base_path="outputs", configs_dir="configs/ablations"):
         print("\n🛑 List of Incomplete / Interrupted Runs:")
         for directory, matched_cfg in sorted(incomplete_dirs, key=lambda x: x[0]):
             if matched_cfg:
-                print(f"  - {directory}  ->  {matched_cfg}")
+                suffix = " (Already completed in another run)" if matched_cfg in completed_configs else ""
+                print(f"  - {directory}  ->  {matched_cfg}{suffix}")
             else:
                 print(f"  - {directory}  ->  (No matching ablation config found)")
         
         print("\n🛠️ Config files to run again:")
-        configs_to_run = sorted(list(set(item[1] for item in incomplete_dirs if item[1])))
-        for cfg_file in configs_to_run:
-            print(f"  {cfg_file}")
+        configs_to_run = sorted(list(set(item[1] for item in incomplete_dirs if item[1] and item[1] not in completed_configs)))
+        if configs_to_run:
+            for cfg_file in configs_to_run:
+                print(f"  {cfg_file}")
+        else:
+            print("  (All interrupted runs have already been successfully completed in subsequent runs!)")
     else:
         print("\n🎉 No incomplete runs found!")
 
-    # Attempt to print completed runs table
+    # Attempt to print completed runs table (clean display without matched_cfg column)
     if completed_runs:
         print("\n✨ Completed Runs Details:")
+        # Create a display list without internal columns
+        completed_runs_display = []
+        for run in completed_runs:
+            d = run.copy()
+            d.pop("matched_cfg", None)
+            completed_runs_display.append(d)
+            
         try:
             import pandas as pd
-            df_summary = pd.DataFrame(completed_runs)
+            df_summary = pd.DataFrame(completed_runs_display)
             print(df_summary.to_string(index=False))
-            return df_summary
+            return pd.DataFrame(completed_runs)
         except ImportError:
             # Fallback to standard library formatting if pandas is not installed
             headers = ["Model", "PEFT", "Imbalance", "LR", "Epochs"]
