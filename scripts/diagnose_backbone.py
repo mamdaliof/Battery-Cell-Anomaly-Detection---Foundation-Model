@@ -1,6 +1,16 @@
 import argparse
+import os
+from pathlib import Path
 import torch
 from transformers import AutoModel
+
+# Automatically redirect Hugging Face cache to local workspace directory
+if "HF_HOME" not in os.environ:
+    workspace_root = Path(__file__).resolve().parents[1]
+    hf_cache_dir = workspace_root / "models" / "hf_cache"
+    os.environ["HF_HOME"] = str(hf_cache_dir)
+    hf_cache_dir.mkdir(parents=True, exist_ok=True)
+
 
 def diagnose(model_name: str):
     print(f"\n==========================================")

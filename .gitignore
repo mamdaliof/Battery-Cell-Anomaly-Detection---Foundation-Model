@@ -117,3 +117,7 @@ wandb/
 *.pt
 *.pth
 
+# Local cached models
+/models/
+
+

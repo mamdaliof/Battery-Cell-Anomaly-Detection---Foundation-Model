@@ -19,6 +19,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+# Automatically redirect Hugging Face cache to local workspace directory
+if "HF_HOME" not in os.environ:
+    workspace_root = Path(__file__).resolve().parents[1]
+    hf_cache_dir = workspace_root / "models" / "hf_cache"
+    os.environ["HF_HOME"] = str(hf_cache_dir)
+    hf_cache_dir.mkdir(parents=True, exist_ok=True)
+
+
 # ── Settings ──────────────────────────────────────────────────────────────────
 MIN_FREE_VRAM_MIB = 12000
 MAX_PARALLEL_JOBS  = 8

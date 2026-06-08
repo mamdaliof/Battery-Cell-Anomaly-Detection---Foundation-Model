@@ -762,4 +762,32 @@ Additionally, the seed is passed to the `BatteryCellDataset` to govern the rando
     - **Problem**: When loading offline or custom model checkpoints, `AutoImageProcessor.from_pretrained` failed due to missing configuration files.
     - **Resolution**: Implemented automatic fallback loading of `google/vit-base-patch16-224` image processor when checkpoint loading fails, ensuring the training pipeline never crashes on data loader setup.
 
+---
+
+## 💾 12. Centralized Local Model Caching
+
+To support completely offline execution, avoid redundant model downloads during parallel ablation sweeps, and prevent network rate-limiting from the Hugging Face Hub, we implemented a centralized local model caching strategy.
+
+### 12.1. Centralized Cache Path
+All downloads from the Hugging Face Hub (weights, configs, and processors) are redirected to the local directory `models/hf_cache` located at the project's root.
+
+- `.gitignore` is updated to exclude the `/models/` directory, ensuring large pre-trained weights (e.g., DINOv3 ViT-B checkpoints) are never tracked by Git.
+- Dynamically injects `os.environ["HF_HOME"] = "models/hf_cache"` at script startup rather than hardcoding paths in individual API calls, ensuring all libraries (`transformers`, `huggingface_hub`, etc.) automatically route requests locally.
+
+### 12.2. Dynamic Environment Resolution Block
+We set `HF_HOME` at the very beginning of package initialization (`src/bcadfm/__init__.py`) and all entry-point scripts (`scripts/train.py`, `scripts/run_parallel_ablations.py`, `scripts/validate_ablation_configs.py`, `scripts/check_model_init.py`, and `scripts/diagnose_backbone.py`):
+
+```python
+import os
+from pathlib import Path
+
+# Automatically redirect Hugging Face cache to local workspace directory
+if "HF_HOME" not in os.environ:
+    workspace_root = Path(__file__).resolve().parents[1]  # parents[2] for bcadfm/__init__.py
+    hf_cache_dir = workspace_root / "models" / "hf_cache"
+    os.environ["HF_HOME"] = str(hf_cache_dir)
+    hf_cache_dir.mkdir(parents=True, exist_ok=True)
+```
+
+
 

@@ -10,8 +10,18 @@ Usage:
     python3 scripts/check_model_init.py --config configs/ablations/03_lora_vits16_r8_all_lr0.0003.yaml
 """
 import argparse
+import os
+from pathlib import Path
 import sys
 import traceback
+
+# Automatically redirect Hugging Face cache to local workspace directory
+if "HF_HOME" not in os.environ:
+    workspace_root = Path(__file__).resolve().parents[1]
+    hf_cache_dir = workspace_root / "models" / "hf_cache"
+    os.environ["HF_HOME"] = str(hf_cache_dir)
+    hf_cache_dir.mkdir(parents=True, exist_ok=True)
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()

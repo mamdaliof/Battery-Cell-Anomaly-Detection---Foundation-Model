@@ -91,6 +91,12 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
   - Configured via [yolo26_dino.yaml](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/configs/yolo26_dino.yaml).
   - Fully verified and tested via shapes unit test suite [test_yolo_shapes.py](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/tests/test_yolo_shapes.py).
 
+- **💾 Local Model Caching**
+  - Hugging Face cache is redirected to the workspace folder `models/hf_cache` via dynamic environment injection (`os.environ["HF_HOME"]`).
+  - This prevents redundant model downloads from the internet during validation, unit testing, and parallel training.
+  - The local `models/` directory is registered in `.gitignore` to prevent large model weight binaries from being tracked in the repository.
+
+
 ## 📂 Dataset conversion and usage
 
 The raw dataset is assumed to live under a directory like `split_base/` with the following structure:
@@ -309,8 +315,10 @@ Additional documentation resources:
   - [`devlogs/DEVLOG_YOLO_DINO_DETECTION_INTEGRATION.md`](./devlogs/DEVLOG_YOLO_DINO_DETECTION_INTEGRATION.md) (YOLO26 + DINOv3 object detection integration)
   - [`devlogs/DEVLOG_VPT_FIX_AND_COLLISION_RESOLUTION.md`](./devlogs/DEVLOG_VPT_FIX_AND_COLLISION_RESOLUTION.md) (VPT compatibility & run directory collision fix)
   - [`devlogs/DEVLOG_RESULTS_VISUALIZATION_SUITE.md`](./devlogs/DEVLOG_RESULTS_VISUALIZATION_SUITE.md) (Interactive Jupyter & Streamlit results visualization suite)
+  - [`devlogs/DEVLOG_LOCAL_MODEL_CACHING.md`](./devlogs/DEVLOG_LOCAL_MODEL_CACHING.md) (Local model caching and offline setup)
 - 📘 **Technical reference**: In-depth implementation details are documented in [`docs/technical_details.md`](./docs/technical_details.md).
 - 📊 **PEFT & imbalance report**: Integration analysis and results are captured in [`PEFT_IMBALANCE_REPORT.md`](./PEFT_IMBALANCE_REPORT.md).
+
 
 As the project evolves, this README will be updated with setup instructions, usage examples, and experiment summaries.
 
