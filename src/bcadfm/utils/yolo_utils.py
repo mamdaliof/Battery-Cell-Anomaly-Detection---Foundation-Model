@@ -1,10 +1,25 @@
 import copy
 import sys
+import logging
+import warnings
 import torch.nn as nn
 import ultralytics.nn.tasks
 from ultralytics.nn.tasks import parse_model as original_parse_model
+from ultralytics.utils import LOGGER
 
 # Using Context7 for Python import hijacking, monkey-patching, and model parser wrappers.
+
+# Suppress PyTorch user warning about non-deterministic attention
+warnings.filterwarnings("ignore", category=UserWarning, message=".*Memory Efficient attention.*")
+
+# Suppress Ultralytics requires_grad=True logs for frozen layers
+class FrozenLayerWarningFilter(logging.Filter):
+    def filter(self, record):
+        if "setting 'requires_grad=True' for frozen layer" in record.getMessage():
+            return False
+        return True
+
+LOGGER.addFilter(FrozenLayerWarningFilter())
 
 # We will store custom layers in this utility to avoid circular imports.
 from bcadfm.models.yolo_dino import DinoV3Backbone, DinoV3SFP_P3, DinoV3SFP_P4, DinoV3SFP_P5
@@ -117,3 +132,10 @@ def register_yolo_dino():
     sys.modules["ultralytics.nn.tasks"].DinoV3SFP_P3 = DinoV3SFP_P3
     sys.modules["ultralytics.nn.tasks"].DinoV3SFP_P4 = DinoV3SFP_P4
     sys.modules["ultralytics.nn.tasks"].DinoV3SFP_P5 = DinoV3SFP_P5
+
+    # Log exactly one warning explaining the suppressed requires_grad logs
+    LOGGER.warning(
+        "⚠️ [BCADFM] Parameter-Efficient Fine-Tuning (PEFT) is active on the DINOv3 backbone. "
+        "Trainable adapter parameters (LoRA, Adapters, or VPT) are nested inside the frozen model. "
+        "Detailed warnings regarding 'requires_grad=True for frozen layers' have been suppressed."
+    )
