@@ -4,6 +4,85 @@ from transformers import AutoModel
 
 # Using Context7 for PyTorch module design, transformers model loading, and Tensor reshaping operations.
 
+import time
+
+class BackwardStartDummy(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x, profiler):
+        ctx.profiler = profiler
+        return x.clone()
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        ctx.profiler.record_backward_start()
+        return grad_output, None
+
+class BackwardEndDummy(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x, profiler):
+        ctx.profiler = profiler
+        return x.clone()
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        ctx.profiler.record_backward_end()
+        return grad_output, None
+
+class BackboneProfiler:
+    def __init__(self, print_every=10):
+        self.print_every = print_every
+        self.step_count = 0
+        self.eval_step_count = 0
+        
+        self.fwd_times = []
+        self.back_times = []
+        self.batch_sizes = []
+        
+        self.t_fwd_start = 0.0
+        self.t_back_start = 0.0
+
+    def record_forward_start(self):
+        self.t_fwd_start = time.time()
+
+    def record_forward_end(self, batch_size, is_training):
+        t_fwd = time.time() - self.t_fwd_start
+        self.fwd_times.append(t_fwd)
+        self.batch_sizes.append(batch_size)
+        
+        if not is_training or not torch.is_grad_enabled():
+            self.eval_step_count += 1
+            if self.eval_step_count % self.print_every == 0:
+                avg_fwd = sum(self.fwd_times) / len(self.fwd_times)
+                avg_batch = sum(self.batch_sizes) / len(self.batch_sizes)
+                print(f"⏱️  [DinoV3Backbone Eval Profile | Step {self.eval_step_count}]")
+                print(f"    - Avg Batch Size: {avg_batch:.1f}")
+                print(f"    - Avg Forward Pass: {avg_fwd:.4f}s")
+                self.fwd_times.clear()
+                self.batch_sizes.clear()
+
+    def record_backward_start(self):
+        self.t_back_start = time.time()
+
+    def record_backward_end(self):
+        t_back = time.time() - self.t_back_start
+        self.back_times.append(t_back)
+        self.step_count += 1
+        
+        if self.step_count % self.print_every == 0:
+            avg_fwd = sum(self.fwd_times) / len(self.fwd_times)
+            avg_back = sum(self.back_times) / len(self.back_times)
+            avg_batch = sum(self.batch_sizes) / len(self.batch_sizes)
+            
+            print(f"\n⏱️  [DinoV3Backbone Train Profile | Step {self.step_count}]")
+            print(f"    - Avg Batch Size: {avg_batch:.1f}")
+            print(f"    - Avg Forward Pass: {avg_fwd:.4f}s")
+            print(f"    - Avg Backward Pass: {avg_back:.4f}s")
+            print(f"    - Avg Total Backbone Time: {avg_fwd + avg_back:.4f}s")
+            
+            self.fwd_times.clear()
+            self.back_times.clear()
+            self.batch_sizes.clear()
+
 class DinoV3Backbone(nn.Module):
     """
     DINOv3 backbone wrapper for YOLO.
@@ -44,6 +123,9 @@ class DinoV3Backbone(nn.Module):
         # Check DINOv3 specific configurations
         self.num_registers = getattr(self.model.config, "num_register_tokens", 4 if "dinov3" in model_name.lower() else 0)
         self.patch_size = self.model.config.patch_size
+        
+        # Profiler for finding bottlenecks
+        self.profiler = BackboneProfiler(print_every=10)
 
         # Apply requested PEFT wrapping on backbone
         self.peft_type = "none"
@@ -140,18 +222,21 @@ class DinoV3Backbone(nn.Module):
         # Apply standardization (ImageNet normalization)
         x_norm = (x - self.mean) / self.std
         
-        # Execute backbone (VPT forward pass overrides manual block execution, but we still do it)
-        # Note: In PEFT training, we need to track gradients through the trainable adapter layers.
-        # But wait! If we run inside `with torch.no_grad():`, we will FREEZE the adapters too!
-        # Since we want to train the PEFT adapters, we must NOT use torch.no_grad() for the backbone forward pass when PEFT is active!
-        # Let's run with gradients when peft is active and we are in training mode.
         is_training = self.training
         
-        if self.peft_type != "none" and is_training:
-            outputs = self.model(x_norm)
+        # Start forward profiling
+        self.profiler.record_forward_start()
+        
+        if is_training and torch.is_grad_enabled():
+            x_norm = x_norm.detach().requires_grad_(True)
+            x_in = BackwardEndDummy.apply(x_norm, self.profiler)
+            outputs = self.model(x_in)
         else:
             with torch.no_grad():
                 outputs = self.model(x_norm)
+            
+        # End forward profiling
+        self.profiler.record_forward_end(x.shape[0], is_training)
             
         # outputs.last_hidden_state has shape (B, seq_len, D)
         # Sequence layout: [CLS] + [Prompts] + [Register Tokens (e.g. 4)] + [Patch Tokens]
@@ -174,6 +259,10 @@ class DinoV3Backbone(nn.Module):
         # Reshape sequence back to 2D grid: (B, D, H_patch, W_patch)
         B, N, D = patch_tokens.shape
         grid = patch_tokens.transpose(1, 2).view(B, D, H_patch, W_patch)
+        
+        if is_training and torch.is_grad_enabled():
+            grid = BackwardStartDummy.apply(grid, self.profiler)
+            
         return grid
 
 
