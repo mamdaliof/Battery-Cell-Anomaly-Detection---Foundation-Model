@@ -42,9 +42,13 @@ class BackboneProfiler:
         self.t_back_start = 0.0
 
     def record_forward_start(self):
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
         self.t_fwd_start = time.time()
 
     def record_forward_end(self, batch_size, is_training):
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
         t_fwd = time.time() - self.t_fwd_start
         self.fwd_times.append(t_fwd)
         self.batch_sizes.append(batch_size)
@@ -61,9 +65,13 @@ class BackboneProfiler:
                 self.batch_sizes.clear()
 
     def record_backward_start(self):
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
         self.t_back_start = time.time()
 
     def record_backward_end(self):
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
         t_back = time.time() - self.t_back_start
         self.back_times.append(t_back)
         self.step_count += 1
