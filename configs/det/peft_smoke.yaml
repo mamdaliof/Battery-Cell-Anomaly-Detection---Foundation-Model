@@ -3,7 +3,7 @@ output_dir: "outputs"
 
 # YOLO specific options
 yolo_model_config: "configs/det/yolo26_dino.yaml"
-yolo_data_yaml: "data/battery_detection_all.yaml"
+yolo_data_yaml: "data/det_v1.0/battery_detection_all.yaml"
 
 # Data configuration (kept for comparability)
 data:

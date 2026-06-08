@@ -69,5 +69,5 @@ peft:
 scheduler:
   lr_scheduler_type: cosine
   warmup_ratio: 0.1
-yolo_data_yaml: data/battery_detection_all.yaml
+yolo_data_yaml: data/det_v1.0/battery_detection_all.yaml
 yolo_model_config: configs/det/yolo26_dino.yaml
