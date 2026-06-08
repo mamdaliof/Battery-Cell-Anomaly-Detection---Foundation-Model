@@ -77,13 +77,17 @@ class BatteryCellDataset(Dataset):
         try:
             self.processor = AutoImageProcessor.from_pretrained(model_name_or_path)
         except Exception as e:
-            if int(os.environ.get("LOCAL_RANK", "0")) == 0:
-                print(f"⚠️ Warning: Failed to load HF processor for {model_name_or_path}: {e}")
-                print("Attempting fallback to default google/vit-base-patch16-224 processor...")
+            # Try to load it from local cache files only (C7 Fix)
             try:
-                self.processor = AutoImageProcessor.from_pretrained("google/vit-base-patch16-224")
+                self.processor = AutoImageProcessor.from_pretrained(model_name_or_path, local_files_only=True)
             except Exception:
-                self.processor = None
+                if int(os.environ.get("LOCAL_RANK", "0")) == 0:
+                    print(f"⚠️ Warning: Failed to load HF processor for {model_name_or_path}: {e}")
+                    print("Attempting fallback to default google/vit-base-patch16-224 processor...")
+                try:
+                    self.processor = AutoImageProcessor.from_pretrained("google/vit-base-patch16-224")
+                except Exception:
+                    self.processor = None
 
         self.image_size_override = image_size_override
 
