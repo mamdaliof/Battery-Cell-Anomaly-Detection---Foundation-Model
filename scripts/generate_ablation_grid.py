@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import copy
 import yaml
 from pathlib import Path
 from typing import Any, Dict
@@ -42,7 +43,7 @@ def main():
 
     # 1. Baseline Runs (2 runs: Small, Base)
     for model_key, model_name in models:
-        cfg = base_cfg.copy()
+        cfg = copy.deepcopy(base_cfg)
         cfg["model_name"] = model_name
         cfg["peft"] = {
             "type": "none",
@@ -78,7 +79,7 @@ def main():
         for rank in lora_ranks:
             for block_name, blocks in lora_blocks:
                 for lr in lora_lrs:
-                    cfg = base_cfg.copy()
+                    cfg = copy.deepcopy(base_cfg)
                     cfg["model_name"] = model_name
                     cfg["learning_rate"] = lr
                     cfg["peft"] = {
@@ -114,7 +115,7 @@ def main():
         for dim in adapter_dims:
             for block_name, blocks in adapter_blocks:
                 for lr in adapter_lrs:
-                    cfg = base_cfg.copy()
+                    cfg = copy.deepcopy(base_cfg)
                     cfg["model_name"] = model_name
                     cfg["learning_rate"] = lr
                     cfg["peft"] = {
@@ -150,7 +151,7 @@ def main():
         for type_name, is_deep, blocks in vpt_types:
             for tokens in vpt_tokens:
                 for lr in vpt_lrs:
-                    cfg = base_cfg.copy()
+                    cfg = copy.deepcopy(base_cfg)
                     cfg["model_name"] = model_name
                     cfg["learning_rate"] = lr
                     cfg["peft"] = {
