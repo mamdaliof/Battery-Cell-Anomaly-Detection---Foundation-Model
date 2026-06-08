@@ -1,3 +1,7 @@
+import os
+# Suppress PyTorch C++ level warnings
+os.environ["TORCH_CPP_LOG_LEVEL"] = "ERROR"
+
 import copy
 import sys
 import logging
@@ -9,13 +13,20 @@ from ultralytics.utils import LOGGER
 
 # Using Context7 for Python import hijacking, monkey-patching, and model parser wrappers.
 
-# Suppress PyTorch user warning about non-deterministic attention
+# Suppress PyTorch user warning about non-deterministic attention and SDPA
 warnings.filterwarnings("ignore", category=UserWarning, message=".*Memory Efficient attention.*")
+warnings.filterwarnings("ignore", category=UserWarning, message=".*non-deterministic.*")
+warnings.filterwarnings("ignore", category=UserWarning, message=".*SDPA.*")
+warnings.filterwarnings("ignore", category=UserWarning, message=".*sdpa.*")
+warnings.filterwarnings("ignore", category=UserWarning, message=".*torch.utils.checkpoint.*")
 
-# Suppress Ultralytics requires_grad=True logs for frozen layers
+# Suppress Ultralytics requires_grad=True logs for frozen layers and model scale warnings
 class FrozenLayerWarningFilter(logging.Filter):
     def filter(self, record):
-        if "setting 'requires_grad=True' for frozen layer" in record.getMessage():
+        msg = record.getMessage()
+        if "setting 'requires_grad=True' for frozen layer" in msg:
+            return False
+        if "no model scale passed" in msg:
             return False
         return True
 
@@ -135,7 +146,7 @@ def register_yolo_dino():
 
     # Log exactly one warning explaining the suppressed requires_grad logs
     LOGGER.warning(
-        "⚠️ [BCADFM] Parameter-Efficient Fine-Tuning (PEFT) is active on the DINOv3 backbone. "
+        "[BCADFM] Parameter-Efficient Fine-Tuning (PEFT) is active on the DINOv3 backbone. "
         "Trainable adapter parameters (LoRA, Adapters, or VPT) are nested inside the frozen model. "
         "Detailed warnings regarding 'requires_grad=True for frozen layers' have been suppressed."
     )
