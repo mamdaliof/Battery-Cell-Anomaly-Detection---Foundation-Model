@@ -243,7 +243,9 @@ To apply class weighting or focal loss within the YOLO26 training pipeline:
 - [x] **Conceptualize custom loss subclassing**: Design class-weighted BCE / Focal Loss integration in YOLO detection loss. (Done)
 - [x] **Conceptualize custom trainer subclassing**: Design custom trainer overriding `init_criterion` to inject weighted detection loss. (Done)
 - [x] **De-prioritize custom loss/trainer components**: To isolate DINOv3 backbone comparative performance, use standard YOLO losses and trainers natively as requested by user. (Cancelled/Deferred)
-- [ ] Create dataset yaml `data/battery_detection.yaml` referencing train/val splits.
+- [x] Create dataset variant yaml configurations under `data/` referencing train/val splits. (Done)
+- [x] Implement custom validator (`CustomDetectionValidator`) and trainer (`CustomDetectionTrainer`) to compute custom class-wise stats, matched box IoU/Dice, and multi-label classification conversions. (Done)
+
 
 ### Sub-Task 5: Training Pipeline & Ablations
 - [x] **Conceptualize DDP training execution**: Design script with multi-process dynamic module registration and argument parsers for multi-GPU training. (Done)

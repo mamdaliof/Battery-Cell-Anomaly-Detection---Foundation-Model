@@ -649,6 +649,37 @@ outputs = self.model(x_norm, interpolate_pos_encoding=True)
 ```
 This enables the backbone to interpolate positional embeddings dynamically, allowing the integrated YOLO detector to handle input tensors of any size (e.g., standard $640 \times 640$).
 
+### 📂 9.6. Object Detection Dataset Preprocessing
+To format the raw `split_base/` dataset (which contains VOC XML files) for Ultralytics YOLO26 training:
+1. **Annotation Conversion**: Bounding box coordinates are read from the `<bndbox>` tags inside XML files. We convert absolute coordinates `(xmin, ymin, xmax, ymax)` to normalized YOLO format `(x_center, y_center, width, height)` using the image dimensions:
+   $$x_{center} = \frac{xmin + xmax}{2 \times \text{width}}$$
+   $$y_{center} = \frac{ymin + ymax}{2 \times \text{height}}$$
+   $$w_{box} = \frac{xmax - xmin}{\text{width}}$$
+   $$h_{box} = \frac{ymax - ymin}{\text{height}}$$
+2. **Class Filtering**: Since the detection pipeline focuses on anomaly defect localization (`nc: 1`), we extract only the `abnormality` labels (mapping to index `0`) and discard the `cell` and `text` labels.
+3. **Background Image Handling**: For normal battery cell samples that contain no anomalies, the preprocessing script writes an empty `.txt` file. This allows YOLO to ingest these images as negative background samples during training.
+4. **Symlink Integration**: Image files are optionally symlinked using relative paths rather than copied, preventing duplicate disk storage overhead.
+
+### 📊 9.7. Custom Bounding Box & Multi-Label Classification Validation Metrics
+To implement custom evaluation statistics without modifying Ultralytics vendor source code, we subclass `DetectionValidator` and `DetectionTrainer` in [`src/bcadfm/training/yolo_trainer.py`](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/training/yolo_trainer.py):
+
+#### 1. Per-Class Metrics at IoU=0.50
+We calculate class-wise True Positives (TP), False Positives (FP), and False Negatives (FN) directly from the validation stats matrix at IoU=0.50:
+$$\text{TP}_c = \sum (\text{tp\_mask} \land (\text{pred\_cls} == c))$$
+$$\text{FP}_c = \sum (\neg\text{tp\_mask} \land (\text{pred\_cls} == c))$$
+$$\text{FN}_c = \text{GroundTruthCount}_c - \text{TP}_c$$
+
+#### 2. Bbox Overlap IoU & Dice Coefficient
+We perform greedy matching of bounding boxes belonging to the same class at $IoU \ge 0.50$. For matched box pairs, we compute the individual Dice Coefficient and calculate global averages across the split:
+$$\text{Dice} = \frac{2 \times \text{IoU}}{1 + \text{IoU}}$$
+
+#### 3. Image-Level Multi-Label Classification Metrics
+To evaluate binary indicators $\text{y} = [has\_abnormality, has\_text]$ at image level:
+- **Ground Truth**: Set to 1 if the image contains at least one ground-truth bbox for that class, else 0.
+- **Prediction**: Set to 1 if there is at least one predicted bbox for that class with confidence $\ge 0.25$, else 0.
+- **Probability**: Set to the maximum confidence score of predicted bboxes for that class (passed to ROC-AUC).
+- **Evaluation**: Uses `scikit-learn` to compute image-level Accuracy, Precision, Recall, F1-score, and AUROC independently.
+
 ---
 
 ## 🛠️ 10. Seeding & Audit Resolutions

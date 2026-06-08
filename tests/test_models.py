@@ -43,10 +43,10 @@ class TestDinoClassifierAndPeft(unittest.TestCase):
             hidden_dim="0.5X",  # tests multiplier string parsing
             dropout=0.1
         )
-        cls.peft_cfg_none = PeftConfig(peft_type="none")
+        cls.peft_cfg_none = PeftConfig(type="none")
         
         cls.peft_cfg_lora = PeftConfig(
-            peft_type="lora",
+            type="lora",
             lora_r=8,
             lora_alpha=16,
             lora_dropout=0.0,
@@ -54,19 +54,19 @@ class TestDinoClassifierAndPeft(unittest.TestCase):
         )
 
         cls.peft_cfg_adapter = PeftConfig(
-            peft_type="adapter",
+            type="adapter",
             adapter_bottleneck_dim=32,
             adapter_dropout=0.1
         )
 
         cls.peft_cfg_vpt_shallow = PeftConfig(
-            peft_type="visual_prompt",
+            type="visual_prompt",
             vpt_num_tokens=10,
             vpt_deep=False
         )
 
         cls.peft_cfg_vpt_deep = PeftConfig(
-            peft_type="visual_prompt",
+            type="visual_prompt",
             vpt_num_tokens=10,
             vpt_deep=True
         )
@@ -82,9 +82,10 @@ class TestDinoClassifierAndPeft(unittest.TestCase):
             head_config=cfg1,
             peft_config=self.peft_cfg_none
         )
-        # Check that the classifier head is a single linear layer
-        self.assertTrue(isinstance(classifier1.classifier, nn.Linear))
-        self.assertEqual(classifier1.classifier.out_features, 2)
+        # Check that the classifier head is a single linear layer wrapped in sequential
+        self.assertTrue(isinstance(classifier1.classifier, nn.Sequential))
+        self.assertTrue(isinstance(classifier1.classifier[0], nn.Linear))
+        self.assertEqual(classifier1.classifier[0].out_features, 2)
 
         # Test 2: depth > 1 with multiplier string (0.5X of 384 hidden_size)
         cfg2 = HeadConfig(num_labels=2, depth=2, hidden_dim="0.5X", dropout=0.1)

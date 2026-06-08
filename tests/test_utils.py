@@ -45,23 +45,22 @@ class TestConfigAndUtilities(unittest.TestCase):
                 "image_size": 224,
                 "aug_global_prob": 0.5,
                 "aug_max_transforms": 2,
-                "aug_resized_crop_prob": 0.5,
-                "aug_resized_crop_scale": [0.8, 1.0],
-                "aug_resized_crop_ratio": [0.75, 1.33],
-                "aug_horizontal_flip_prob": 0.5,
-                "aug_rotation_prob": 0.5,
-                "aug_rotation_degrees": 15,
-                "aug_color_jitter_prob": 0.5,
-                "aug_color_jitter_brightness": 0.1,
-                "aug_color_jitter_contrast": 0.1,
-                "aug_color_jitter_saturation": 0.1,
-                "aug_color_jitter_hue": 0.05,
-                "aug_gaussian_noise_prob": 0.5,
-                "aug_gaussian_noise_mean": 0.0,
-                "aug_gaussian_noise_std": 0.01,
+                "random_resized_crop_prob": 0.5,
+                "random_resized_crop_scale": [0.8, 1.0],
+                "random_resized_crop_ratio": [0.75, 1.33],
+                "horizontal_flip_prob": 0.5,
+                "rotation_prob": 0.5,
+                "rotation_degrees": 15.0,
+                "color_jitter_prob": 0.5,
+                "color_jitter_brightness": 0.1,
+                "color_jitter_contrast": 0.1,
+                "color_jitter_saturation": 0.1,
+                "color_jitter_hue": 0.05,
+                "gaussian_noise_prob": 0.5,
+                "gaussian_noise_std": 0.01,
             },
             "peft": {
-                "peft_type": "lora",
+                "type": "lora",
                 "lora_r": 8,
                 "lora_alpha": 16,
                 "lora_dropout": 0.1,
@@ -111,7 +110,7 @@ class TestConfigAndUtilities(unittest.TestCase):
         self.assertTrue(isinstance(cfg, TrainingConfig))
         self.assertEqual(cfg.seed, 1234)
         self.assertEqual(cfg.batch_size, 8)
-        self.assertEqual(cfg.peft.peft_type, "lora")
+        self.assertEqual(cfg.peft.type, "lora")
         self.assertEqual(cfg.imbalance.loss_type, "focal")
         self.assertTrue(cfg.amp.bf16)
 
@@ -125,7 +124,8 @@ class TestConfigAndUtilities(unittest.TestCase):
         )
         
         # All trainable
-        total, trainable = count_parameters(model)
+        params = count_parameters(model)
+        total, trainable = params["total"], params["trainable"]
         self.assertEqual(total, 67)
         self.assertEqual(trainable, 67)
 
@@ -133,7 +133,8 @@ class TestConfigAndUtilities(unittest.TestCase):
         for p in model[0].parameters():
             p.requires_grad = False
             
-        total, trainable = count_parameters(model)
+        params = count_parameters(model)
+        total, trainable = params["total"], params["trainable"]
         self.assertEqual(total, 67)
         self.assertEqual(trainable, 12)
 

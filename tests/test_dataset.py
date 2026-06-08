@@ -53,20 +53,19 @@ class TestBatteryCellDataset(unittest.TestCase):
             image_size=224,
             aug_global_prob=0.0,  # disable augmentations by default in tests
             aug_max_transforms=2,
-            aug_resized_crop_prob=0.0,
-            aug_resized_crop_scale=(0.8, 1.0),
-            aug_resized_crop_ratio=(0.75, 1.33),
-            aug_horizontal_flip_prob=0.0,
-            aug_rotation_prob=0.0,
-            aug_rotation_degrees=15,
-            aug_color_jitter_prob=0.0,
-            aug_color_jitter_brightness=0.1,
-            aug_color_jitter_contrast=0.1,
-            aug_color_jitter_saturation=0.1,
-            aug_color_jitter_hue=0.05,
-            aug_gaussian_noise_prob=0.0,
-            aug_gaussian_noise_mean=0.0,
-            aug_gaussian_noise_std=0.01,
+            random_resized_crop_prob=0.0,
+            random_resized_crop_scale=(0.8, 1.0),
+            random_resized_crop_ratio=(0.75, 1.33),
+            horizontal_flip_prob=0.0,
+            rotation_prob=0.0,
+            rotation_degrees=15.0,
+            color_jitter_prob=0.0,
+            color_jitter_brightness=0.1,
+            color_jitter_contrast=0.1,
+            color_jitter_saturation=0.1,
+            color_jitter_hue=0.05,
+            gaussian_noise_prob=0.0,
+            gaussian_noise_std=0.01,
         )
 
         # Use facebook/dinov3-vits16-pretrain-lvd1689m checkpoint for tests
@@ -174,8 +173,8 @@ class TestBatteryCellDataset(unittest.TestCase):
         """
         # Enable all augmentations in config
         self.data_config.aug_global_prob = 1.0
-        self.data_config.aug_horizontal_flip_prob = 1.0
-        self.data_config.aug_rotation_prob = 1.0
+        self.data_config.horizontal_flip_prob = 1.0
+        self.data_config.rotation_prob = 1.0
 
         pipeline = build_augmentation_pipeline(self.data_config, split="train")
         self.assertIsNotNone(pipeline)

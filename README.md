@@ -131,6 +131,20 @@ data/
 
 where each image is assigned to `normal` or `abnormal` depending on whether any of its XML labels match the provided abnormal labels.
 
+### 🎯 Object Detection Dataset Conversion
+
+To convert the detection-style `split_base/` dataset into a YOLO format dataset compatible with the object detection pipeline:
+
+```bash
+python scripts/prepare_yolo_detection_data.py \
+  --source-root /path/to/split_base \
+  --target-root data/battery_detection \
+  --detection-labels abnormality \
+  # --use-symlinks  # optional: use symlinks instead of copying images
+```
+
+This generates a structured output under `data/battery_detection/` containing `images/train/`, `images/val/`, `labels/train/`, and `labels/val/` directories, with absolute bounding boxes converted to normalized `[0, 1]` YOLO coordinate format (`class_idx x_center y_center width height`).
+
 ## 💻 How to run the code
 
 ### 1. ⚙️ Create and activate the environment
@@ -290,6 +304,8 @@ A more detailed project specification and TODO list is maintained in [`PROJECT_P
 Additional documentation resources:
 
 - 📓 **Dev logs**: Detailed development logs are maintained in the [`devlogs/`](./devlogs/) directory.
+  - [`devlogs/DEVLOG_YOLO_DINO_DETECTION_CUSTOM_METRICS.md`](./devlogs/DEVLOG_YOLO_DINO_DETECTION_CUSTOM_METRICS.md) (Custom evaluation & multi-label classification validation metrics)
+  - [`devlogs/DEVLOG_YOLO_DINO_DETECTION_DATA_PREP.md`](./devlogs/DEVLOG_YOLO_DINO_DETECTION_DATA_PREP.md) (YOLO dataset preparation and cleaning for object detection)
   - [`devlogs/DEVLOG_YOLO_DINO_DETECTION_INTEGRATION.md`](./devlogs/DEVLOG_YOLO_DINO_DETECTION_INTEGRATION.md) (YOLO26 + DINOv3 object detection integration)
   - [`devlogs/DEVLOG_VPT_FIX_AND_COLLISION_RESOLUTION.md`](./devlogs/DEVLOG_VPT_FIX_AND_COLLISION_RESOLUTION.md) (VPT compatibility & run directory collision fix)
   - [`devlogs/DEVLOG_RESULTS_VISUALIZATION_SUITE.md`](./devlogs/DEVLOG_RESULTS_VISUALIZATION_SUITE.md) (Interactive Jupyter & Streamlit results visualization suite)

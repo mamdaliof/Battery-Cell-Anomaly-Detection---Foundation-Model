@@ -97,7 +97,7 @@ class TestTrainerAndLosses(unittest.TestCase):
         subset = Subset(base_dataset, [0, 2, 4, 11, 15])
         
         from transformers import TrainingArguments
-        training_args = TrainingArguments(output_dir="temp_out", report_to="none", no_cuda=True)
+        training_args = TrainingArguments(output_dir="temp_out", report_to="none", use_cpu=True)
         
         # Use dummy model
         model = nn.Linear(10, 2)
@@ -135,7 +135,7 @@ class TestTrainerAndLosses(unittest.TestCase):
 
         model = MockModel()
         from transformers import TrainingArguments
-        training_args = TrainingArguments(output_dir="temp_out", report_to="none", no_cuda=True)
+        training_args = TrainingArguments(output_dir="temp_out", report_to="none", use_cpu=True)
         
         trainer = ImbalanceTrainer(
             model=model,
@@ -169,7 +169,7 @@ class TestTrainerAndLosses(unittest.TestCase):
         base_dataset.oversample_dataset = mock_oversample
 
         from transformers import TrainingArguments
-        training_args = TrainingArguments(output_dir="temp_out", report_to="none", no_cuda=True)
+        training_args = TrainingArguments(output_dir="temp_out", report_to="none", use_cpu=True)
         # Force world size > 1 to mock DDP env
         training_args._world_size = 2
         

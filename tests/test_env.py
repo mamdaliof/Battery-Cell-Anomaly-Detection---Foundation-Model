@@ -73,6 +73,7 @@ class TestEnvironment(unittest.TestCase):
             "bcadfm.models.yolo_dino",
             "bcadfm.training.losses",
             "bcadfm.training.trainer",
+            "bcadfm.training.yolo_trainer",
             "bcadfm.metrics.cls_metrics",
             "bcadfm.metrics.cls_callbacks",
         ]
