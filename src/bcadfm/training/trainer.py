@@ -27,6 +27,14 @@ class ImbalanceTrainer(Trainer):
         self.imbalance_config = imbalance_config or {}
         self._train_labels_cached = None
         
+        # Profiling variables (C7 Fix)
+        self._last_step_time = None
+        self._last_forward_time = 0.0
+        self._step_count = 0
+        self._accumulated_data_time = 0.0
+        self._accumulated_forward_time = 0.0
+        self._accumulated_step_time = 0.0
+        
         # Determine class weights from training dataset if requested
         self.class_weights: Optional[torch.Tensor] = None
         if self.train_dataset is not None:
@@ -185,8 +193,56 @@ class ImbalanceTrainer(Trainer):
 
         return super()._get_train_sampler(*args, **kwargs)
 
+    def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> torch.Tensor:
+        import time
+        t_start = time.perf_counter()
+        
+        # Measure time elapsed since last training step ended (data loading and prep)
+        if self._last_step_time is not None:
+            data_time = t_start - self._last_step_time
+        else:
+            data_time = 0.0
+            
+        self._last_forward_time = 0.0  # Reset for this step
+        
+        # Execute forward pass, loss computation, and backpropagation via HF Trainer
+        loss = super().training_step(model, inputs)
+        
+        step_time = time.perf_counter() - t_start
+        backward_time = max(0.0, step_time - self._last_forward_time)
+        
+        self._step_count += 1
+        self._accumulated_data_time += data_time
+        self._accumulated_forward_time += self._last_forward_time
+        self._accumulated_step_time += step_time
+        
+        # Log profiling results every 50 steps
+        if self._step_count % 50 == 0:
+            if int(os.environ.get("LOCAL_RANK", "0")) == 0:
+                avg_data = self._accumulated_data_time / 50
+                avg_forward = self._accumulated_forward_time / 50
+                avg_step = self._accumulated_step_time / 50
+                avg_backward = max(0.0, avg_step - avg_forward)
+                print(
+                    f"\n⏱️ [Trainer Profiler] Step {self._step_count} bottleneck diagnostics (avg of last 50 steps):\n"
+                    f"  - Data Prep / Loader (CPU→GPU): {avg_data:.4f}s ({(avg_data/avg_step)*100:.1f}% of step)\n"
+                    f"  - Model Forward + Loss:          {avg_forward:.4f}s ({(avg_forward/avg_step)*100:.1f}% of step)\n"
+                    f"  - Model Backward + Opt:          {avg_backward:.4f}s ({(avg_backward/avg_step)*100:.1f}% of step)\n"
+                    f"  - Total Step Time:               {avg_step:.4f}s\n"
+                )
+                # Reset accumulators
+                self._accumulated_data_time = 0.0
+                self._accumulated_forward_time = 0.0
+                self._accumulated_step_time = 0.0
+                
+        self._last_step_time = time.perf_counter()
+        return loss
+
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
         """Compute loss using custom loss function and imbalance strategies."""
+        import time
+        t_start = time.perf_counter()
+        
         # Ensure loss_fn is initialized
         if not hasattr(self, "loss_fn"):
             self._prepare_imbalance_handling()
@@ -204,6 +260,7 @@ class ImbalanceTrainer(Trainer):
             logits = outputs.logits
         else:
             # Fallback
+            self._last_forward_time = time.perf_counter() - t_start
             if return_outputs:
                 return outputs.get("loss"), outputs
             return outputs.get("loss")
@@ -219,4 +276,5 @@ class ImbalanceTrainer(Trainer):
         if isinstance(outputs, dict):
             outputs["loss"] = loss
 
+        self._last_forward_time = time.perf_counter() - t_start
         return (loss, outputs) if return_outputs else loss
