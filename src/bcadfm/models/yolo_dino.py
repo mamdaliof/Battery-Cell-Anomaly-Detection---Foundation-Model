@@ -19,8 +19,14 @@ class DinoV3Backbone(nn.Module):
             model_name (str): Hugging Face model repository path.
         """
         super().__init__()
-        # Load backbone model
-        self.model = AutoModel.from_pretrained(model_name)
+        try:
+            self.model = AutoModel.from_pretrained(model_name)
+        except Exception as e:
+            # Fallback to local files only if gated repository / offline error
+            try:
+                self.model = AutoModel.from_pretrained(model_name, local_files_only=True)
+            except Exception:
+                raise e
         self.hidden_size = self.model.config.hidden_size
         
         # Ensure c2 is set correctly to match the backbone hidden size

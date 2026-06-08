@@ -331,7 +331,14 @@ class DinoV3Classifier(nn.Module):
     ) -> None:
         super().__init__()
 
-        self.backbone = AutoModel.from_pretrained(model_name_or_path)
+        try:
+            self.backbone = AutoModel.from_pretrained(model_name_or_path)
+        except Exception as e:
+            # Fallback to local files only if gated repository / offline error
+            try:
+                self.backbone = AutoModel.from_pretrained(model_name_or_path, local_files_only=True)
+            except Exception:
+                raise e
 
         # Determine embedding dimension from backbone config
         hidden_size = getattr(self.backbone.config, "hidden_size", None)
