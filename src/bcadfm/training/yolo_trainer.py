@@ -121,59 +121,79 @@ class CustomDetectionValidator(DetectionValidator):
 
     def get_stats(self) -> Dict[str, Any]:
         """Calculates and returns custom stats injected alongside YOLO stats."""
-        stats = super().get_stats()
+        stats = {}
+        try:
+            stats = super().get_stats()
+        except Exception as e:
+            print(f"⚠️ [WARN] Failed to calculate standard YOLO metrics (possibly zero detections): {e}")
+            stats = {
+                "metrics/precision(B)": 0.0,
+                "metrics/recall(B)": 0.0,
+                "metrics/mAP50(B)": 0.0,
+                "metrics/mAP50-95(B)": 0.0,
+            }
+
         names_list = sorted(self.names.keys())
 
         # 1. Bbox class-specific TP, FP, FN, Precision, Recall, F1, maps
         try:
-            concatenated_stats = {k: np.concatenate(v, 0) for k, v in self.metrics.stats.items()}
-            if concatenated_stats["tp"].size > 0:
-                tp_iou_05 = concatenated_stats["tp"][:, 0]
-                pred_cls = concatenated_stats["pred_cls"]
-                target_cls = concatenated_stats["target_cls"]
+            if hasattr(self.metrics, "stats") and self.metrics.stats:
+                concatenated_stats = {}
+                for k, v in self.metrics.stats.items():
+                    if v and len(v) > 0:
+                        concatenated_stats[k] = np.concatenate(v, 0)
+                
+                if concatenated_stats and "tp" in concatenated_stats and concatenated_stats["tp"].size > 0:
+                    tp_iou_05 = concatenated_stats["tp"][:, 0]
+                    pred_cls = concatenated_stats["pred_cls"]
+                    target_cls = concatenated_stats["target_cls"]
 
-                for idx in names_list:
-                    name = self.names[idx]
-                    tp_c = int(np.sum(tp_iou_05 & (pred_cls == idx)))
-                    fp_c = int(np.sum((~tp_iou_05) & (pred_cls == idx)))
-                    fn_c = int(np.sum(target_cls == idx)) - tp_c
+                    for idx in names_list:
+                        name = self.names[idx]
+                        tp_c = int(np.sum(tp_iou_05 & (pred_cls == idx)))
+                        fp_c = int(np.sum((~tp_iou_05) & (pred_cls == idx)))
+                        fn_c = int(np.sum(target_cls == idx)) - tp_c
 
-                    stats[f"metrics/custom_TP/{name}"] = tp_c
-                    stats[f"metrics/custom_FP/{name}"] = fp_c
-                    stats[f"metrics/custom_FN/{name}"] = fn_c
+                        stats[f"metrics/custom_TP/{name}"] = tp_c
+                        stats[f"metrics/custom_FP/{name}"] = fp_c
+                        stats[f"metrics/custom_FN/{name}"] = fn_c
 
-                    # Map metrics from ap_class_index mapping
-                    results_idx = np.where(self.metrics.ap_class_index == idx)[0]
-                    if len(results_idx) > 0:
-                        r_idx = results_idx[0]
-                        stats[f"metrics/custom_P/{name}"] = float(self.metrics.box.p[r_idx])
-                        stats[f"metrics/custom_R/{name}"] = float(self.metrics.box.r[r_idx])
-                        stats[f"metrics/custom_F1/{name}"] = float(self.metrics.box.f1[r_idx])
-                        stats[f"metrics/custom_mAP50/{name}"] = float(self.metrics.box.all_ap[r_idx, 0])
-                        stats[f"metrics/custom_mAP50-95/{name}"] = float(self.metrics.box.all_ap[r_idx].mean())
+                        # Map metrics from ap_class_index mapping
+                        results_idx = np.where(self.metrics.ap_class_index == idx)[0]
+                        if len(results_idx) > 0:
+                            r_idx = results_idx[0]
+                            stats[f"metrics/custom_P/{name}"] = float(self.metrics.box.p[r_idx])
+                            stats[f"metrics/custom_R/{name}"] = float(self.metrics.box.r[r_idx])
+                            stats[f"metrics/custom_F1/{name}"] = float(self.metrics.box.f1[r_idx])
+                            stats[f"metrics/custom_mAP50/{name}"] = float(self.metrics.box.all_ap[r_idx, 0])
+                            stats[f"metrics/custom_mAP50-95/{name}"] = float(self.metrics.box.all_ap[r_idx].mean())
         except Exception as e:
             print(f"⚠️ [WARN] Error calculating per-class stats: {e}")
 
         # 2. Matched bbox IoU and Dice averages
-        if self.custom_iou_dice_stats:
-            ious = [x[0] for x in self.custom_iou_dice_stats]
-            dices = [x[1] for x in self.custom_iou_dice_stats]
-            stats["metrics/custom_mean_bbox_IoU"] = float(np.mean(ious))
-            stats["metrics/custom_mean_bbox_Dice"] = float(np.mean(dices))
-        else:
+        try:
+            if self.custom_iou_dice_stats:
+                ious = [x[0] for x in self.custom_iou_dice_stats]
+                dices = [x[1] for x in self.custom_iou_dice_stats]
+                stats["metrics/custom_mean_bbox_IoU"] = float(np.mean(ious))
+                stats["metrics/custom_mean_bbox_Dice"] = float(np.mean(dices))
+            else:
+                stats["metrics/custom_mean_bbox_IoU"] = 0.0
+                stats["metrics/custom_mean_bbox_Dice"] = 0.0
+        except Exception as e:
             stats["metrics/custom_mean_bbox_IoU"] = 0.0
             stats["metrics/custom_mean_bbox_Dice"] = 0.0
 
         # 3. Image-level Multi-Label Classification Metrics
-        for cls_name, gt, pred, prob in [
-            ("abnormality", self.cls_gt_abnormality, self.cls_pred_abnormality, self.cls_prob_abnormality),
-            ("text", self.cls_gt_text, self.cls_pred_text, self.cls_prob_text)
-        ]:
-            if gt:
-                gt_arr = np.array(gt)
-                pred_arr = np.array(pred)
-                prob_arr = np.array(prob)
-                try:
+        try:
+            for cls_name, gt, pred, prob in [
+                ("abnormality", self.cls_gt_abnormality, self.cls_pred_abnormality, self.cls_prob_abnormality),
+                ("text", self.cls_gt_text, self.cls_pred_text, self.cls_prob_text)
+            ]:
+                if gt:
+                    gt_arr = np.array(gt)
+                    pred_arr = np.array(pred)
+                    prob_arr = np.array(prob)
                     stats[f"metrics/custom_cls_accuracy/{cls_name}"] = float(accuracy_score(gt_arr, pred_arr))
                     stats[f"metrics/custom_cls_precision/{cls_name}"] = float(precision_score(gt_arr, pred_arr, zero_division=0))
                     stats[f"metrics/custom_cls_recall/{cls_name}"] = float(recall_score(gt_arr, pred_arr, zero_division=0))
@@ -183,14 +203,17 @@ class CustomDetectionValidator(DetectionValidator):
                         stats[f"metrics/custom_cls_auroc/{cls_name}"] = float(roc_auc_score(gt_arr, prob_arr))
                     else:
                         stats[f"metrics/custom_cls_auroc/{cls_name}"] = 0.5
-                except Exception as e:
-                    print(f"⚠️ [WARN] Error calculating classification metrics for {cls_name}: {e}")
+        except Exception as e:
+            print(f"⚠️ [WARN] Error calculating classification metrics: {e}")
 
         return stats
 
     def finalize_metrics(self) -> None:
         """Sets final standard metrics and prints a clean validation summary table."""
-        super().finalize_metrics()
+        try:
+            super().finalize_metrics()
+        except Exception as e:
+            print(f"⚠️ [WARN] Failed to finalize standard YOLO metrics: {e}")
         
         # Display the custom stats summary in terminal
         stats = self.get_stats()
