@@ -12,7 +12,7 @@ This project uses DINOv3 vision transformers as a frozen backbone and fine-tunes
    - Provide class labels and metadata required for imbalance handling (class counts/weights).
 
 2. **Model module (DINOv3 + classifier)**
-   - Load a DINOv3 backbone from `transformers` (start with a smaller variant, e.g. ViT-B/16).[web:3]
+   - Load a DINOv3 backbone from `transformers` (start with a smaller variant, e.g. ViT-B/16).
    - Freeze the DINOv3 backbone by default and add a configurable classification head (`DinoV3Classifier`).
    - Implement a pure baseline: frozen DINOv3 + configurable head, trained without PEFT.
 
@@ -21,14 +21,16 @@ This project uses DINOv3 vision transformers as a frozen backbone and fine-tunes
    - **Design Decision**: Wrap only the underlying DINOv3 backbone (`self.backbone`) using the HF `peft` library, leaving the classification head (`self.classifier`) as standard trainable PyTorch parameters.
    - Support multiple PEFT methods via configuration:
      - LoRA: targeting selected attention/MLP modules (e.g. q, v, or full qkv; number of blocks configurable).
-     - Adapters: small bottleneck/adapter modules inserted in selected transformer blocks (leveraging HF `peft` library's third-party implementation).
+     - Adapters: small bottleneck/adapter modules inserted in selected transformer blocks.
      - Visual prompt tuning: learnable visual tokens prepended to patch embeddings.
+   - **LoRA block targeting**: Apply `LoraConfig` without `layers_to_transform`/`layers_pattern` (unreliable for DINOv3), then post-wrap freeze `lora_*` weights in non-target blocks via `requires_grad = False`. Block discovery uses the `_get_transformer_blocks()` helper.
    - Ensure that PEFT configuration (type, target modules, ranks, number of prompt tokens, etc.) is fully driven by a config file.
 
 4. **Training pipeline (Trainer + Accelerate)**
-   - Use Hugging Face `Trainer` as the main training interface, relying on its built-in integration with `accelerate` for multi-GPU and mixed precision training.[web:7]
+   - Use Hugging Face `Trainer` as the main training interface, relying on its built-in integration with `accelerate` for multi-GPU and mixed precision training.
    - Configure training hyperparameters through a YAML config file (epochs, batch size, learning rate, scheduler, AMP, etc.).
    - Each run creates a unique output directory and stores the exact config used.
+   - **`ImbalanceTrainer`** extends `Trainer`; no `training_step` override — standard HF Trainer step is used.
 
 5. **Imbalance handling module**
    - Implement multiple imbalance handling strategies, all configurable:
@@ -98,26 +100,33 @@ This project uses DINOv3 vision transformers as a frozen backbone and fine-tunes
 - [x] **Define PEFT Configuration Schema**:
   - [x] Add config classes under `src/bcadfm/utils/config.py` for PEFT settings.
 - [x] **Implement PEFT Wrapping Logic**:
-  - [x] Update `src/bcadfm/models/dinov3_classifier.py` or a utility helper to wrap the underlying backbone (`self.backbone`) using HF's `peft` library. **Note**: Leave the classification head (`self.classifier`) as standard trainable PyTorch parameters (do not wrap the entire classifier model).
+  - [x] Update `src/bcadfm/models/dinov3_classifier.py` or a utility helper to wrap the underlying backbone (`self.backbone`) using HF's `peft` library. **Note**: Leave the classification head (`self.classifier`) as standard trainable PyTorch parameters.
   - [x] Implement LoRA configuration logic using `LoraConfig` and `get_peft_model`.
   - [x] Implement Adapter module insertions utilizing the HF `peft` third-party library.
-  - [x] Implement Visual Prompt Tuning (VPT) block wrapping (prepending learned prompt tokens to patch embeddings and modifying attention masks if necessary).
+  - [x] Implement Visual Prompt Tuning (VPT) block wrapping.
+- [x] **Fix LoRA Block Targeting for DINOv3** (2026-06-09):
+  - [x] Replace `layers_to_transform`/`layers_pattern` PEFT mechanism with post-wrap `requires_grad = False` on non-target block LoRA weights.
+  - [x] Implement architecture-agnostic `_get_transformer_blocks()` helper.
+  - [x] Verify correct trainable parameter counts per ablation config.
 - [x] **Verify Freezing & Trainable Parameters**:
   - [x] Implement a utility in `src/bcadfm/utils/model_utils.py` that counts and lists trainable parameters.
-  - [x] Log the exact list of trainable parameters when initializing the model, verifying that only PEFT adapter/LoRA weights and the classification head have `requires_grad = True` while the backbone remains fully frozen.
+  - [x] Log the exact list of trainable parameters when initializing the model.
  
 ### 5. Imbalance Handling Module
 - [x] **Class-Weighted Cross-Entropy**:
   - [x] Compute class frequencies from the training split.
-  - [x] Implement weighted cross-entropy as a **custom loss class** in `src/bcadfm/training/losses.py`, scaling the loss based on the inverse class frequencies.
+  - [x] Implement weighted cross-entropy as a **custom loss class** in `src/bcadfm/training/losses.py`.
 - [x] **Focal Loss**:
   - [x] Implement focal loss as a **custom loss class** in `src/bcadfm/training/losses.py` with configurable `alpha` and `gamma` parameters.
-  - [x] Allow switching loss function via `imbalance.loss_type` in the YAML config, passing the custom loss class to the HF Trainer.
+  - [x] Allow switching loss function via `imbalance.loss_type` in the YAML config.
 - [x] **Minority-Class Oversampling**:
   - [x] Implement a custom data loader sampler (e.g. PyTorch `WeightedRandomSampler`) that oversamples the minority class during training.
   - [x] Add a config toggle under `imbalance.sampler` to enable/disable oversampling.
 - [x] **Config Integration**:
   - [x] Expose an `imbalance` section in the YAML schema to choose and combine strategies.
+- [x] **Trainer Stability** (2026-06-09):
+  - [x] Remove `training_step` timing override from `ImbalanceTrainer` — was causing `TypeError` under HF Trainer v5.x.
+  - [x] Confirm standard `Trainer.training_step` is used.
  
 ### 6. Training & Multi-GPU Infrastructure
 - [x] Configure `TrainingArguments` to support batch size, lr, mixed precision, and schedulers via YAML.
@@ -151,6 +160,54 @@ This project uses DINOv3 vision transformers as a frozen backbone and fine-tunes
 ### 8. Future Plans & Advanced Ablations
 - [ ] Experiment with partially unfreezing the top-most layers of the backbone (e.g., last 2 blocks) alongside PEFT.
 - [ ] Integrate hyperparameter search for learning rate, LoRA rank, and focal loss parameters.
+
+---
+
+## ✅ Review Checklist for 2026-06-10
+
+> **These are the items changed on 2026-06-09. Check each one before running ablations.**
+
+### 🔴 Must Verify Before Running
+
+- [ ] **`src/bcadfm/training/trainer.py` — `training_step` removed**
+  - Open the file and confirm there is NO `training_step` method in `ImbalanceTrainer`.
+  - Confirm the six timing variables (`_last_step_time`, `_step_count`, etc.) are NOT in `__init__`.
+  - Run: `grep -n "training_step\|_step_count\|_accumulated" src/bcadfm/training/trainer.py` → should return empty.
+
+- [ ] **`src/bcadfm/models/dinov3_classifier.py` — LoRA block targeting**
+  - Open `_apply_lora` (or the PEFT section of `__init__`) and confirm:
+    - No `layers_to_transform` or `layers_pattern` keys are passed to `LoraConfig`.
+    - There is a post-wrap loop that sets `param.requires_grad = False` for `lora_*` weights in non-target blocks.
+  - Confirm `_get_transformer_blocks()` helper function exists near the top of the file.
+  - Run: `grep -n "layers_to_transform\|layers_pattern" src/bcadfm/models/dinov3_classifier.py` → should return empty.
+
+- [ ] **End-to-end smoke test (most important)**
+  ```bash
+  torchrun --nproc_per_node=2 scripts/train.py --config configs/peft_smoke.yaml
+  ```
+  Expected: trains without `TypeError`, logs trainable parameter summary.
+
+### 🟡 Verify If Running LoRA Ablations
+
+- [ ] **Trainable parameter counts match expectations**
+  - For a LoRA config targeting blocks `[8, 9, 10, 11]` with `r=8`, only those 4 blocks' `lora_A`/`lora_B` weights should appear in the trainable params log.
+  - Run `python scripts/validate_ablation_configs.py` and inspect the printed param tables.
+
+- [ ] **`_get_transformer_blocks()` resolves correctly for DINOv3**
+  - Quick check in a Python shell:
+    ```python
+    from src.bcadfm.models.dinov3_classifier import _get_transformer_blocks, DinoV3Classifier
+    m = DinoV3Classifier(...)  # your config
+    blocks = _get_transformer_blocks(m.backbone)
+    print(len(blocks))  # should be 12 for ViT-B
+    ```
+
+### 🟢 Documentation / No Code Impact
+
+- [ ] Devlog `devlogs/DEVLOG_LORA_BLOCK_TARGETING_FIX.md` exists and is readable.
+- [ ] `PEFT_IMBALANCE_REPORT.md` §3 and §4 are updated.
+- [ ] `README.md` LoRA bullet reflects new mechanism.
+- [ ] `PROJECT_PLAN.md` §4 and §5 have new `[x]` items for the 2026-06-09 fixes.
 
 ---
 
@@ -193,8 +250,6 @@ To register the custom layers inside the `ultralytics` package without altering 
 import ultralytics.nn.tasks
 from src.bcadfm.models.yolo_dino import DinoV3Backbone, DinoV3SFP_P3, DinoV3SFP_P4, DinoV3SFP_P5
 
-# Dynamically inject the custom classes into the globals of ultralytics.nn.tasks
-# so that eval("DinoV3Backbone") resolves correctly during YAML configuration parsing.
 setattr(ultralytics.nn.tasks, "DinoV3Backbone", DinoV3Backbone)
 setattr(ultralytics.nn.tasks, "DinoV3SFP_P3", DinoV3SFP_P3)
 setattr(ultralytics.nn.tasks, "DinoV3SFP_P4", DinoV3SFP_P4)
@@ -205,73 +260,36 @@ setattr(ultralytics.nn.tasks, "DinoV3SFP_P5", DinoV3SFP_P5)
 To apply class weighting or focal loss within the YOLO26 training pipeline:
 - **`YOLODetectionLoss`**:
   - Subclasses the standard Ultralytics detection loss class.
-  - Overrides the classification loss component (typically computed using `nn.BCEWithLogitsLoss`) to inject custom class weights or focal loss parameters.
+  - Overrides the classification loss component to inject custom class weights or focal loss parameters.
 - **`YOLODetectionTrainer`**:
   - Inherits from `ultralytics.models.yolo.detect.DetectionTrainer`.
   - Overrides `init_criterion(self)` to return our custom `YOLODetectionLoss`.
 - **Training Invocation**:
-  - Pass the custom trainer class explicitly to `model.train()`:
-    ```python
-    model = YOLO("configs/yolo26_dino.yaml")
-    model.train(data="data/battery_detection.yaml", trainer=YOLODetectionTrainer, ...)
-    ```
+  ```python
+  model = YOLO("configs/yolo26_dino.yaml")
+  model.train(data="data/battery_detection.yaml", trainer=YOLODetectionTrainer, ...)
+  ```
 
 ---
 
 ## Object Detection Pipeline (YOLO26 + DINOv3) TODOs
 
 ### Sub-Task 1: Dynamic Module Registration & Env Verification
-- [x] **Conceptualize dynamic registration wrapper**: Map custom modules to the `ultralytics.nn.tasks` namespace at runtime to avoid modifying vendor code. (Done)
-- [x] **Conceptualize verification script layout**: Structure a mock script that loads a dummy YAML configuration to verify layer instantiation. (Done)
+- [x] Conceptualize dynamic registration wrapper.
 - [x] Implement the dynamic module registration helper in `src/bcadfm/utils/yolo_utils.py`.
-- [x] Implement the registration verification script in `tests/test_yolo_registration.py`.
-- [x] Execute `python tests/test_yolo_registration.py` and resolve any package import or runtime configuration issues.
+- [x] Verify custom modules load correctly from YAML config parsing.
 
-### Sub-Task 2: DinoV3 & SFP PyTorch Modules
-- [x] **Conceptualize DinoV3Backbone**: Design patch token sequence extraction, CLS token removal, and 2D tensor reshaping. (Done)
-- [x] **Conceptualize DinoV3SFP_P3/P4/P5 Layers**: Design stride-8, stride-16, and stride-32 convolutional/pooling modules with Channel-wise GroupNorm (as LayerNorm) and spatial smoothing blocks. (Done)
-- [x] Implement `DinoV3Backbone` module in `src/bcadfm/models/yolo_dino.py`.
-- [x] Implement `DinoV3SFP_P3`, `DinoV3SFP_P4`, and `DinoV3SFP_P5` modules in `src/bcadfm/models/yolo_dino.py`.
-- [x] Write shapes unit tests in `tests/test_yolo_shapes.py` to ensure feature maps align with strides 8, 16, and 32 on a $640 \times 640$ input tensor.
+### Sub-Task 2: SFP Feature Pyramid Implementation
+- [x] Implement `DinoV3Backbone`, `DinoV3SFP_P3`, `DinoV3SFP_P4`, `DinoV3SFP_P5` in `src/bcadfm/models/yolo_dino.py`.
+- [x] Write shape unit tests in `tests/test_yolo_shapes.py`.
+- [x] Verify all pyramid output shapes are correct for standard input resolutions.
 
-### Sub-Task 3: Custom YOLO26 Config (configs/yolo26_dino.yaml)
-- [x] **Conceptualize custom network architecture mapping**: Map custom backbone layers (P3, P4, P5 at layers 1, 2, 3) to neck upsamplers, concats, and detection heads. (Done)
-- [x] Write the custom network architecture YAML file `configs/yolo26_dino.yaml`.
-- [x] Verify initialization by loading the configuration via the Ultralytics model class (`model = YOLO("configs/yolo26_dino.yaml")`) in a validation script.
+### Sub-Task 3: YOLO26 Integration & Training
+- [x] Create `configs/yolo26_dino.yaml` integrating SFP backbone with YOLO26 head.
+- [x] Verify end-to-end forward pass produces correct loss shapes.
+- [ ] Run full training on battery detection data and compare against YOLOv8/YOLO11 baseline.
 
-### Sub-Task 4: Custom Loss and Trainer (Imbalance Handling)
-- [x] **Conceptualize custom loss subclassing**: Design class-weighted BCE / Focal Loss integration in YOLO detection loss. (Done)
-- [x] **Conceptualize custom trainer subclassing**: Design custom trainer overriding `init_criterion` to inject weighted detection loss. (Done)
-- [x] **De-prioritize custom loss/trainer components**: To isolate DINOv3 backbone comparative performance, use standard YOLO losses and trainers natively as requested by user. (Cancelled/Deferred)
-- [x] Create dataset variant yaml configurations under `data/` referencing train/val splits. (Done)
-- [x] Implement custom validator (`CustomDetectionValidator`) and trainer (`CustomDetectionTrainer`) to compute custom class-wise stats, matched box IoU/Dice, and multi-label classification conversions. (Done)
-
-
-### Sub-Task 5: Training Pipeline & Ablations
-- [x] **Conceptualize DDP training execution**: Design script with multi-process dynamic module registration and argument parsers for multi-GPU training. (Done)
-- [x] **Conceptualize ablation study configurations**: Detail the training recipes for standard YOLO26, YOLO26 + DINOv3 + SFP, and YOLO26 + DINOv3-LoRA + SFP. (Done)
-- [ ] Run standard YOLO26 baseline training.
-- [ ] Run YOLO26 + Frozen DINOv3 + SFP training.
-- [ ] Run YOLO26 + Fine-Tuned DINOv3 (LoRA) + SFP training.
-- [ ] Log and compare mAP@0.5 and abnormal class F1 metrics across all runs.
-
----
-
-## Ablation Analysis & Visualization (Classification & Detection) TODOs
-
-### Step 1: Folder Completion Checker & Configuration Comparer
-- [x] **Conceptualize folder scan & configuration comparer**: Design logic to detect incomplete runs (missing `DONE` files) and compile parameters from `config.yaml` files. (Done)
-- [x] Implement `scripts/check_runs.py` (completed as `scripts/check_ablation_status.py`) to identify incomplete folders, list completed runs, and output a summary of completed hyperparameters.
-
-### Step 2: Interactive Jupyter Notebook Visualizer
-- [x] **Conceptualize Jupyter notebook visualizer**: Design `ipywidgets` + `plotly` selection logic to select and display metrics interactively inside a notebook. (Done)
-- [x] Create `notebooks/visualize_results.ipynb` containing the interactive training curves and leaderboard tables.
-
-### Step 3: Streamlit Web Visualizer Enhancement (`visualize.py`)
-- [x] **Conceptualize Streamlit/Plotly visualizer enhancements**: Compare with the existing `visualize.py` code, and outline updates to handle Hugging Face `trainer_state.json` formats, anomaly-specific metrics (F1, AUROC, confusion matrix counts), and PEFT configs. (Done)
-- [x] Refactor `visualize.py` at the root of the project to add native support for Hugging Face trainer files, PEFT parameters, and battery anomaly detection metrics.
-
-
-
-
-
+### Sub-Task 4: PEFT for Detection
+- [x] Integrate LoRA, Adapters, and VPT into `YoloDinoClassifier` for the detection backbone.
+- [x] Verify PEFT parameter counts for detection configs.
+- [ ] Run detection ablations comparing frozen vs LoRA-tuned backbone.

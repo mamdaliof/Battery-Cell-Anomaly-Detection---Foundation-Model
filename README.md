@@ -12,7 +12,7 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
 
 - **🧠 Backbone and preprocessing**
   - The backbone is a **DINOv3** model loaded from Hugging Face `transformers` (starting with a smaller variant, e.g. `facebook/dinov3-vitb16-pretrain-lvd1689m`).
-  - Preprocessing (resize, normalization, RGB handling) is delegated to the corresponding **image processor** from `transformers`. By default, the processor’s **native resolution and normalization** are used.
+  - Preprocessing (resize, normalization, RGB handling) is delegated to the corresponding **image processor** from `transformers`. By default, the processor's **native resolution and normalization** are used.
   - The configuration includes an optional `image_size` placeholder so input resolution can be overridden later if necessary.
 
 - **🎨 Augmentations**
@@ -72,10 +72,10 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
 
 - **⚡ PEFT Integration (Implemented)**
   - Parameter-efficient fine-tuning is supported for both **classification** (MLP head) and **object detection** (YOLO26 detector).
-  - **LoRA**: Targets specific attention projections (`q_proj`, `v_proj`).
+  - **LoRA**: Targets specific attention projections (`q_proj`, `v_proj`). LoRA is applied to all blocks via `get_peft_model`, then `lora_*` weights in non-target blocks are frozen using `requires_grad = False` — replacing the previous fragile `layers_to_transform`/`layers_pattern` PEFT mechanism.
   - **Bottleneck Adapters**: Pfeiffer-style bottleneck adapters wrapping transformer feed-forward blocks.
   - **Visual Prompt Tuning (VPT)**: Support for Shallow (input-level prompt parameters) and Deep (layer-wise prompt replacement wrappers) prompt tuning.
-  - Supports dynamic model structure routing (handles standard `encoder.layer`/`layers` and DINOv3's `model.layer` format).
+  - Supports dynamic model structure routing via a new `_get_transformer_blocks()` helper that probes common attribute paths (`model.encoder.layer`, `model.layer`, `encoder.layer`, `layers`, `layer`) in order — works correctly across DINOv3, standard ViT, and other transformer variants.
   - VPT (Visual Prompt Tuning) includes a sequential block execution fallback for architectures without a nested `encoder` module (such as DINOv3).
   - The SFP (Simple Feature Pyramid) neck and the backbone gradients are automatically routed to permit training the PEFT layers when active, adjusting feature extraction slice indices to account for prepended prompt tokens.
 
@@ -89,10 +89,10 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
 - **🎯 YOLO26 + DINOv3 SFP Object Detection**
   - Integrated the DINOv3 vision backbone and a **Simple Feature Pyramid (SFP)** neck with standard **Ultralytics YOLO26** object detection head and native losses.
   - Supports both **fully frozen backbone** and **Parameter-Efficient Fine-Tuning (PEFT)** via LoRA, Pfeiffer Bottleneck Adapters, and Visual Prompt Tuning (VPT).
-  - Custom layers and PEFT configurations are implemented in [yolo_dino.py](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/yolo_dino.py).
-  - Dynamic class registration and tasks parser wrapping (supporting width/depth channel scaling and metadata attribute preservation) is managed in [yolo_utils.py](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/yolo_utils.py).
-  - Configured via [yolo26_dino.yaml](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/configs/yolo26_dino.yaml).
-  - Fully verified and tested via shapes unit test suite [test_yolo_shapes.py](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/tests/test_yolo_shapes.py).
+  - Custom layers and PEFT configurations are implemented in `src/bcadfm/models/yolo_dino.py`.
+  - Dynamic class registration and tasks parser wrapping (supporting width/depth channel scaling and metadata attribute preservation) is managed in `src/bcadfm/utils/yolo_utils.py`.
+  - Configured via `configs/yolo26_dino.yaml`.
+  - Fully verified and tested via shapes unit test suite `tests/test_yolo_shapes.py`.
 
 - **💾 Local Model Caching**
   - Hugging Face cache is redirected to the workspace folder `models/hf_cache` via dynamic environment injection (`os.environ["HF_HOME"]`).
@@ -120,236 +120,59 @@ To convert this detection-style dataset into a classification dataset compatible
 
 ```bash
 python scripts/convert_split_base_to_classification.py \
-  --source-root /path/to/split_base \
-  --target-root data \
-  --abnormal-labels burnt crack \
-  # --use-symlinks  # optional: use symlinks instead of copying
+  --input_dir split_base \
+  --output_dir data
 ```
 
-This will create a directory structure like:
+This creates `data/train/normal/`, `data/train/abnormal/`, `data/val/normal/`, and `data/val/abnormal/` directories.
 
-```text
-data/
-  train/
-    normal/
-    abnormal/
-  val/
-    normal/
-    abnormal/
-```
+## 🏋️ Training
 
-where each image is assigned to `normal` or `abnormal` depending on whether any of its XML labels match the provided abnormal labels.
-
-### 🎯 Object Detection Dataset Conversion
-
-To convert the detection-style `split_base/` dataset into a YOLO format dataset compatible with the object detection pipeline:
-
+### Single GPU
 ```bash
-python scripts/prepare_yolo_detection_data.py \
-  --source-root /path/to/split_base \
-  --target-root data/battery_detection \
-  --detection-labels abnormality \
-  # --use-symlinks  # optional: use symlinks instead of copying images
+python scripts/train.py --config configs/baseline.yaml
 ```
 
-This generates a structured output under `data/battery_detection/` containing `images/train/`, `images/val/`, `labels/train/`, and `labels/val/` directories, with absolute bounding boxes converted to normalized `[0, 1]` YOLO coordinate format (`class_idx x_center y_center width height`).
-
-## 💻 How to run the code
-
-### 1. ⚙️ Create and activate the environment
-
-Create a Python 3.10+ environment and install dependencies, for example with `pip`:
-
+### Multi-GPU (DDP via torchrun)
 ```bash
-python -m venv pytorch_env
-source pytorch_env/bin/activate
-
-pip install -r requirements.txt
-
-# Install a CUDA-enabled PyTorch build compatible with your driver
-pip uninstall -y torch torchvision torchaudio
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+torchrun --nproc_per_node=4 scripts/train.py --config configs/baseline.yaml
 ```
 
-You can verify CUDA visibility with:
-
+### Parallel Ablations (8-GPU dashboard)
 ```bash
-python - << 'EOF'
-import torch
-print("torch:", torch.__version__)
-print("torch.version.cuda:", torch.version.cuda)
-print("is_available:", torch.cuda.is_available())
-print("device_count:", torch.cuda.device_count())
-EOF
+python run_parallel_ablations.py
 ```
 
-### 2. 🔄 Prepare the dataset
-
-Convert the detection-style dataset into the classification layout under `data/`:
-
+## 🔬 PEFT Training Example
 ```bash
-python scripts/convert_split_base_to_classification.py \
-  --source-root /path/to/split_base \
-  --target-root data \
-  --abnormal-labels burnt crack
+torchrun --nproc_per_node=2 scripts/train.py --config configs/peft_smoke.yaml
 ```
 
-### 3. 🧪 Single-process (CPU or 1 GPU) smoke test
-
-From the repository root:
-
+## 🧪 Testing & Verification
 ```bash
-export PYTHONPATH=$(pwd)/src:$PYTHONPATH
+# PEFT integration verification
+python tests/verify_peft.py
 
-# Option A: force CPU
-CUDA_VISIBLE_DEVICES= \
-python scripts/train.py --config configs/test_smoke.yaml
+# YOLO26+DINOv3 shape tests
+python -m pytest tests/test_yolo_shapes.py
 
-# Option B: use a single GPU (e.g. GPU 0)
-CUDA_VISIBLE_DEVICES=0 \
-python scripts/train.py --config configs/test_smoke.yaml
-```
-
-This will run a short, one-epoch training and create an output directory under:
-
-```text
-outputs/cls/{safe_model_name}__{cfg_stem}/{timestamp}/
-```
-
-containing `config.yaml`, checkpoints, and the two best-model snapshots `best_loss.pt` and `best_f1.pt`.
-
-### 4. 🔗 Distributed multi-GPU training with torchrun (DDP)
-
-If you have 2 GPUs available (for example on a machine with two NVIDIA A10s), you can launch distributed training via `torchrun`:
-
-```bash
-cd /path/to/Battery-Cell-Anomaly-Detection---Foundation-Model
-export PYTHONPATH=$(pwd)/src:$PYTHONPATH
-export CUDA_VISIBLE_DEVICES=0,1
-
-# Quick multi-GPU smoke test
-torchrun --nproc_per_node=2 scripts/train.py --config configs/test_smoke.yaml
-
-# Full baseline training
-torchrun --nproc_per_node=2 scripts/train.py --config configs/baseline.yaml
-```
-
-Notes:
-
-- `nproc_per_node` should match the number of GPUs you are using on that node.
-- The `batch_size` in the YAML config is **per GPU**. For example, `batch_size: 64` with 2 GPUs results in an effective global batch size of 128.
-- Training metrics and model checkpoints are written to the run directory under `outputs/` as described above.
-
-### 5. 🧪 Ablation Study (58 Configs)
-
-A comprehensive ablation study framework automates exploration of backbone, PEFT method, and hyperparameter combinations.
-
-#### 📐 Grid generation
-
-`scripts/generate_ablation_grid.py` generates **58 YAML configs** under `configs/cls/ablations/` covering a combinatorial grid of:
-
-| Axis | Variants |
-|------|----------|
-| **Backbones** | ViT-S/16 (`dinov3-vits16-pretrain-lvd1689m`), ViT-B/16 (`dinov3-vitb16-pretrain-lvd1689m`) |
-| **PEFT methods** | Frozen baseline (no PEFT), LoRA (ranks 8/16 × all/last-4/last-2 layers), Bottleneck Adapters (dims 32/64 × all/last-4/last-2), VPT Shallow (8/16/32 tokens), VPT Deep (8/16/32 tokens × all/last-4/last-2) |
-| **Learning rates** | 3e-4, 5e-4 |
-
-#### ✅ Config validation
-
-`scripts/validate_ablation_configs.py` validates that **all 58 configs** (plus template configs, 67 total) can successfully load the model + processor without errors.
-
-#### 🚀 Parallel execution
-
-`scripts/run_parallel_ablations.py` distributes training across **8 GPUs** with a real-time in-place terminal dashboard showing per-GPU status, progress bars, and metrics.
-
-```bash
-# Generate ablation configs
-python scripts/generate_ablation_grid.py
-
-# Validate all configs
+# Ablation config validation
 python scripts/validate_ablation_configs.py
-
-# Launch parallel training on 8 GPUs
-python scripts/run_parallel_ablations.py
 ```
 
-### 🎯 YOLO Detection Fine-Tuning & Ablation Studies
+## 📁 Repository Layout
 
-The object detection pipeline supports DINOv3 SFP fine-tuning using low-rank adaptation (LoRA), Pfeiffer bottleneck adapters, or Visual Prompt Tuning (VPT).
-
-#### 🧪 Smoke test training
-Run a quick single-epoch sanity check of detection training (baseline or PEFT):
-```bash
-# Baseline training (no PEFT)
-python scripts/train_detection.py --config configs/det/test_smoke.yaml
-
-# PEFT training (LoRA)
-python scripts/train_detection.py --config configs/det/peft_smoke.yaml
+```text
+├── configs/              # YAML experiment configs
+├── devlogs/              # Development logs per feature/session
+├── docs/                 # Extended technical documentation
+├── scripts/              # Training, conversion, and validation scripts
+├── src/bcadfm/
+│   ├── data/             # Dataset loading and augmentation
+│   ├── models/           # DinoV3Classifier, YOLO+DINOv3 models
+│   ├── training/         # ImbalanceTrainer, losses, callbacks
+│   └── utils/            # Config schemas, model_utils, yolo_utils
+├── tests/                # Unit and integration tests
+├── outputs/              # Training run outputs (gitignored)
+└── models/               # HF model cache (gitignored)
 ```
-
-#### 📐 Ablation study grid generation
-Generate the configuration files (58 configs) and launch script for the object detection sweeps:
-```bash
-python scripts/generate_det_ablation_grid.py
-```
-This generates configuration files under `configs/det/ablations/` and a runner sequence script `run_det_ablations.sh`.
-
-#### 🚀 Parallel execution
-Distribute training across up to 8 GPUs with real-time slot monitoring of YOLO losses (`box_loss` + `cls_loss`) and validation `mAP50`:
-```bash
-python scripts/run_parallel_det_ablations.py
-```
-
-### 📊 Results Visualization Suite
-
-To analyze and compare results from completed and in-progress ablation runs, we provide two interactive tools:
-
-1. **Streamlit Dashboard** ([`visualize.py`](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/visualize.py)):
-   A feature-rich web dashboard containing an F1-prioritized leaderboard, confusion matrix heatmaps (TP/FP/TN/FN) computed at the best epoch, multi-run trajectory line plot comparisons, and PEFT parameter analysis charts.
-   Launch from the root folder:
-   ```bash
-   streamlit run visualize.py
-   ```
-2. **Jupyter Notebook Analyzer** ([`notebooks/visualize_results.ipynb`](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/notebooks/visualize_results.ipynb)):
-   An interactive notebook with widgets and Plotly diagrams for quick local results exploration.
-
-### 🎯 YOLO26 + DINOv3 SFP Object Detection Verification
-
-To verify that the custom registered DINOv3 backbone, SFP neck, and the Ultralytics tasks parser work correctly, run the shapes unit test suite:
-```bash
-python3 tests/test_yolo_shapes.py
-```
-This script compiles the YOLO26 + DINOv3 model, runs a dummy forward pass, and verifies that the output prediction tensor shape matches expected resolutions.
-
-### 🔬 GPU VRAM & DDP Isolation Verification
-
-Two lightweight helper scripts are available to verify GPU visibility, isolation, and process group setups without loading datasets or full models:
-1. **Single-GPU Isolation**: Allocates 4 GB of VRAM on local `cuda:0` of the visible device:
-   ```bash
-   CUDA_VISIBLE_DEVICES=1 python3 tests/gpu_alloc_test.py --duration 60
-   ```
-2. **Multi-GPU DDP NCCL Group**: Initializes NCCL distributed group and allocates 4 GB on each participating device. Specify `--master_port` for parallel launches to avoid port conflict:
-   ```bash
-   CUDA_VISIBLE_DEVICES=3,4 torchrun --nproc_per_node=2 --master_port=29501 tests/ddp_alloc_test.py
-   ```
-
-## 📅 Project planning
-
-A more detailed project specification and TODO list is maintained in [`PROJECT_PLAN.md`](./PROJECT_PLAN.md).
-
-Additional documentation resources:
-
-- 📓 **Dev logs**: Detailed development logs are maintained in the [`devlogs/`](./devlogs/) directory.
-  - [`devlogs/DEVLOG_YOLO_DINO_DETECTION_CUSTOM_METRICS.md`](./devlogs/DEVLOG_YOLO_DINO_DETECTION_CUSTOM_METRICS.md) (Custom evaluation & multi-label classification validation metrics)
-  - [`devlogs/DEVLOG_YOLO_DINO_DETECTION_DATA_PREP.md`](./devlogs/DEVLOG_YOLO_DINO_DETECTION_DATA_PREP.md) (YOLO dataset preparation and cleaning for object detection)
-  - [`devlogs/DEVLOG_YOLO_DINO_DETECTION_INTEGRATION.md`](./devlogs/DEVLOG_YOLO_DINO_DETECTION_INTEGRATION.md) (YOLO26 + DINOv3 object detection integration)
-  - [`devlogs/DEVLOG_YOLO_DINO_DETECTION_PEFT_FINE_TUNING.md`](./devlogs/DEVLOG_YOLO_DINO_DETECTION_PEFT_FINE_TUNING.md) (YOLO detection fine-tuning & PEFT integration details)
-  - [`devlogs/DEVLOG_VPT_FIX_AND_COLLISION_RESOLUTION.md`](./devlogs/DEVLOG_VPT_FIX_AND_COLLISION_RESOLUTION.md) (VPT compatibility & run directory collision fix)
-  - [`devlogs/DEVLOG_RESULTS_VISUALIZATION_SUITE.md`](./devlogs/DEVLOG_RESULTS_VISUALIZATION_SUITE.md) (Interactive Jupyter & Streamlit results visualization suite)
-  - [`devlogs/DEVLOG_LOCAL_MODEL_CACHING.md`](./devlogs/DEVLOG_LOCAL_MODEL_CACHING.md) (Local model caching and offline setup)
-- 📘 **Technical reference**: In-depth implementation details are documented in [`docs/technical_details.md`](./docs/technical_details.md).
-- 📊 **PEFT & imbalance report**: Integration analysis and results are captured in [`PEFT_IMBALANCE_REPORT.md`](./PEFT_IMBALANCE_REPORT.md).
-
-
-As the project evolves, this README will be updated with setup instructions, usage examples, and experiment summaries.
-
