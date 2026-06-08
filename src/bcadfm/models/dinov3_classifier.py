@@ -245,6 +245,17 @@ class VptWrappedBackbone(nn.Module):
             # Standard ViT layout [CLS, prompts, patches]
             x = torch.cat([cls_token, prompts, patch_tokens], dim=1)
 
+        # Get position embeddings for Rotary Position Embeddings (RoPE) if needed by the backbone layers (C7 Fix)
+        position_embeddings = None
+        if hasattr(self.original_backbone, "rope_embeddings"):
+            position_embeddings = self.original_backbone.rope_embeddings(pixel_values)
+        elif hasattr(self.original_backbone, "model") and hasattr(self.original_backbone.model, "rope_embeddings"):
+            position_embeddings = self.original_backbone.model.rope_embeddings(pixel_values)
+
+        encoder_kwargs = {}
+        if position_embeddings is not None:
+            encoder_kwargs["position_embeddings"] = position_embeddings
+
         # 3. Pass through encoder or layers sequentially
         if hasattr(self.original_backbone, "encoder"):
             encoder_module = self.original_backbone.encoder
@@ -254,6 +265,7 @@ class VptWrappedBackbone(nn.Module):
                 output_attentions=output_attentions,
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
+                **encoder_kwargs,
             )
         elif hasattr(self.original_backbone, "model") and hasattr(self.original_backbone.model, "encoder"):
             encoder_module = self.original_backbone.model.encoder
@@ -263,6 +275,18 @@ class VptWrappedBackbone(nn.Module):
                 output_attentions=output_attentions,
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
+                **encoder_kwargs,
+            )
+        elif hasattr(self.original_backbone, "model") and hasattr(self.original_backbone.model, "layer"):
+            # For DINOv2/DINOv3 where original_backbone.model is the encoder itself
+            encoder_module = self.original_backbone.model
+            encoder_outputs = encoder_module(
+                x,
+                head_mask=head_mask,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+                **encoder_kwargs,
             )
         else:
             # Fallback: execute layers sequentially
@@ -278,6 +302,7 @@ class VptWrappedBackbone(nn.Module):
                     hidden_states,
                     head_mask[i] if head_mask is not None else None,
                     output_attentions=output_attentions,
+                    **encoder_kwargs,
                 )
                 
                 if isinstance(layer_outputs, tuple):
