@@ -47,33 +47,38 @@ class TestPipelines(unittest.TestCase):
         #     img1.xml (contains 'burnt' box)
         #     img2.png
         #     img2.xml (contains only 'ok' box)
+        #   val/
+        #     img1.png
+        #     img1.xml (contains 'burnt' box)
         src_root = self.workspace_dir / "split_base"
-        train_dir = src_root / "train"
-        train_dir.mkdir(parents=True)
+        
+        for split in ("train", "val"):
+            split_dir = src_root / split
+            split_dir.mkdir(parents=True)
+            
+            # 1. Abnormal Sample
+            img1_path = split_dir / "img1.png"
+            img1_path.touch()
+            xml1_content = f"""<annotation>
+                <object>
+                    <name>{self.abnormal_label}</name>
+                    <bndbox><xmin>10</xmin><ymin>10</ymin><xmax>50</xmax><ymax>50</ymax></bndbox>
+                </object>
+            </annotation>"""
+            with open(split_dir / "img1.xml", "w") as f:
+                f.write(xml1_content)
 
-        # 1. Abnormal Sample
-        img1_path = train_dir / "img1.png"
-        img1_path.touch()
-        xml1_content = f"""<annotation>
-            <object>
-                <name>{self.abnormal_label}</name>
-                <bndbox><xmin>10</xmin><ymin>10</ymin><xmax>50</xmax><ymax>50</ymax></bndbox>
-            </object>
-        </annotation>"""
-        with open(train_dir / "img1.xml", "w") as f:
-            f.write(xml1_content)
-
-        # 2. Normal Sample
-        img2_path = train_dir / "img2.png"
-        img2_path.touch()
-        xml2_content = """<annotation>
-            <object>
-                <name>ok</name>
-                <bndbox><xmin>10</xmin><ymin>10</ymin><xmax>50</xmax><ymax>50</ymax></bndbox>
-            </object>
-        </annotation>"""
-        with open(train_dir / "img2.xml", "w") as f:
-            f.write(xml2_content)
+            # 2. Normal Sample
+            img2_path = split_dir / "img2.png"
+            img2_path.touch()
+            xml2_content = """<annotation>
+                <object>
+                    <name>ok</name>
+                    <bndbox><xmin>10</xmin><ymin>10</ymin><xmax>50</xmax><ymax>50</ymax></bndbox>
+                </object>
+            </annotation>"""
+            with open(split_dir / "img2.xml", "w") as f:
+                f.write(xml2_content)
 
         # Output target directory
         target_root = self.workspace_dir / "classification_data"
@@ -96,6 +101,8 @@ class TestPipelines(unittest.TestCase):
         # Check output folders structure
         self.assertTrue((target_root / "train" / "normal" / "img2.png").exists())
         self.assertTrue((target_root / "train" / "abnormal" / "img1.png").exists())
+        self.assertTrue((target_root / "val" / "normal" / "img2.png").exists())
+        self.assertTrue((target_root / "val" / "abnormal" / "img1.png").exists())
         
         # Verify counts
         self.assertEqual(len(list((target_root / "train" / "normal").glob("*.png"))), 1)
@@ -106,20 +113,22 @@ class TestPipelines(unittest.TestCase):
         Verify that generate_ablation_grid.py generates unique, valid YAML configurations,
         and validate_ablation_configs.py parses them without errors.
         """
-        grid_out_dir = self.workspace_dir / "ablation_configs"
+        # Create a configs/ folder in the temp workspace and copy template
+        (self.workspace_dir / "configs").mkdir()
+        shutil.copy(
+            str(project_root / "configs" / "benchmark_baseline.yaml"),
+            str(self.workspace_dir / "configs" / "benchmark_baseline.yaml")
+        )
         
-        # 1. Run grid generator CLI script
+        # 1. Run grid generator CLI script with Cwd set to the temp workspace
         gen_script = str(project_root / "scripts" / "generate_ablation_grid.py")
-        cmd_gen = [
-            sys.executable,
-            gen_script,
-            "--output-dir", str(grid_out_dir)
-        ]
+        cmd_gen = [sys.executable, gen_script]
         
-        res_gen = subprocess.run(cmd_gen, capture_output=True, text=True)
+        res_gen = subprocess.run(cmd_gen, cwd=str(self.workspace_dir), capture_output=True, text=True)
         self.assertEqual(res_gen.returncode, 0, f"Grid generation failed: {res_gen.stderr}")
         
-        # Verify that multiple YAML files were generated
+        # Verify that multiple YAML files were generated under configs/ablations/
+        grid_out_dir = self.workspace_dir / "configs" / "ablations"
         yaml_files = list(grid_out_dir.glob("*.yaml"))
         self.assertTrue(len(yaml_files) > 0)
 

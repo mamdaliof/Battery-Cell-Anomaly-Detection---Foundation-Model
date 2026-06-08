@@ -89,11 +89,11 @@ class TrainingConfig:
     early_stopping_patience: int
     metric_for_best: str
     greater_is_better: bool
-    seed: int = 42
 
     # Scheduler and AMP
     scheduler: SchedulerConfig
     amp: AmpConfig
+    seed: int = 42
 
 
 def load_yaml_config(path: str | Path) -> TrainingConfig:

@@ -11,7 +11,7 @@ from PIL import Image
 project_root = Path(__file__).resolve().parent.parent
 sys.path.append(str(project_root / "src"))
 
-from bcadfm.data.dataset import BatteryCellDataset, build_augmentation_pipeline, RandomAugmentationCombo
+from bcadfm.data.dataset import BatteryCellDataset, build_augmentation_pipeline
 from bcadfm.data.config import DataConfig
 
 class TestBatteryCellDataset(unittest.TestCase):
@@ -179,10 +179,11 @@ class TestBatteryCellDataset(unittest.TestCase):
 
         pipeline = build_augmentation_pipeline(self.data_config, split="train")
         self.assertIsNotNone(pipeline)
-        self.assertTrue(isinstance(pipeline, RandomAugmentationCombo))
+        self.assertEqual(pipeline.__class__.__name__, "RandomAugmentationCombo")
 
         # Check random sampling without replacement (H3 Fix)
-        # We define simple dummy operations to test sampling
+        # Retrieve the class dynamically from the constructed pipeline
+        RandomAugmentationCombo = pipeline.__class__
         ops = [
             (lambda img: img, 1.0, "op1"),
             (lambda img: img, 0.5, "op2"),

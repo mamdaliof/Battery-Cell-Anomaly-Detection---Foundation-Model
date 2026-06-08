@@ -9,12 +9,12 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.append(str(project_root / "src"))
 
 from bcadfm.metrics.cls_metrics import compute_cls_metrics
-from bcadfm.metrics.cls_callbacks import SaveBestModelCallback
+from bcadfm.metrics.cls_callbacks import SaveTwoBestClsModelsCallback
 
 class TestMetricsAndCallbacks(unittest.TestCase):
     """
     Unit tests for evaluation metrics (compute_cls_metrics) and training callbacks
-    (SaveBestModelCallback).
+    (SaveTwoBestClsModelsCallback).
 
     Why We Have It:
     These tests ensure that anomaly detection classification statistics (F1, AUROC, confusion matrix)
@@ -79,36 +79,59 @@ class TestMetricsAndCallbacks(unittest.TestCase):
 
     def test_best_model_callback_comparison(self):
         """
-        Verify that SaveBestModelCallback tracks metric improvements correctly
-        for both higher-is-better and lower-is-better configurations.
+        Verify that SaveTwoBestClsModelsCallback tracks metric improvements correctly
+        for eval_loss and eval_f1.
         """
-        # Test 1: Higher is better (F1)
-        callback_f1 = SaveBestModelCallback(
-            metric_for_best="eval_f1",
-            greater_is_better=True,
-            output_dir="temp_best"
-        )
-        
-        # Initial improvement check
-        self.assertTrue(callback_f1._is_improvement(current_val=0.8, best_val=None))
-        # Better value
-        self.assertTrue(callback_f1._is_improvement(current_val=0.85, best_val=0.8))
-        # Worse value
-        self.assertFalse(callback_f1._is_improvement(current_val=0.75, best_val=0.8))
+        from transformers import TrainingArguments, TrainerState, TrainerControl
+        import tempfile
+        import shutil
 
-        # Test 2: Lower is better (Loss)
-        callback_loss = SaveBestModelCallback(
-            metric_for_best="eval_loss",
-            greater_is_better=False,
-            output_dir="temp_best"
-        )
-        
-        # Initial check
-        self.assertTrue(callback_loss._is_improvement(current_val=0.5, best_val=None))
-        # Better value (lower)
-        self.assertTrue(callback_loss._is_improvement(current_val=0.4, best_val=0.5))
-        # Worse value (higher)
-        self.assertFalse(callback_loss._is_improvement(current_val=0.6, best_val=0.5))
+        temp_dir = tempfile.mkdtemp()
+        try:
+            callback = SaveTwoBestClsModelsCallback(run_dir=temp_dir)
+            
+            # Create dummy args, state, control
+            args = TrainingArguments(output_dir=temp_dir, report_to="none")
+            state = TrainerState()
+            state.is_world_process_zero = True
+            control = TrainerControl()
+            
+            # Verify initial values
+            self.assertEqual(callback.best_loss, float("inf"))
+            self.assertEqual(callback.best_f1, float("-inf"))
+            
+            # 1. First evaluation: metrics improve
+            metrics1 = {"eval_loss": 0.5, "eval_f1": 0.8}
+            # We mock the model and torch.save to prevent actual writing during this check
+            class DummyModel:
+                def state_dict(self):
+                    return {"weight": torch.tensor([1.0])}
+            
+            import unittest.mock as mock
+            with mock.patch("torch.save") as mock_save:
+                callback.on_evaluate(args, state, control, metrics1, model=DummyModel())
+                self.assertEqual(callback.best_loss, 0.5)
+                self.assertEqual(callback.best_f1, 0.8)
+                self.assertEqual(mock_save.call_count, 2)  # saves both loss and f1
+
+            # 2. Second evaluation: loss improves, f1 does not
+            metrics2 = {"eval_loss": 0.4, "eval_f1": 0.75}
+            with mock.patch("torch.save") as mock_save:
+                callback.on_evaluate(args, state, control, metrics2, model=DummyModel())
+                self.assertEqual(callback.best_loss, 0.4)
+                self.assertEqual(callback.best_f1, 0.8)  # f1 remains 0.8
+                self.assertEqual(mock_save.call_count, 1)  # only saves loss
+
+            # 3. Third evaluation: f1 improves, loss does not
+            metrics3 = {"eval_loss": 0.45, "eval_f1": 0.85}
+            with mock.patch("torch.save") as mock_save:
+                callback.on_evaluate(args, state, control, metrics3, model=DummyModel())
+                self.assertEqual(callback.best_loss, 0.4)  # loss remains 0.4
+                self.assertEqual(callback.best_f1, 0.85)
+                self.assertEqual(mock_save.call_count, 1)  # only saves f1
+
+        finally:
+            shutil.rmtree(temp_dir)
 
 if __name__ == "__main__":
     unittest.main()

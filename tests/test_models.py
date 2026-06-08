@@ -11,13 +11,17 @@ sys.path.append(str(project_root / "src"))
 from bcadfm.models.dinov3_classifier import (
     DinoV3Classifier,
     HeadConfig,
-    PeftConfig,
     BottleneckAdapter,
     AdapterWrappedMLP,
     apply_adapters,
     VptWrappedBackbone,
     VptLayerWrapper
 )
+
+class PeftConfig:
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
 class TestDinoClassifierAndPeft(unittest.TestCase):
     """
