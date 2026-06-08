@@ -419,21 +419,20 @@ class DinoV3Classifier(nn.Module):
             }
             if target_blocks is not None and len(target_blocks) > 0:
                 lora_kwargs["layers_to_transform"] = target_blocks
-                # Auto-detect the layer pattern from the backbone structure
-                # DINOv3 / standard ViT: encoder.layer
-                # Some ViTs: model.encoder.layer or just layer
-                backbone = self.backbone
-                if hasattr(backbone, "encoder") and hasattr(backbone.encoder, "layer"):
-                    lora_kwargs["layers_pattern"] = "encoder.layer"
-                elif hasattr(backbone, "model") and hasattr(backbone.model, "encoder") and hasattr(backbone.model.encoder, "layer"):
-                    lora_kwargs["layers_pattern"] = "model.encoder.layer"
-                elif hasattr(backbone, "model") and hasattr(backbone.model, "layer"):
-                    lora_kwargs["layers_pattern"] = "model.layer"
-                elif hasattr(backbone, "layer"):
-                    lora_kwargs["layers_pattern"] = "layer"
-                else:
-                    # Fallback: don't set layers_pattern — all layers will be adapted
-                    pass
+                # Detect the correct layers_pattern by walking the real module tree.
+                # PEFT uses layers_pattern as a substring match against named module paths
+                # (e.g. "encoder.layer" matches "encoder.layer.0", "encoder.layer.1", ...).
+                # We find the first module whose name ends in a digit — that's a transformer
+                # block — then strip the index to get the container path.
+                detected_pattern = next(
+                    (".".join(n.split(".")[:-1])
+                     for n, _ in self.backbone.named_modules()
+                     if n.split(".")[-1].isdigit()),
+                    None,
+                )
+                if detected_pattern is not None:
+                    lora_kwargs["layers_pattern"] = detected_pattern
+                # If detection fails, omit layers_pattern — PEFT applies LoRA to all layers.
 
             peft_lora_config = LoraConfig(**lora_kwargs)
             self.backbone = get_peft_model(self.backbone, peft_lora_config)
