@@ -33,8 +33,8 @@ class TestYoloShapes(unittest.TestCase):
         Set up a temporary test configuration referencing a small DINOv3 model from Hugging Face
         to test structural mapping and token grid slicing.
         """
-        cls.config_path = str(project_root / "configs" / "yolo26_dino.yaml")
-        cls.temp_config_path = str(project_root / "configs" / "yolo26_dino_temp.yaml")
+        cls.config_path = str(project_root / "configs" / "det" / "yolo26_dino.yaml")
+        cls.temp_config_path = str(project_root / "configs" / "det" / "yolo26_dino_temp.yaml")
         
         with open(cls.config_path, "r") as f:
             cfg = yaml.safe_load(f)

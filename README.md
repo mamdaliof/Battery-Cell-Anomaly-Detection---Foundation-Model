@@ -51,7 +51,7 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
   - **Efficient augmentations**: Gaussian noise augmentation uses direct **NumPy array injection**, avoiding costly PIL↔Tensor round-trips.
   - **Deferred checkpointing**: `state_dict()` is only called inside callbacks when an actual metric improvement is detected, reducing unnecessary I/O overhead.
   - **Evaluation & saving**: Evaluation, checkpointing, and logging are performed **per epoch** (`eval_strategy='epoch'`, `save_strategy='epoch'`, and `logging_strategy='epoch'`) to ensure consistent, stable checkpoint evaluation.
-  - Each training run creates a unique run directory `outputs/{task_name}__{safe_model_name}__{cfg_stem}/{timestamp}/` to prevent concurrent folder write collisions when running parallel GPU runs, and copies the used YAML config into that directory as `config.yaml` for reproducibility.
+  - Each training run creates a unique run directory under `outputs/cls/` or `outputs/det/` (e.g. `outputs/cls/{safe_model_name}__{cfg_stem}/{timestamp}/`) to prevent concurrent folder write collisions when running parallel GPU runs, and copies the used YAML config into that directory as `config.yaml` for reproducibility.
 
 - **📊 Metrics and objective**
   - Target task: binary classification (normal vs abnormal) on highly imbalanced battery cell data.
@@ -71,11 +71,13 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
   - Configured and activated through the central `imbalance` configuration section.
 
 - **⚡ PEFT Integration (Implemented)**
-  - **LoRA**: Parameter-efficient fine-tuning via Hugging Face `peft` targeting specific attention projections (`q_proj`, `v_proj`).
+  - Parameter-efficient fine-tuning is supported for both **classification** (MLP head) and **object detection** (YOLO26 detector).
+  - **LoRA**: Targets specific attention projections (`q_proj`, `v_proj`).
   - **Bottleneck Adapters**: Pfeiffer-style bottleneck adapters wrapping transformer feed-forward blocks.
   - **Visual Prompt Tuning (VPT)**: Support for Shallow (input-level prompt parameters) and Deep (layer-wise prompt replacement wrappers) prompt tuning.
   - Supports dynamic model structure routing (handles standard `encoder.layer`/`layers` and DINOv3's `model.layer` format).
   - VPT (Visual Prompt Tuning) includes a sequential block execution fallback for architectures without a nested `encoder` module (such as DINOv3).
+  - The SFP (Simple Feature Pyramid) neck and the backbone gradients are automatically routed to permit training the PEFT layers when active, adjusting feature extraction slice indices to account for prepended prompt tokens.
 
 - **🖥️ Parallel Training Dashboard**
   - `run_parallel_ablations.py` manages a job queue distributed across **8 GPUs**.
@@ -85,8 +87,9 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
   - Full output per config is logged to `outputs/logs/<config_name>.log`.
 
 - **🎯 YOLO26 + DINOv3 SFP Object Detection**
-  - Integrated the frozen DINOv3 vision backbone and a **Simple Feature Pyramid (SFP)** neck with standard **Ultralytics YOLO26** object detection head and native losses.
-  - Custom layers (`DinoV3Backbone` with ImageNet normalization, `DinoV3SFP_P3/P4/P5` projections) are implemented in [yolo_dino.py](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/yolo_dino.py).
+  - Integrated the DINOv3 vision backbone and a **Simple Feature Pyramid (SFP)** neck with standard **Ultralytics YOLO26** object detection head and native losses.
+  - Supports both **fully frozen backbone** and **Parameter-Efficient Fine-Tuning (PEFT)** via LoRA, Pfeiffer Bottleneck Adapters, and Visual Prompt Tuning (VPT).
+  - Custom layers and PEFT configurations are implemented in [yolo_dino.py](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/yolo_dino.py).
   - Dynamic class registration and tasks parser wrapping (supporting width/depth channel scaling and metadata attribute preservation) is managed in [yolo_utils.py](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/yolo_utils.py).
   - Configured via [yolo26_dino.yaml](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/configs/yolo26_dino.yaml).
   - Fully verified and tested via shapes unit test suite [test_yolo_shapes.py](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/tests/test_yolo_shapes.py).
@@ -210,7 +213,7 @@ python scripts/train.py --config configs/test_smoke.yaml
 This will run a short, one-epoch training and create an output directory under:
 
 ```text
-outputs/cls__{model_name}/{timestamp}/
+outputs/cls/{safe_model_name}__{cfg_stem}/{timestamp}/
 ```
 
 containing `config.yaml`, checkpoints, and the two best-model snapshots `best_loss.pt` and `best_f1.pt`.
@@ -243,7 +246,7 @@ A comprehensive ablation study framework automates exploration of backbone, PEFT
 
 #### 📐 Grid generation
 
-`scripts/generate_ablation_grid.py` generates **58 YAML configs** under `configs/ablations/` covering a combinatorial grid of:
+`scripts/generate_ablation_grid.py` generates **58 YAML configs** under `configs/cls/ablations/` covering a combinatorial grid of:
 
 | Axis | Variants |
 |------|----------|

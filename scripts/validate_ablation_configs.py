@@ -2,9 +2,9 @@
 """
 validate_ablation_configs.py
 
-Runs check_model_init.py for every config in configs/ablations/ in parallel
+Runs check_model_init.py for every config in configs/cls/ablations/ in parallel
 (one GPU per job, up to 8 concurrent), collects PASS/FAIL results, and writes
-a consolidated report to outputs/validation_report.txt.
+a consolidated report to outputs/cls/validation_report.txt.
 
 Usage:
     python3 scripts/validate_ablation_configs.py
@@ -45,7 +45,7 @@ if "HF_HOME" not in os.environ:
 # ── Settings ──────────────────────────────────────────────────────────────────
 MIN_FREE_VRAM_MIB = 12000
 MAX_PARALLEL_JOBS  = 8
-REPORT_PATH        = Path("outputs/validation_report.txt")
+REPORT_PATH        = Path("outputs/cls/validation_report.txt")
 
 # ── ANSI colours ──────────────────────────────────────────────────────────────
 GPU_COLORS = [
@@ -138,14 +138,14 @@ def run_check(gpu_idx: int, cfg_path: Path) -> Tuple[bool, str]:
 
 
 def main():
-    config_dir = Path("configs/ablations")
+    config_dir = Path("configs/cls/ablations")
     if not config_dir.exists():
-        print("❌  configs/ablations/ not found. Run generate_ablation_grid.py first.")
+        print("❌  configs/cls/ablations/ not found. Run generate_ablation_grid.py first.")
         return
 
     config_files = sorted(config_dir.glob("*.yaml"))
     if not config_files:
-        print("❌  No YAML files in configs/ablations/")
+        print("❌  No YAML files in configs/cls/ablations/")
         return
 
     print(f"🔍 Found {len(config_files)} configs to validate.\n")
