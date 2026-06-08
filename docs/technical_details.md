@@ -649,4 +649,86 @@ outputs = self.model(x_norm, interpolate_pos_encoding=True)
 ```
 This enables the backbone to interpolate positional embeddings dynamically, allowing the integrated YOLO detector to handle input tensors of any size (e.g., standard $640 \times 640$).
 
+---
+
+## 🛠️ 10. Seeding & Audit Resolutions
+
+To ensure high reliability, reproducibility, and robust execution on multi-GPU systems, we conducted a comprehensive codebase audit and resolved several critical and high-priority issues.
+
+### 🎲 10.1. Reproducibility & Seeding Config
+A global configuration parameter `seed` (defaulting to `42`) is introduced in `configs/baseline.yaml` and parsed into the `TrainingConfig` dataclass.
+In `scripts/train.py`, this seed is set globally during initialization:
+```python
+# Set random seeds for reproducibility
+seed = getattr(cfg, "seed", 42)
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(seed)
+```
+Additionally, the seed is passed to the `BatteryCellDataset` to govern the random state of the data-level oversampling process.
+
+### 🧩 10.2. Resolved Audit Issues
+
+1. **C1 & C2: Device Placement in Loss Functions**
+   - **Problem**: FocalLoss `alpha` and class-weighted CrossEntropy `weight` tensors were initialized on CPU, causing device mismatch runtime errors during GPU training.
+   - **Resolution**: Dynamically move the loss weights and focal alpha parameters to the same device as the model's logits inside `compute_loss` before executing the loss forward pass.
+
+2. **C3: DDP Incompatibility with WeightedRandomSampler**
+   - **Problem**: `WeightedRandomSampler` does not partition sample weights across DDP ranks, resulting in data leakage or duplicate processing.
+   - **Resolution**: Implemented an automatic fallback. If `oversampling_method="weighted_sampler"` is requested in a DDP run (world size > 1), the trainer displays a warning and automatically falls back to `data_level` oversampling, modifying the training dataset in-place.
+
+3. **C4: Warmup Steps Calculation under DDP**
+   - **Problem**: The warmup steps were computed as a fraction of total training steps based on the global batch size, neglecting rank-wise division in DDP.
+   - **Resolution**: Updated `scripts/train.py` to scale the warmup steps division by the world size:
+     ```python
+     warmup_steps=int((len(train_dataset) / (cfg.batch_size * world_size)) * cfg.num_epochs * warmup_ratio)
+     ```
+
+4. **C5: In-place Dataset Oversampling Determinism**
+   - **Problem**: Dataset oversampling used python's global random state without an isolated/reproducible seed, leading to run-to-run variances.
+   - **Resolution**: Isolated and seeded the random state inside `oversample_dataset()`:
+     ```python
+     state = random.getstate()
+     random.seed(self.seed)
+     try:
+         # perform oversampling...
+     finally:
+         random.setstate(state)
+     ```
+
+5. **C6: Redundant Loss Computation**
+   - **Problem**: Passing `labels` to the classifier backbone triggered the model's internal unweighted loss calculation. The trainer then discarded this loss and recomputed it using its custom loss function, causing redundant backpropagation graphs and VRAM waste.
+   - **Resolution**: Popped `"labels"` from a copy of the input dictionary before calling the model:
+     ```python
+     inputs_copy = inputs.copy()
+     labels = inputs_copy.pop("labels", None)
+     outputs = model(**inputs_copy)
+     ```
+
+6. **C7: VPT Layout and Register Tokens Collision**
+   - **Problem**: Prepending prompt parameters to transformer tokens shifts sequence indices, corrupting downstream slices when register tokens are present.
+   - **Resolution**: Organized prompt token insertion in `VptLayerWrapper` to match the exact register token slicing sequence: `[CLS, prompts, registers, patches]`.
+
+7. **C8: DDP Dataset Index Wrapper Handling**
+   - **Problem**: The trainer's `_get_train_labels()` method failed to inspect ground-truth labels when the dataset was wrapped in PyTorch subsets or DDP samplers.
+   - **Resolution**: Added dataset traversal logic to unpack wrapped datasets (e.g. `Subset`) and locate their underlying samples/labels via the subset's index mapping.
+
+8. **H3: Random Augmentation Operator Sampling**
+   - **Problem**: Sampling operators with normalized probabilities could lead to duplicate selections or zero-division errors.
+   - **Resolution**: Updated `RandomAugmentationCombo` to perform iterative sampling without replacement, using raw probabilities as sampling weights.
+
+9. **H4: Handling Missing Class Indices**
+   - **Problem**: If class labels were missing in a dataset split, `compute_class_weights` returned a mismatched weight vector, causing dimension mismatch crashes in the loss function.
+   - **Resolution**: Filled missing class indices up to the maximum label index with default weights of `1.0`.
+
+10. **H9: Trainer v5 Early Stopping Callback**
+    - **Problem**: In `transformers` v5, `evaluation_strategy` was renamed to `eval_strategy`. However, `EarlyStoppingCallback` still looks for `evaluation_strategy` in training arguments, causing a runtime crash.
+    - **Resolution**: Aliased `training_args.evaluation_strategy = training_args.eval_strategy` right after instantiation.
+
+11. **H12: Robust Image Processor Fallback**
+    - **Problem**: When loading offline or custom model checkpoints, `AutoImageProcessor.from_pretrained` failed due to missing configuration files.
+    - **Resolution**: Implemented automatic fallback loading of `google/vit-base-patch16-224` image processor when checkpoint loading fails, ensuring the training pipeline never crashes on data loader setup.
+
 

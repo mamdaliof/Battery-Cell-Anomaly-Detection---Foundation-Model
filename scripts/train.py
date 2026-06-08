@@ -17,6 +17,8 @@ from pathlib import Path
 import shutil
 from dataclasses import asdict
 import os
+import random
+import numpy as np
 
 import torch
 from transformers import EarlyStoppingCallback, TrainingArguments
@@ -45,6 +47,14 @@ def main() -> None:
     args = parse_args()
 
     cfg: TrainingConfig = load_yaml_config(args.config)
+
+    # Set random seeds for reproducibility (H8 Fix)
+    seed = getattr(cfg, "seed", 42)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -75,6 +85,7 @@ def main() -> None:
         transform=train_transform,
         image_size_override=cfg.data.image_size,
         oversample=oversample_data,
+        seed=cfg.seed,
     )
     eval_dataset = BatteryCellDataset(
         split="val",
@@ -125,9 +136,11 @@ def main() -> None:
         per_device_eval_batch_size=cfg.batch_size,
         learning_rate=cfg.learning_rate,
         lr_scheduler_type=cfg.scheduler.lr_scheduler_type,
-        # Compute warmup_steps from actual dataset size (warmup_ratio is deprecated in v5.2)
+        # Compute warmup_steps from actual dataset size (warmup_ratio is deprecated in v5.2) (C4 Fix)
         warmup_steps=int(
-            (len(train_dataset) / cfg.batch_size) * cfg.num_epochs * cfg.scheduler.warmup_ratio
+            (len(train_dataset) / (cfg.batch_size * max(1, int(os.environ.get("WORLD_SIZE", "1")))))
+            * cfg.num_epochs
+            * cfg.scheduler.warmup_ratio
         ),
         # ── Evaluation & checkpointing: once per epoch ─────────────────────
         eval_strategy="epoch",
@@ -135,7 +148,8 @@ def main() -> None:
         logging_strategy="epoch",
         load_best_model_at_end=True,
         metric_for_best_model=cfg.metric_for_best,
-        greater_is_better=True,
+        greater_is_better=cfg.greater_is_better,
+        seed=cfg.seed,
         save_total_limit=2,
         # ── Data loading ───────────────────────────────────────────────────
         dataloader_num_workers=4,         # parallel CPU workers; eliminates GPU idle time
@@ -147,6 +161,8 @@ def main() -> None:
         bf16=cfg.amp.bf16,
         ddp_find_unused_parameters=False,
     )
+    # Map deprecated evaluation_strategy to eval_strategy to ensure EarlyStoppingCallback compatibility (H9 Fix)
+    training_args.evaluation_strategy = training_args.eval_strategy
 
     callbacks = [
         EarlyStoppingCallback(

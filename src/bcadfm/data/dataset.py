@@ -46,10 +46,12 @@ class BatteryCellDataset(Dataset):
         transform: Optional[Callable] = None,
         image_size_override: Optional[int] = None,
         oversample: bool = False,
+        seed: int = 42,
     ) -> None:
         assert split in {"train", "val"}, f"Unsupported split: {split}"
         self.split = split
         self.config = data_config
+        self.seed = seed
 
         # Resolve directory for this split
         if split == "train":
@@ -71,7 +73,19 @@ class BatteryCellDataset(Dataset):
         # repository does not ship a usable preprocessor_config.json or
         # image_processor_type, which is a known transformers/DINOv3 issue.
         # In that case, fall back to a manual torchvision-based transform.
-        self.processor: AutoImageProcessor = AutoImageProcessor.from_pretrained(model_name_or_path)
+        # Try to use the Hugging Face image processor first (H12 Fix)
+        try:
+            self.processor = AutoImageProcessor.from_pretrained(model_name_or_path)
+        except Exception as e:
+            if int(os.environ.get("LOCAL_RANK", "0")) == 0:
+                print(f"⚠️ Warning: Failed to load HF processor for {model_name_or_path}: {e}")
+                print("Attempting fallback to default google/vit-base-patch16-224 processor...")
+            try:
+                self.processor = AutoImageProcessor.from_pretrained("google/vit-base-patch16-224")
+            except Exception:
+                self.processor = None
+
+        self.image_size_override = image_size_override
 
         # Optional override of image size when using the HF processor
         if self.processor is not None and image_size_override is not None:
@@ -98,8 +112,8 @@ class BatteryCellDataset(Dataset):
             exts = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
             return [p for p in folder.rglob("*") if p.suffix.lower() in exts]
 
-        normal_images = list_images(self.normal_dir)
-        abnormal_images = list_images(self.abnormal_dir)
+        normal_images = sorted(list_images(self.normal_dir))
+        abnormal_images = sorted(list_images(self.abnormal_dir))
 
         for p in normal_images:
             self.samples.append(ImageSample(image_path=p, label=0))
@@ -121,17 +135,23 @@ class BatteryCellDataset(Dataset):
         for sample in self.samples:
             grouped.setdefault(sample.label, []).append(sample)
 
-        oversampled_samples: List[ImageSample] = []
-        for label, samples_list in grouped.items():
-            if len(samples_list) < max_size:
-                # Replicate minority class samples
-                replicated = random.choices(samples_list, k=max_size)
-                oversampled_samples.extend(replicated)
-            else:
-                oversampled_samples.extend(samples_list)
+        # Seed python's random state for reproducible DDP oversampling (C5 Fix)
+        state = random.getstate()
+        random.seed(self.seed)
+        try:
+            oversampled_samples: List[ImageSample] = []
+            for label, samples_list in grouped.items():
+                if len(samples_list) < max_size:
+                    # Replicate minority class samples
+                    replicated = random.choices(samples_list, k=max_size)
+                    oversampled_samples.extend(replicated)
+                else:
+                    oversampled_samples.extend(samples_list)
 
-        # Shuffle to mix classes
-        random.shuffle(oversampled_samples)
+            # Shuffle to mix classes
+            random.shuffle(oversampled_samples)
+        finally:
+            random.setstate(state)
 
         if int(os.environ.get("LOCAL_RANK", "0")) == 0:
             print(f"🔄 Data-level oversampling applied. Sample counts changed from {class_counts} to:")
@@ -154,9 +174,21 @@ class BatteryCellDataset(Dataset):
             image = self.transform(image)
 
         # HF processor path (ViT and backbones that ship a proper
-        # preprocessor_config.json / image_processor_type)
-        encoded = self.processor(images=image, return_tensors="pt")
-        pixel_values = encoded["pixel_values"][0]
+        # preprocessor_config.json / image_processor_type) (H12 Fix)
+        if self.processor is not None:
+            encoded = self.processor(images=image, return_tensors="pt")
+            pixel_values = encoded["pixel_values"][0]
+        else:
+            # Manual fallback using ImageNet normalization and target size
+            from torchvision.transforms import functional as F_tv
+            size = self.image_size_override if self.image_size_override is not None else 224
+            img_resized = F_tv.resize(image, [size, size])
+            tensor = F_tv.to_tensor(img_resized)  # scales to [0.0, 1.0]
+            pixel_values = F_tv.normalize(
+                tensor,
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            )
 
         return {
             "pixel_values": pixel_values,
@@ -255,16 +287,15 @@ def build_augmentation_pipeline(config: DataConfig, split: str) -> Optional[Call
             candidates = list(range(len(self.ops)))
             chosen_indices: List[int] = []
 
-            # Normalize probabilities for sampling
             probs = [p for (_, p, _) in self.ops]
-            total_p = sum(probs)
-            if total_p == 0:
+            if sum(probs) == 0:
                 return img
-            norm_probs = [p / total_p for p in probs]
 
-            # We sample iteratively to avoid duplicates (simple approach for small op list)
+            # We sample iteratively to avoid duplicates (H3 Fix)
+            # We use the raw operator probabilities as weights directly.
             for _ in range(min(self.max_transforms, len(candidates))):
-                idx = random.choices(candidates, weights=[norm_probs[i] for i in candidates], k=1)[0]
+                current_weights = [probs[i] for i in candidates]
+                idx = random.choices(candidates, weights=current_weights, k=1)[0]
                 chosen_indices.append(idx)
                 candidates.remove(idx)
                 if not candidates:

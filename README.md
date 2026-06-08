@@ -46,10 +46,11 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
     - Best model selection via a custom callback that saves both `best_loss.pt` and `best_f1.pt`.
     - Learning rate scheduler (`lr_scheduler_type`, `warmup_ratio`).
     - Automatic mixed precision (`fp16`, `bf16`) when GPUs are available.
+    - **Global Seed**: A global configuration seed (`seed`) that governs PyTorch, CUDA, NumPy, and Python's random state for reproducible training runs, data oversampling, and augmentation selections.
   - **Data loading performance**: `dataloader_num_workers=4` and `pin_memory=True` are enabled for efficient GPU data feeding.
   - **Efficient augmentations**: Gaussian noise augmentation uses direct **NumPy array injection**, avoiding costly PIL↔Tensor round-trips.
   - **Deferred checkpointing**: `state_dict()` is only called inside callbacks when an actual metric improvement is detected, reducing unnecessary I/O overhead.
-  - **Evaluation & saving**: `eval_strategy='epoch'` and `save_strategy='epoch'` are configured and working correctly; `EarlyStoppingCallback` is currently disabled.
+  - **Evaluation & saving**: Evaluation, checkpointing, and logging are performed **per epoch** (`eval_strategy='epoch'`, `save_strategy='epoch'`, and `logging_strategy='epoch'`) to ensure consistent, stable checkpoint evaluation.
   - Each training run creates a unique run directory `outputs/{task_name}__{safe_model_name}__{cfg_stem}/{timestamp}/` to prevent concurrent folder write collisions when running parallel GPU runs, and copies the used YAML config into that directory as `config.yaml` for reproducibility.
 
 - **📊 Metrics and objective**

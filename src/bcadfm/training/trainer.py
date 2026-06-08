@@ -25,6 +25,7 @@ class ImbalanceTrainer(Trainer):
     ) -> None:
         super().__init__(*args, **kwargs)
         self.imbalance_config = imbalance_config or {}
+        self._train_labels_cached = None
         
         # Determine class weights from training dataset if requested
         self.class_weights: Optional[torch.Tensor] = None
@@ -36,6 +37,18 @@ class ImbalanceTrainer(Trainer):
         labels = self._get_train_labels()
         if not labels:
             return
+
+        # Check for DDP incompatibility with WeightedRandomSampler (C3 Fix)
+        oversampling_method = self.imbalance_config.get("oversampling_method", "none")
+        if oversampling_method == "weighted_sampler" and self.args.world_size > 1:
+            if int(os.environ.get("LOCAL_RANK", "0")) == 0:
+                print(
+                    "⚠️ WARNING: oversampling_method='weighted_sampler' is incompatible with DDP. "
+                    "Automatically falling back to 'data_level' oversampling by modifying the training dataset in-place."
+                )
+            if hasattr(self.train_dataset, "oversample_dataset"):
+                self.train_dataset.oversample_dataset()
+            self.imbalance_config["oversampling_method"] = "data_level"
 
         # Count occurrences of each class
         class_counts = {}
@@ -55,21 +68,53 @@ class ImbalanceTrainer(Trainer):
         self.loss_fn = self._init_loss_fn()
 
     def _get_train_labels(self) -> List[int]:
+        if self._train_labels_cached is not None:
+            return self._train_labels_cached
+
         if self.train_dataset is None:
             return []
-        if hasattr(self.train_dataset, "samples"):
-            return [s.label for s in self.train_dataset.samples]
-        
-        # Fallback if dataset is wrapped or custom
-        try:
-            labels = []
-            for i in range(len(self.train_dataset)):
-                item = self.train_dataset[i]
-                if "labels" in item:
-                    labels.append(item["labels"].item())
-            return labels
-        except Exception:
-            return []
+
+        # Traverse wrapper datasets (like Subset) to find base dataset (H6 Fix)
+        curr_ds = self.train_dataset
+        indices = None
+        while hasattr(curr_ds, "dataset"):
+            if hasattr(curr_ds, "indices"):
+                indices = curr_ds.indices
+            curr_ds = curr_ds.dataset
+
+        labels = []
+        if hasattr(curr_ds, "samples"):
+            if indices is not None:
+                labels = [curr_ds.samples[i].label for i in indices]
+            else:
+                labels = [s.label for s in curr_ds.samples]
+        elif hasattr(curr_ds, "labels"):
+            raw_labels = curr_ds.labels
+            if indices is not None:
+                labels = [raw_labels[i] for i in indices]
+            else:
+                labels = list(raw_labels)
+        elif hasattr(curr_ds, "targets"):
+            raw_targets = curr_ds.targets
+            if indices is not None:
+                labels = [raw_targets[i] for i in indices]
+            else:
+                labels = list(raw_targets)
+        else:
+            # Fallback if dataset is wrapped or custom (runs once and caches)
+            try:
+                for i in range(len(self.train_dataset)):
+                    item = self.train_dataset[i]
+                    if "labels" in item:
+                        if isinstance(item["labels"], torch.Tensor):
+                            labels.append(item["labels"].item())
+                        else:
+                            labels.append(int(item["labels"]))
+            except Exception:
+                labels = []
+
+        self._train_labels_cached = labels
+        return labels
 
     def _init_loss_fn(self) -> nn.Module:
         loss_type = self.imbalance_config.get("loss_type", "cross_entropy")
@@ -148,8 +193,10 @@ class ImbalanceTrainer(Trainer):
             if not hasattr(self, "loss_fn"):
                 self.loss_fn = nn.CrossEntropyLoss()
 
-        labels = inputs.get("labels")
-        outputs = model(**inputs)
+        # Copy inputs and pop labels to prevent model from computing redundant unweighted loss (C6 Fix)
+        inputs_copy = inputs.copy()
+        labels = inputs_copy.pop("labels", None)
+        outputs = model(**inputs_copy)
 
         if isinstance(outputs, dict) and "logits" in outputs:
             logits = outputs["logits"]
@@ -160,6 +207,12 @@ class ImbalanceTrainer(Trainer):
             if return_outputs:
                 return outputs.get("loss"), outputs
             return outputs.get("loss")
+
+        # Move loss function weights/buffers to correct device (C1 & C2 helper)
+        if hasattr(self.loss_fn, "weight") and self.loss_fn.weight is not None:
+            self.loss_fn.weight = self.loss_fn.weight.to(logits.device)
+        if hasattr(self.loss_fn, "alpha") and self.loss_fn.alpha is not None:
+            self.loss_fn.alpha = self.loss_fn.alpha.to(logits.device)
 
         loss = self.loss_fn(logits, labels)
 

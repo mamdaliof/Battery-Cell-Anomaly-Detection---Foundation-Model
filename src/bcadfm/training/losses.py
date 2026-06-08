@@ -23,7 +23,10 @@ class FocalLoss(nn.Module):
     ) -> None:
         super().__init__()
         self.gamma = gamma
-        self.alpha = alpha
+        if alpha is not None:
+            self.register_buffer("alpha", alpha)
+        else:
+            self.alpha = None
         self.reduction = reduction
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
@@ -33,10 +36,8 @@ class FocalLoss(nn.Module):
         focal_loss = ((1.0 - pt) ** self.gamma) * ce_loss
 
         if self.alpha is not None:
-            # Move alpha to the same device as logits
-            alpha_device = self.alpha.to(logits.device)
-            # Gather alpha values matching the target classes
-            alpha_t = alpha_device[targets]
+            # Gather alpha values matching the target classes, ensuring correct device placement
+            alpha_t = self.alpha.to(logits.device)[targets]
             focal_loss = alpha_t * focal_loss
 
         if self.reduction == "mean":
@@ -59,23 +60,25 @@ def compute_class_weights(
       - "none": uniform weights (1.0 for all classes)
     """
     if isinstance(class_counts, dict):
-        # Ensure classes are sorted by index
-        sorted_keys = sorted(class_counts.keys())
-        counts = [class_counts[k] for k in sorted_keys]
+        # Ensure we cover all indices up to max class index to prevent shape mismatch in loss (H4 Fix)
+        max_class_id = max(class_counts.keys()) if class_counts else 0
+        counts = [class_counts.get(i, 0) for i in range(max_class_id + 1)]
     else:
         counts = list(class_counts)
 
-    num_classes = len(counts)
+    # Number of active classes (classes with samples)
+    active_num_classes = sum(1 for c in counts if c > 0)
+    active_num_classes = max(1, active_num_classes)
     total_samples = sum(counts)
 
     if total_samples == 0:
-        return torch.ones(num_classes, dtype=torch.float32)
+        return torch.ones(len(counts), dtype=torch.float32)
 
     if method == "balanced":
         weights = []
         for c in counts:
             if c > 0:
-                weights.append(total_samples / (num_classes * c))
+                weights.append(total_samples / (active_num_classes * c))
             else:
                 weights.append(1.0)
         return torch.tensor(weights, dtype=torch.float32)
@@ -84,10 +87,10 @@ def compute_class_weights(
         inv_counts = [1.0 / c if c > 0 else 0.0 for c in counts]
         sum_inv = sum(inv_counts)
         if sum_inv > 0:
-            weights = [num_classes * ic / sum_inv for ic in inv_counts]
+            weights = [active_num_classes * ic / sum_inv for ic in inv_counts]
         else:
-            weights = [1.0] * num_classes
+            weights = [1.0] * len(counts)
         return torch.tensor(weights, dtype=torch.float32)
 
     else:
-        return torch.ones(num_classes, dtype=torch.float32)
+        return torch.ones(len(counts), dtype=torch.float32)

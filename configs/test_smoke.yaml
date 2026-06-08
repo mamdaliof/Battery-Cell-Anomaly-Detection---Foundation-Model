@@ -44,7 +44,7 @@ peft:
   lora_r: 8
   lora_alpha: 16
   lora_dropout: 0.0
-  lora_target_modules: ["query", "value"]
+  lora_target_modules: ["q_proj", "v_proj"]
   lora_target_blocks: null
   adapter_bottleneck_dim: 64
   adapter_dropout: 0.0
@@ -61,6 +61,7 @@ learning_rate: 0.0005  # keeps the same LR as baseline for now
 early_stopping_patience: 1  # early stopping irrelevant here (only 1 epoch)
 metric_for_best: "eval_f1"  # still track F1 for consistency
 greater_is_better: true  # higher F1 is better
+seed: 42  # global random seed for reproducibility
 
 # Learning rate scheduler configuration
 scheduler:

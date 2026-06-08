@@ -89,6 +89,7 @@ class TrainingConfig:
     early_stopping_patience: int
     metric_for_best: str
     greater_is_better: bool
+    seed: int = 42
 
     # Scheduler and AMP
     scheduler: SchedulerConfig
@@ -129,6 +130,7 @@ def load_yaml_config(path: str | Path) -> TrainingConfig:
         early_stopping_patience=raw.get("early_stopping_patience", 3),
         metric_for_best=raw.get("metric_for_best", "eval_loss"),
         greater_is_better=raw.get("greater_is_better", False),
+        seed=raw.get("seed", 42),
         scheduler=scheduler_cfg,
         amp=amp_cfg,
     )

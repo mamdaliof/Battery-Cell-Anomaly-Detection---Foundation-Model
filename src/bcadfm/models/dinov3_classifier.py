@@ -125,7 +125,10 @@ class VptLayerWrapper(nn.Module):
 
     def forward(self, hidden_states: torch.Tensor, *args, **kwargs):
         # hidden_states: (batch_size, seq_len, hidden_size)
-        # Discard the prompt tokens from the previous layer (indices 1 to num_tokens+1)
+        # Discard the prompt tokens from the previous layer (indices 1 to num_tokens+1).
+        # Note: If register tokens are present, they are placed immediately after the prompt tokens,
+        # so they will be part of the patch_tokens slice (from 1 + self.num_tokens onwards)
+        # and will be preserved and propagated untouched.
         cls_token = hidden_states[:, :1, :]
         patch_tokens = hidden_states[:, 1 + self.num_tokens :, :]
         batch_size = hidden_states.shape[0]
@@ -214,13 +217,33 @@ class VptWrappedBackbone(nn.Module):
 
         x = embeddings_module(pixel_values, bool_masked_pos=bool_masked_pos)
 
-        # 2. Prepend prompt tokens after CLS token (at index 1)
+        # 2. Get register tokens from backbone if present (C7 Fix)
+        # DINOv2 / DINOv3 architectures can include learned register tokens to absorb outlier weights.
+        # Since we bypass the backbone forward method to inject prompt tokens, we must manually
+        # retrieve and insert register tokens at index 1 (between prompts and patch tokens)
+        # to ensure that the layout matches what is expected by standard ViT/DINO layers.
+        register_tokens = None
+        if hasattr(self.original_backbone, "register_tokens"):
+            register_tokens = self.original_backbone.register_tokens
+        elif hasattr(self.original_backbone, "model") and hasattr(self.original_backbone.model, "register_tokens"):
+            register_tokens = self.original_backbone.model.register_tokens
+
         cls_token = x[:, :1, :]
         patch_tokens = x[:, 1:, :]
         batch_size = x.shape[0]
 
         prompts = self.prompt.expand(batch_size, -1, -1)
-        x = torch.cat([cls_token, prompts, patch_tokens], dim=1)
+        if register_tokens is not None:
+            # Layout becomes [CLS, prompts, registers, patches]
+            # Since prompts are inserted immediately after CLS, the register tokens are pushed
+            # to indices [1 + num_tokens : 1 + num_tokens + num_registers].
+            # This allows VptLayerWrapper to discard prompt tokens correctly using self.num_tokens
+            # without affecting the registers.
+            expanded_registers = register_tokens.expand(batch_size, -1, -1)
+            x = torch.cat([cls_token, prompts, expanded_registers, patch_tokens], dim=1)
+        else:
+            # Standard ViT layout [CLS, prompts, patches]
+            x = torch.cat([cls_token, prompts, patch_tokens], dim=1)
 
         # 3. Pass through encoder or layers sequentially
         if hasattr(self.original_backbone, "encoder"):
