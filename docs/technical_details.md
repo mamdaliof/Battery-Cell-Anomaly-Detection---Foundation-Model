@@ -100,7 +100,8 @@ Implements the custom training loop subclassing Hugging Face's `Trainer`.
   - `_get_train_labels(self)`: Utility to extract ground-truth labels from the training dataset by inspecting samples directly or scanning items.
   - `_init_loss_fn(self)`: Sets up loss functions. Returns `FocalLoss` with computed class weights/hyperparameters, or `nn.CrossEntropyLoss` with inverse class-weight tensors.
   - `_get_train_sampler(self, *args, **kwargs)`: Overrides Hugging Face's sampler creation. If `oversampling_method == "weighted_sampler"`, computes balanced sample weights and returns PyTorch's `WeightedRandomSampler`. Checks DDP status and issues warnings if used under multi-GPU setups.
-  - `compute_loss(self, model, inputs, return_outputs, num_items_in_batch)`: Computes loss using the model's logits and `self.loss_fn`.
+  - `compute_loss(self, model, inputs, return_outputs, num_items_in_batch)`: Computes loss using the model's logits and `self.loss_fn`. Times the forward pass and saves it to `self._last_forward_time`.
+  - `training_step(self, model, inputs)`: Overrides the training step to track and accumulate data preparation/loading, forward pass, and backward propagation/optimization times. Computes step percentages and logs bottleneck diagnostics to stdout every 50 steps.
 
 ---
 
@@ -787,6 +788,22 @@ if "HF_HOME" not in os.environ:
     hf_cache_dir = workspace_root / "models" / "hf_cache"
     os.environ["HF_HOME"] = str(hf_cache_dir)
     hf_cache_dir.mkdir(parents=True, exist_ok=True)
+
+    # If the model is cached in the default home directory, copy it to the local workspace cache
+    default_cache = Path.home() / ".cache" / "huggingface" / "hub"
+    if default_cache.exists():
+        for p in default_cache.glob("models--facebook--dinov3*"):
+            if p.is_dir():
+                target_hub_dir = hf_cache_dir / "hub"
+                target_dir = target_hub_dir / p.name
+                if not target_dir.exists():
+                    try:
+                        import shutil
+                        target_hub_dir.mkdir(parents=True, exist_ok=True)
+                        shutil.copytree(p, target_dir, symlinks=True)
+                    except Exception:
+                        pass
+```
 
 
 ---
