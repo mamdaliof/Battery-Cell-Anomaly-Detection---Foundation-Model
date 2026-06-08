@@ -34,7 +34,7 @@ We implemented strategies to address highly skewed binary distributions (normal 
 
 ## 🔬 Verification & Run Logs
 
-### 1. Automated Verification (`verify_peft.py`)
+### 1. Automated Verification (`tests/verify_peft.py`)
 Verification script asserts layer parameters, shapes, and dynamic hidden dimensions. Run results on the server:
 
 ```text
@@ -73,15 +73,15 @@ Trainable %:              0.3449%
 ### 3. GPU VRAM & DDP Isolation Verification
 
 To verify independent access to the 8 A16 GPUs, two dummy scripts were developed:
-- `scripts/gpu_alloc_test.py`: Allocates 4 GB of VRAM on visible GPUs to verify isolation.
-- `scripts/ddp_alloc_test.py`: Initializes NCCL DDP process group and allocates 4 GB on participating GPUs without heavy package dependencies.
+- `tests/gpu_alloc_test.py`: Allocates 4 GB of VRAM on visible GPUs to verify isolation.
+- `tests/ddp_alloc_test.py`: Initializes NCCL DDP process group and allocates 4 GB on participating GPUs without heavy package dependencies.
 
 #### Verification Run Results:
 1. **Single GPU Isolation**: Running `CUDA_VISIBLE_DEVICES=0` and `CUDA_VISIBLE_DEVICES=1` successfully isolated allocations to device 0 of each process.
 2. **Parallel DDP Launches**: Running multiple `torchrun` commands in parallel required specifying distinct `--master_port` settings to avoid port conflicts:
    ```bash
-   CUDA_VISIBLE_DEVICES=3,4 torchrun --nproc_per_node=2 --master_port=29501 scripts/ddp_alloc_test.py
-   CUDA_VISIBLE_DEVICES=5,6 torchrun --nproc_per_node=2 --master_port=29502 scripts/ddp_alloc_test.py
+   CUDA_VISIBLE_DEVICES=3,4 torchrun --nproc_per_node=2 --master_port=29501 tests/ddp_alloc_test.py
+   CUDA_VISIBLE_DEVICES=5,6 torchrun --nproc_per_node=2 --master_port=29502 tests/ddp_alloc_test.py
    ```
    Both launches successfully initialized NCCL process groups and allocated 4 GB on all target devices in parallel.
 

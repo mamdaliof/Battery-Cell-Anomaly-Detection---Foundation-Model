@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""
-Parallel ablation runner — compact in-place dashboard.
+"""Parallel detection ablation runner — compact in-place dashboard.
 
 One persistent terminal line per GPU slot (0-7), refreshed every 0.5s.
-All subprocess output is silently parsed for tqdm progress, epoch, loss,
-and F1 — nothing else is printed to the terminal.
-Full raw output is still written to outputs/logs/<config>.log for debugging.
+All subprocess output is silently parsed for progress, epoch, loss,
+and mAP50 — nothing else is printed to the terminal.
+Full raw output is still written to outputs/det/logs/<config>.log for debugging.
 """
 import os
 import re
@@ -58,10 +57,10 @@ def _col(idx: int) -> str:
     return _COLORS[idx % len(_COLORS)]
 
 
-# ── Per-GPU mutable status (written by reader threads, read by dashboard) ──────
+# ── Per-GPU mutable status ────────────────────────────────────────────────────
 class _Slot:
     __slots__ = ("state", "name", "pct", "step", "total",
-                 "speed", "epoch", "max_epoch", "loss", "f1", "rc")
+                 "speed", "epoch", "max_epoch", "loss", "map50", "rc")
 
     def __init__(self):
         self.state:     str            = "idle"
@@ -73,7 +72,7 @@ class _Slot:
         self.epoch:     float          = 0.0
         self.max_epoch: int            = 300
         self.loss:      Optional[float] = None
-        self.f1:        Optional[float] = None
+        self.map50:     Optional[float] = None
         self.rc:        Optional[int]  = None
 
     def reset(self, name: str, max_epoch: int) -> None:
@@ -86,7 +85,7 @@ class _Slot:
         self.epoch     = 0.0
         self.max_epoch = max_epoch
         self.loss      = None
-        self.f1        = None
+        self.map50     = None
         self.rc        = None
 
 
@@ -94,52 +93,51 @@ _slots: Dict[int, _Slot] = {i: _Slot() for i in range(MAX_PARALLEL_JOBS)}
 _lock  = threading.Lock()
 
 # ── Regex patterns ─────────────────────────────────────────────────────────────
-# Main training tqdm:  " 42%|████▍     | 504/1200 [04:12<05:49,  2.00s/it]"
-# We filter on total > 500 to skip the "Loading weights" tqdm (total ≈ 211)
+# Standard training progress tqdm
 _RE_TQDM = re.compile(
     r"(\d+)%\|[^|]*\|\s*(\d+)/(\d+)\s+\[[^\]]+,\s*([\d.]+\s*(?:it/s|s/it))"
 )
-# BeautifulLoggingCallback train line:
-#   "📈 [Epoch 3.00 | Step 12] Loss: 0.2134 | LR: 2.00e-04"
-_RE_TRAIN = re.compile(r"Epoch\s+([\d.]+).*?Loss:\s*([\d.]+)")
-# Eval F1 from BeautifulLoggingCallback:
-#   "  🔹 F1                     : 0.8421"
-_RE_F1 = re.compile(r"\bF\s*1\s*:\s*([\d.]+)", re.I)
-# Eval loss line (only the 🔹 prefixed one to avoid train loss false-positives)
-_RE_EVAL_LOSS = re.compile(r"🔹\s*Loss\s*:\s*([\d.]+)", re.I)
+
+# YOLO Epoch progress line
+#   "      1/300      3.95G      1.196     0.9856      1.228         15        640"
+_RE_YOLO_PROGRESS = re.compile(
+    r"^\s*(\d+)/(\d+)\s+[\d.]+G\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)"
+)
+
+# YOLO validation summary line:
+#   "      all         81        105      0.548      0.485      0.512      0.325"
+_RE_VAL_ALL = re.compile(
+    r"^\s*all\s+(\d+)\s+(\d+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)"
+)
 
 
 def _parse(line: str, s: _Slot) -> None:
     """Update slot in-place from one line of subprocess stdout."""
-    # tqdm progress (only the training bar, not weight loading)
+    # 1. tqdm progress
     m = _RE_TQDM.search(line)
     if m:
-        total = int(m.group(3))
-        if total > 500:           # training steps, not the 211-shard weight loader
-            s.pct   = int(m.group(1))
-            s.step  = int(m.group(2))
-            s.total = total
-            s.speed = m.group(4).strip()
-            s.state = "training"
+        s.pct   = int(m.group(1))
+        s.step  = int(m.group(2))
+        s.total = int(m.group(3))
+        s.speed = m.group(4).strip()
+        s.state = "training"
         return
 
-    # Epoch / train loss from BeautifulLoggingCallback
-    m = _RE_TRAIN.search(line)
+    # 2. YOLO Epoch progress (updates loss to sum of box_loss + cls_loss)
+    m = _RE_YOLO_PROGRESS.search(line)
     if m:
-        s.epoch = float(m.group(1))
-        s.loss  = float(m.group(2))
+        s.epoch     = float(m.group(1))
+        s.max_epoch = int(m.group(2))
+        box_loss    = float(m.group(3))
+        cls_loss    = float(m.group(4))
+        s.loss      = box_loss + cls_loss
         return
 
-    # Eval F1
-    m = _RE_F1.search(line)
+    # 3. Validation mAP50
+    m = _RE_VAL_ALL.search(line)
     if m:
-        s.f1 = float(m.group(1))
+        s.map50 = float(m.group(5))  # mAP50
         return
-
-    # Eval loss (overwrite with the eval-phase value)
-    m = _RE_EVAL_LOSS.search(line)
-    if m:
-        s.loss = float(m.group(1))
 
 
 def _reader(proc: subprocess.Popen, gpu_idx: int, log_fh) -> None:
@@ -181,7 +179,7 @@ def _fmt(i: int) -> str:
         state, name  = s.state, s.name
         pct, step, total, speed = s.pct, s.step, s.total, s.speed
         epoch, max_ep = s.epoch, s.max_epoch
-        loss, f1, rc  = s.loss, s.f1, s.rc
+        loss, map50, rc = s.loss, s.map50, s.rc
 
     c   = _col(i)
     tag = f"{c}{BOLD}[GPU{i}]{RST}"
@@ -189,7 +187,6 @@ def _fmt(i: int) -> str:
     if state == "idle":
         return f"{tag} {DIM}idle{RST}"
 
-    # Trim long names to keep line width reasonable
     name_s = (name[:26] + "…") if len(name) > 27 else name
     tag    = f"{c}{BOLD}[GPU{i}|{name_s}]{RST}"
 
@@ -198,8 +195,8 @@ def _fmt(i: int) -> str:
 
     if state == "done":
         parts = []
-        if f1   is not None: parts.append(f"f1={f1:.4f}")
-        if loss is not None: parts.append(f"loss={loss:.4f}")
+        if map50 is not None: parts.append(f"mAP50={map50:.4f}")
+        if loss  is not None: parts.append(f"loss={loss:.4f}")
         return f"{tag}  {GREEN}✅ done{RST}  " + "  ".join(parts)
 
     if state == "failed":
@@ -213,7 +210,7 @@ def _fmt(i: int) -> str:
     parts  = [ep_s, bar_s, pct_s, step_s]
     if speed: parts.append(speed)
     if loss is not None: parts.append(f"loss={loss:.4f}")
-    if f1   is not None: parts.append(f"f1={f1:.4f}")
+    if map50 is not None: parts.append(f"mAP50={map50:.4f}")
     return f"{tag}  {'  '.join(parts)}"
 
 
@@ -248,8 +245,8 @@ def _load(p: Path) -> Dict[str, Any]:
         return yaml.safe_load(f)
 
 def _equiv(a: Dict, b: Dict) -> bool:
-    for k in ("model_name", "data", "head", "peft",
-              "learning_rate", "num_epochs", "imbalance"):
+    for k in ("model_name", "data", "peft", "learning_rate", "num_epochs",
+              "yolo_model_config", "yolo_data_yaml"):
         if a.get(k) != b.get(k):
             return False
     return True
@@ -280,16 +277,16 @@ def _free_gpus() -> List[int]:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
-    cfg_dir = Path("configs/cls/ablations")
-    out_dir = Path("outputs/cls")
+    cfg_dir = Path("configs/det/ablations")
+    out_dir = Path("outputs/det")
     log_dir = out_dir / "logs"
 
     if not cfg_dir.exists():
-        sys.exit("❌  configs/cls/ablations/ not found. Run generate_ablation_grid.py first.")
+        sys.exit("❌  configs/det/ablations/ not found. Run generate_det_ablation_grid.py first.")
 
     cfg_files = sorted(cfg_dir.glob("*.yaml"))
     if not cfg_files:
-        sys.exit("❌  No YAML configs in configs/cls/ablations/")
+        sys.exit("❌  No YAML configs in configs/det/ablations/")
 
     print(f"🔍  Found {len(cfg_files)} configs.")
     print("🧹  Scanning for completed runs…")
@@ -317,7 +314,7 @@ def main():
         return
 
     print(f"{'='*70}")
-    print("🚀  Parallel ablation training  |  Ctrl+C to stop")
+    print("🚀  Parallel detection ablation training  |  Ctrl+C to stop")
     print(f"{'='*70}")
 
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -360,11 +357,11 @@ def main():
                 env["CUDA_VISIBLE_DEVICES"] = str(gpu_idx)
                 env["PYTHONPATH"]           = f"{os.getcwd()}/src:" + env.get("PYTHONPATH", "")
                 env["TQDM_NCOLS"]           = "80"
-                env["TQDM_MININTERVAL"]     = "10"    # tqdm line every 10s max
+                env["TQDM_MININTERVAL"]     = "10"
 
                 log_fh = open(log_dir / f"{cfg_stem}.log", "w")
                 proc   = subprocess.Popen(
-                    ["python3", "scripts/train.py", "--config", str(cfg_path)],
+                    ["python3", "scripts/train_detection.py", "--config", str(cfg_path)],
                     env=env,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,

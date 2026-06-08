@@ -270,6 +270,33 @@ python scripts/validate_ablation_configs.py
 python scripts/run_parallel_ablations.py
 ```
 
+### 🎯 YOLO Detection Fine-Tuning & Ablation Studies
+
+The object detection pipeline supports DINOv3 SFP fine-tuning using low-rank adaptation (LoRA), Pfeiffer bottleneck adapters, or Visual Prompt Tuning (VPT).
+
+#### 🧪 Smoke test training
+Run a quick single-epoch sanity check of detection training (baseline or PEFT):
+```bash
+# Baseline training (no PEFT)
+python scripts/train_detection.py --config configs/det/test_smoke.yaml
+
+# PEFT training (LoRA)
+python scripts/train_detection.py --config configs/det/peft_smoke.yaml
+```
+
+#### 📐 Ablation study grid generation
+Generate the configuration files (58 configs) and launch script for the object detection sweeps:
+```bash
+python scripts/generate_det_ablation_grid.py
+```
+This generates configuration files under `configs/det/ablations/` and a runner sequence script `run_det_ablations.sh`.
+
+#### 🚀 Parallel execution
+Distribute training across up to 8 GPUs with real-time slot monitoring of YOLO losses (`box_loss` + `cls_loss`) and validation `mAP50`:
+```bash
+python scripts/run_parallel_det_ablations.py
+```
+
 ### 📊 Results Visualization Suite
 
 To analyze and compare results from completed and in-progress ablation runs, we provide two interactive tools:
@@ -296,11 +323,11 @@ This script compiles the YOLO26 + DINOv3 model, runs a dummy forward pass, and v
 Two lightweight helper scripts are available to verify GPU visibility, isolation, and process group setups without loading datasets or full models:
 1. **Single-GPU Isolation**: Allocates 4 GB of VRAM on local `cuda:0` of the visible device:
    ```bash
-   CUDA_VISIBLE_DEVICES=1 python3 scripts/gpu_alloc_test.py --duration 60
+   CUDA_VISIBLE_DEVICES=1 python3 tests/gpu_alloc_test.py --duration 60
    ```
 2. **Multi-GPU DDP NCCL Group**: Initializes NCCL distributed group and allocates 4 GB on each participating device. Specify `--master_port` for parallel launches to avoid port conflict:
    ```bash
-   CUDA_VISIBLE_DEVICES=3,4 torchrun --nproc_per_node=2 --master_port=29501 scripts/ddp_alloc_test.py
+   CUDA_VISIBLE_DEVICES=3,4 torchrun --nproc_per_node=2 --master_port=29501 tests/ddp_alloc_test.py
    ```
 
 ## 📅 Project planning
@@ -313,6 +340,7 @@ Additional documentation resources:
   - [`devlogs/DEVLOG_YOLO_DINO_DETECTION_CUSTOM_METRICS.md`](./devlogs/DEVLOG_YOLO_DINO_DETECTION_CUSTOM_METRICS.md) (Custom evaluation & multi-label classification validation metrics)
   - [`devlogs/DEVLOG_YOLO_DINO_DETECTION_DATA_PREP.md`](./devlogs/DEVLOG_YOLO_DINO_DETECTION_DATA_PREP.md) (YOLO dataset preparation and cleaning for object detection)
   - [`devlogs/DEVLOG_YOLO_DINO_DETECTION_INTEGRATION.md`](./devlogs/DEVLOG_YOLO_DINO_DETECTION_INTEGRATION.md) (YOLO26 + DINOv3 object detection integration)
+  - [`devlogs/DEVLOG_YOLO_DINO_DETECTION_PEFT_FINE_TUNING.md`](./devlogs/DEVLOG_YOLO_DINO_DETECTION_PEFT_FINE_TUNING.md) (YOLO detection fine-tuning & PEFT integration details)
   - [`devlogs/DEVLOG_VPT_FIX_AND_COLLISION_RESOLUTION.md`](./devlogs/DEVLOG_VPT_FIX_AND_COLLISION_RESOLUTION.md) (VPT compatibility & run directory collision fix)
   - [`devlogs/DEVLOG_RESULTS_VISUALIZATION_SUITE.md`](./devlogs/DEVLOG_RESULTS_VISUALIZATION_SUITE.md) (Interactive Jupyter & Streamlit results visualization suite)
   - [`devlogs/DEVLOG_LOCAL_MODEL_CACHING.md`](./devlogs/DEVLOG_LOCAL_MODEL_CACHING.md) (Local model caching and offline setup)

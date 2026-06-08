@@ -264,21 +264,21 @@ graph TD
 
 ## 🔬 4. GPU VRAM & DDP Isolation Verification Utilities
 
-To verify independent access to the 8 GPUs on the NVIDIA A16 system, two lightweight validation scripts are provided in the `scripts/` directory:
+To verify independent access to the 8 GPUs on the NVIDIA A16 system, two lightweight validation scripts are provided in the `tests/` directory:
 
-### 4.1. Single-GPU VRAM Allocator (`scripts/gpu_alloc_test.py`)
+### 4.1. Single-GPU VRAM Allocator (`tests/gpu_alloc_test.py`)
 This script isolates the target GPUs using `CUDA_VISIBLE_DEVICES` and performs a clean 4.0 GB memory allocation:
 - **Allocation logic**: Allocates a tensor of shape `(1024, 1024, 1024)` of `torch.float32` (exactly 4,294,967,296 bytes) on `cuda:0` of the isolated environment.
 - **VRAM Verification**: Sleeps for a user-specified duration (`--duration`) keeping the tensor in memory so you can run `nvidia-smi` to inspect process placement.
 
-### 4.2. Dummy DDP Process Group Allocator (`scripts/ddp_alloc_test.py`)
+### 4.2. Dummy DDP Process Group Allocator (`tests/ddp_alloc_test.py`)
 This script initializes the PyTorch distributed process group using the NCCL backend and allocates 4.0 GB on each participating GPU:
 - **NCCL initialization**: Triggers `dist.init_process_group(backend="nccl")`.
 - **Rank routing**: Resolves local GPU placement using the `LOCAL_RANK` environment variable, selects the device via `torch.cuda.set_device`, and allocates the 4.0 GB tensor.
 - **Port Conflict Prevention**: To run multiple independent DDP training/validation loops simultaneously, you must override the default master port (`29500`) using the `--master_port` flag:
   ```bash
-  CUDA_VISIBLE_DEVICES=3,4 torchrun --nproc_per_node=2 --master_port=29501 scripts/ddp_alloc_test.py
-  CUDA_VISIBLE_DEVICES=5,6 torchrun --nproc_per_node=2 --master_port=29502 scripts/ddp_alloc_test.py
+  CUDA_VISIBLE_DEVICES=3,4 torchrun --nproc_per_node=2 --master_port=29501 tests/ddp_alloc_test.py
+  CUDA_VISIBLE_DEVICES=5,6 torchrun --nproc_per_node=2 --master_port=29502 tests/ddp_alloc_test.py
   ```
 
 ---
@@ -787,6 +787,40 @@ if "HF_HOME" not in os.environ:
     hf_cache_dir = workspace_root / "models" / "hf_cache"
     os.environ["HF_HOME"] = str(hf_cache_dir)
     hf_cache_dir.mkdir(parents=True, exist_ok=True)
+
+
+---
+
+## 🎯 13. YOLO Detection Fine-Tuning & PEFT Integration Details
+
+This section outlines the technical implementation of Parameter-Efficient Fine-Tuning (PEFT) on the DINOv3 SFP object detection model.
+
+### 13.1. Unified Configuration Translation (`scripts/train_detection.py`)
+To align classification and detection training experiments, detection configurations utilize the same JSON/YAML schema format as classification (`TrainingConfig`).
+- **Translation Wrapper**: We translate high-level parameters into YOLO-compatible override dictionaries:
+  - `num_epochs` ➔ `epochs`
+  - `batch_size` ➔ `batch`
+  - `learning_rate` ➔ `lr0`
+  - `early_stopping_patience` ➔ `patience`
+  - `scheduler.lr_scheduler_type == "cosine"` ➔ `cos_lr: True`
+  - `amp` ➔ `amp` (supports fp16/bf16 automatic mixed precision)
+- **Active Registry**: A global thread-safe config state in `bcadfm.utils.yolo_utils` registers `cfg.peft` before instantiating the YOLO object detector.
+
+### 13.2. PEFT Wrapper for YOLO Backbone (`src/bcadfm/models/yolo_dino.py`)
+`DinoV3Backbone` wraps the frozen foundation model. If `peft_config` is set:
+- **LoRA**: Injects adapters into standard query and value projections (`target_modules=["q_proj", "v_proj"]`) across specified layers (`layers_to_transform`).
+- **Bottleneck Adapters**: Standard Pfeiffer adapters are dynamically inserted after FFN/MLP blocks.
+- **Visual Prompt Tuning (VPT)**:
+  - **Shallow**: Registers input prompt parameters prepended to patch sequences.
+  - **Deep**: Automatically intercepts block execution to swap prompt parameters at intermediate blocks.
+- **Gradient Tracking**: During standard inference, the backbone runs inside `torch.no_grad()`. During PEFT training, gradient computation is enabled on the model to update the trainable adapter weights, while keeping the rest of the backbone fully frozen.
+
+### 13.3. VPT Token Slicing Offset Resolution
+When VPT is active, the layout of sequence outputs from the DINOv3 model shifts:
+$$\text{Output Sequence} = [\text{CLS}] \mathbin{\Vert} [\text{Prompts}] \mathbin{\Vert} [\text{Registers}] \mathbin{\Vert} [\text{Patches}]$$
+We calculate `start_idx` dynamically:
+$$\text{start\_idx} = 1 + N_{prompts} + N_{registers}$$
+where $N_{prompts}$ matches `self.model.num_tokens` (if VPT is active) and $N_{registers}$ matches DINOv3 registers. This resolves spatial token extraction bugs, ensuring clean $2\text{D}$ feature grid reconstruction for the SFP neck layers.
 ```
 
 

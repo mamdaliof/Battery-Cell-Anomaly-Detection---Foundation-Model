@@ -224,8 +224,8 @@ To apply class weighting or focal loss within the YOLO26 training pipeline:
 - [x] **Conceptualize dynamic registration wrapper**: Map custom modules to the `ultralytics.nn.tasks` namespace at runtime to avoid modifying vendor code. (Done)
 - [x] **Conceptualize verification script layout**: Structure a mock script that loads a dummy YAML configuration to verify layer instantiation. (Done)
 - [x] Implement the dynamic module registration helper in `src/bcadfm/utils/yolo_utils.py`.
-- [x] Implement the registration verification script in `scripts/test_yolo_registration.py`.
-- [x] Execute `python scripts/test_yolo_registration.py` and resolve any package import or runtime configuration issues.
+- [x] Implement the registration verification script in `tests/test_yolo_registration.py`.
+- [x] Execute `python tests/test_yolo_registration.py` and resolve any package import or runtime configuration issues.
 
 ### Sub-Task 2: DinoV3 & SFP PyTorch Modules
 - [x] **Conceptualize DinoV3Backbone**: Design patch token sequence extraction, CLS token removal, and 2D tensor reshaping. (Done)

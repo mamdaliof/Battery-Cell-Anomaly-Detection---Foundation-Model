@@ -9,6 +9,16 @@ from ultralytics.nn.tasks import parse_model as original_parse_model
 # We will store custom layers in this utility to avoid circular imports.
 from bcadfm.models.yolo_dino import DinoV3Backbone, DinoV3SFP_P3, DinoV3SFP_P4, DinoV3SFP_P5
 
+_ACTIVE_PEFT_CONFIG = None
+
+def set_active_peft_config(peft_cfg):
+    global _ACTIVE_PEFT_CONFIG
+    _ACTIVE_PEFT_CONFIG = peft_cfg
+
+def get_active_peft_config():
+    global _ACTIVE_PEFT_CONFIG
+    return _ACTIVE_PEFT_CONFIG
+
 def custom_parse_model(d, ch, verbose=True):
     """
     Patched wrapper for parse_model.
@@ -67,7 +77,7 @@ def custom_parse_model(d, ch, verbose=True):
         if module_name == "DinoV3Backbone":
             # DinoV3Backbone(c1, c2, model_name)
             model_name = original_args[1] if len(original_args) > 1 else "facebook/dinov3-vits16-pretrain-lvd1689m"
-            actual_layer = DinoV3Backbone(c1=c1, c2=c2, model_name=model_name)
+            actual_layer = DinoV3Backbone(c1=c1, c2=c2, model_name=model_name, peft_config=get_active_peft_config())
             backbone_hidden_size = actual_layer.hidden_size
         elif module_name == "DinoV3SFP_P3":
             # Map from raw DINO hidden size to scaled output neck channels

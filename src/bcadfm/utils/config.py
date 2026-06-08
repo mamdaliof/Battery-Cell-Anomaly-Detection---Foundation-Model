@@ -95,6 +95,10 @@ class TrainingConfig:
     amp: AmpConfig
     seed: int = 42
 
+    # YOLO / Detection settings (optional)
+    yolo_model_config: Optional[str] = None
+    yolo_data_yaml: Optional[str] = None
+
 
 def load_yaml_config(path: str | Path) -> TrainingConfig:
     """Load a YAML config file into a TrainingConfig instance."""
@@ -133,4 +137,6 @@ def load_yaml_config(path: str | Path) -> TrainingConfig:
         seed=raw.get("seed", 42),
         scheduler=scheduler_cfg,
         amp=amp_cfg,
+        yolo_model_config=raw.get("yolo_model_config", None),
+        yolo_data_yaml=raw.get("yolo_data_yaml", None),
     )

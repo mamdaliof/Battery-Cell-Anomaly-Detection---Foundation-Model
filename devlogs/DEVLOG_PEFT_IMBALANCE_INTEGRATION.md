@@ -16,7 +16,7 @@ This log documents the sequence of changes, implementation details, debugging st
     - **Bottleneck Adapters**: Standard Pfeiffer bottleneck adapter (`Input -> Down -> Act -> Drop -> Up -> Residual`) inserted dynamically after FFN/MLP blocks.
     - **VPT (Shallow & Deep)**: Custom `VptWrappedBackbone` and `VptLayerWrapper` to prepend and replace learnable prompt parameters.
   - `src/bcadfm/utils/model_utils.py`: Added count parameter helper functions (`count_parameters` and `log_parameter_summary`) to track trainable/non-trainable weight distribution.
-  - `scripts/verify_peft.py`: Unit test verifying parameters and activations on all 5 tuning modes (None, LoRA, Adapters, Shallow VPT, Deep VPT) with a standard backbone.
+  - `tests/verify_peft.py`: Unit test verifying parameters and activations on all 5 tuning modes (None, LoRA, Adapters, Shallow VPT, Deep VPT) with a standard backbone.
 
 ---
 
@@ -55,5 +55,5 @@ This log documents the sequence of changes, implementation details, debugging st
 
 ## 4. Successful Verification Runs
 
-- **Automated PEFT tests**: `python3 scripts/verify_peft.py` executed successfully, passing Baseline, LoRA, Bottleneck Adapters, VPT Shallow, and VPT Deep parameter count assertions.
+- **Automated PEFT tests**: `python3 tests/verify_peft.py` executed successfully, passing Baseline, LoRA, Bottleneck Adapters, VPT Shallow, and VPT Deep parameter count assertions.
 - **DINOv3 LoRA smoke test**: `torchrun --nproc_per_node=2 scripts/train.py --config configs/peft_smoke.yaml` completed 1 epoch of training successfully on the server.
