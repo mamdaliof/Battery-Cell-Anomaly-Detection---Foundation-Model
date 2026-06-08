@@ -16,7 +16,7 @@ data:
   gaussian_noise_prob: 0.4
   gaussian_noise_std: 0.01
   horizontal_flip_prob: 0.5
-  image_size: null
+  image_size: 224
   normal_class_name: normal
   random_resized_crop_prob: 0.7
   random_resized_crop_ratio:

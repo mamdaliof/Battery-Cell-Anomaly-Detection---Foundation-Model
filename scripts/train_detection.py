@@ -114,9 +114,10 @@ def main() -> None:
     # Translate unified configuration schema into YOLO training parameters
     yolo_overrides = {
         "model": cfg.yolo_model_config or "configs/det/yolo26_dino.yaml",
-        "data": cfg.yolo_data_yaml or "data/battery_detection_all.yaml",
+        "data": cfg.yolo_data_yaml or "data/det_v1.0/battery_detection_all.yaml",
         "epochs": cfg.num_epochs,
         "batch": cfg.batch_size,
+        "imgsz": cfg.data.image_size or 224,  # Configurable input image size, defaults to DINO standard 224
         "lr0": cfg.learning_rate,
         "seed": cfg.seed,
         "amp": cfg.amp.fp16 or cfg.amp.bf16,

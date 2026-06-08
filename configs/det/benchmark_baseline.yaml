@@ -12,7 +12,7 @@ data:
   val_subdir: "val"
   normal_class_name: "normal"
   abnormal_class_name: "abnormal"
-  image_size: null
+  image_size: 224
 
   augmentations_enabled: true
   aug_global_prob: 1.0
