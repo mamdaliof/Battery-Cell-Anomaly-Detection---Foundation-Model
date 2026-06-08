@@ -1,6 +1,14 @@
 import os
 from pathlib import Path
 
+# Monkeypatch torch for platforms/versions lacking float8_e8m0fnu (needed by transformers dev branch)
+try:
+    import torch
+    if not hasattr(torch, "float8_e8m0fnu"):
+        torch.float8_e8m0fnu = getattr(torch, "float8_e4m3fn", torch.float16)
+except ImportError:
+    pass
+
 # Automatically redirect Hugging Face cache to local workspace directory
 if "HF_HOME" not in os.environ:
     workspace_root = Path(__file__).resolve().parents[2]
