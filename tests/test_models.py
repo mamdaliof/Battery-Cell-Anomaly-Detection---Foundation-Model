@@ -20,6 +20,20 @@ from bcadfm.models.dinov3_classifier import (
 
 class PeftConfig:
     def __init__(self, **kwargs):
+        # Default properties to avoid AttributeError in DinoV3Classifier wrapping
+        self.type = "none"
+        self.lora_r = 8
+        self.lora_alpha = 16
+        self.lora_dropout = 0.0
+        self.lora_target_modules = None
+        self.lora_target_blocks = None
+        self.adapter_bottleneck_dim = 64
+        self.adapter_dropout = 0.0
+        self.adapter_target_blocks = None
+        self.vpt_num_tokens = 10
+        self.vpt_deep = False
+        self.vpt_target_blocks = None
+        
         for k, v in kwargs.items():
             setattr(self, k, v)
 

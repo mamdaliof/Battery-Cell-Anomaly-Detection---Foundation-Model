@@ -169,9 +169,12 @@ class TestTrainerAndLosses(unittest.TestCase):
         base_dataset.oversample_dataset = mock_oversample
 
         from transformers import TrainingArguments
-        training_args = TrainingArguments(output_dir="temp_out", report_to="none", use_cpu=True)
-        # Force world size > 1 to mock DDP env
-        training_args._world_size = 2
+        class MockTrainingArguments(TrainingArguments):
+            @property
+            def world_size(self):
+                return 2
+
+        training_args = MockTrainingArguments(output_dir="temp_out", report_to="none", use_cpu=True)
         
         model = nn.Linear(10, 2)
         

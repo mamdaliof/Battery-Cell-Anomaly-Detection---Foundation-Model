@@ -184,9 +184,9 @@ class TestBatteryCellDataset(unittest.TestCase):
         # Retrieve the class dynamically from the constructed pipeline
         RandomAugmentationCombo = pipeline.__class__
         ops = [
-            (lambda img: img, 1.0, "op1"),
-            (lambda img: img, 0.5, "op2"),
-            (lambda img: img, 0.0, "op3"),
+            ("op1", 1.0, lambda img: img),
+            ("op2", 0.5, lambda img: img),
+            ("op3", 0.0, lambda img: img),
         ]
         combo = RandomAugmentationCombo(ops, max_transforms=2, global_prob=1.0)
         
