@@ -2,94 +2,38 @@ import torch
 import torch.nn as nn
 from transformers import AutoModel
 
-# Using Context7 for PyTorch module design, transformers model loading, and Tensor reshaping operations.
 
-import time
+def _get_transformer_blocks_from_model(model):
+    """
+    Locate the transformer block list inside a (possibly PEFT-wrapped) backbone.
+    Probes common attribute paths in order.
+    Returns a list/ModuleList of blocks, or an empty list if not found.
+    """
+    # Unwrap PEFT wrapper if present
+    base = getattr(model, "base_model", model)
+    candidates = [
+        lambda m: m.encoder.layer,
+        lambda m: m.model.encoder.layer,
+        lambda m: m.model.layer,
+        lambda m: m.encoder.layers,
+        lambda m: m.model.layers,
+        lambda m: m.layers,
+        lambda m: m.layer,
+    ]
+    for getter in candidates:
+        try:
+            blocks = getter(base)
+            if blocks is not None and len(blocks) > 0:
+                return list(blocks)
+        except AttributeError:
+            continue
+    # Fallback: walk named modules for a ModuleList whose children have attention
+    for _, mod in base.named_modules():
+        if isinstance(mod, nn.ModuleList) and len(mod) > 0:
+            if hasattr(list(mod)[0], "attention"):
+                return list(mod)
+    return []
 
-class BackwardStartDummy(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, x, profiler):
-        ctx.profiler = profiler
-        return x.clone()
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        ctx.profiler.record_backward_start()
-        return grad_output, None
-
-class BackwardEndDummy(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, x, profiler):
-        ctx.profiler = profiler
-        return x.clone()
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        ctx.profiler.record_backward_end()
-        return grad_output, None
-
-class BackboneProfiler:
-    def __init__(self, print_every=10):
-        self.print_every = print_every
-        self.step_count = 0
-        self.eval_step_count = 0
-        
-        self.fwd_times = []
-        self.back_times = []
-        self.batch_sizes = []
-        
-        self.t_fwd_start = 0.0
-        self.t_back_start = 0.0
-
-    def record_forward_start(self):
-        if torch.cuda.is_available():
-            torch.cuda.synchronize()
-        self.t_fwd_start = time.time()
-
-    def record_forward_end(self, batch_size, is_training):
-        if torch.cuda.is_available():
-            torch.cuda.synchronize()
-        t_fwd = time.time() - self.t_fwd_start
-        self.fwd_times.append(t_fwd)
-        self.batch_sizes.append(batch_size)
-        
-        if not is_training or not torch.is_grad_enabled():
-            self.eval_step_count += 1
-            if self.eval_step_count % self.print_every == 0:
-                avg_fwd = sum(self.fwd_times) / len(self.fwd_times)
-                avg_batch = sum(self.batch_sizes) / len(self.batch_sizes)
-                print(f"⏱️  [DinoV3Backbone Eval Profile | Step {self.eval_step_count}]")
-                print(f"    - Avg Batch Size: {avg_batch:.1f}")
-                print(f"    - Avg Forward Pass: {avg_fwd:.4f}s")
-                self.fwd_times.clear()
-                self.batch_sizes.clear()
-
-    def record_backward_start(self):
-        if torch.cuda.is_available():
-            torch.cuda.synchronize()
-        self.t_back_start = time.time()
-
-    def record_backward_end(self):
-        if torch.cuda.is_available():
-            torch.cuda.synchronize()
-        t_back = time.time() - self.t_back_start
-        self.back_times.append(t_back)
-        self.step_count += 1
-        
-        if self.step_count % self.print_every == 0:
-            avg_fwd = sum(self.fwd_times) / len(self.fwd_times)
-            avg_back = sum(self.back_times) / len(self.back_times)
-            avg_batch = sum(self.batch_sizes) / len(self.batch_sizes)
-            
-            print(f"\n⏱️  [DinoV3Backbone Train Profile | Step {self.step_count}]")
-            print(f"    - Avg Batch Size: {avg_batch:.1f}")
-            print(f"    - Avg Forward Pass: {avg_fwd:.4f}s")
-            print(f"    - Avg Backward Pass: {avg_back:.4f}s")
-            print(f"    - Avg Total Backbone Time: {avg_fwd + avg_back:.4f}s")
-            
-            self.fwd_times.clear()
-            self.back_times.clear()
-            self.batch_sizes.clear()
 
 class DinoV3Backbone(nn.Module):
     """
@@ -116,24 +60,21 @@ class DinoV3Backbone(nn.Module):
             except Exception:
                 raise e
         self.hidden_size = self.model.config.hidden_size
-        
+
         # Ensure c2 is set correctly to match the backbone hidden size
         self.out_channels = self.hidden_size
-        
+
         # Freeze all DINOv3 weights initially
         for param in self.model.parameters():
             param.requires_grad = False
-            
+
         # Register ImageNet stats as buffers for device and float precision matching
         self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1))
         self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1))
-        
+
         # Check DINOv3 specific configurations
         self.num_registers = getattr(self.model.config, "num_register_tokens", 4 if "dinov3" in model_name.lower() else 0)
         self.patch_size = self.model.config.patch_size
-        
-        # Profiler for finding bottlenecks
-        self.profiler = BackboneProfiler(print_every=10)
 
         # Apply requested PEFT wrapping on backbone
         self.peft_type = "none"
@@ -145,7 +86,7 @@ class DinoV3Backbone(nn.Module):
 
         if self.peft_type == "lora":
             from peft import LoraConfig, get_peft_model
-            
+
             if hasattr(peft_config, "lora_r"):
                 r = peft_config.lora_r
                 alpha = peft_config.lora_alpha
@@ -162,28 +103,26 @@ class DinoV3Backbone(nn.Module):
             if target_modules is None:
                 target_modules = ["q_proj", "v_proj"]
 
-            lora_kwargs = {
-                "r": r,
-                "lora_alpha": alpha,
-                "lora_dropout": dropout,
-                "target_modules": target_modules,
-                "bias": "none",
-            }
-            if target_blocks is not None and len(target_blocks) > 0:
-                lora_kwargs["layers_to_transform"] = target_blocks
-                # Auto-detect layer pattern
-                backbone = self.model
-                if hasattr(backbone, "encoder") and hasattr(backbone.encoder, "layer"):
-                    lora_kwargs["layers_pattern"] = "encoder.layer"
-                elif hasattr(backbone, "model") and hasattr(backbone.model, "encoder") and hasattr(backbone.model.encoder, "layer"):
-                    lora_kwargs["layers_pattern"] = "model.encoder.layer"
-                elif hasattr(backbone, "model") and hasattr(backbone.model, "layer"):
-                    lora_kwargs["layers_pattern"] = "model.layer"
-                elif hasattr(backbone, "layer"):
-                    lora_kwargs["layers_pattern"] = "layer"
-
-            peft_lora_config = LoraConfig(**lora_kwargs)
+            # Apply LoRA to ALL blocks — no layers_to_transform / layers_pattern
+            # (PEFT path resolution is unreliable for DINOv3 architecture).
+            peft_lora_config = LoraConfig(
+                r=r,
+                lora_alpha=alpha,
+                lora_dropout=dropout,
+                target_modules=target_modules,
+                bias="none",
+            )
             self.model = get_peft_model(self.model, peft_lora_config)
+
+            # Post-wrap: freeze lora_* weights in non-target blocks
+            if target_blocks is not None and len(target_blocks) > 0:
+                target_set = set(target_blocks)
+                blocks = _get_transformer_blocks_from_model(self.model)
+                for idx, block in enumerate(blocks):
+                    if idx not in target_set:
+                        for name, param in block.named_parameters():
+                            if "lora_" in name:
+                                param.requires_grad = False
 
         elif self.peft_type == "adapter":
             from bcadfm.models.dinov3_classifier import apply_adapters
@@ -226,51 +165,40 @@ class DinoV3Backbone(nn.Module):
         # YOLO inputs are pre-processed to float32. We scale to [0, 1] if not already scaled.
         if x.max() > 1.0:
             x = x / 255.0
-            
+
         # Apply standardization (ImageNet normalization)
         x_norm = (x - self.mean) / self.std
-        
+
         is_training = self.training
-        
-        # Start forward profiling
-        self.profiler.record_forward_start()
-        
+
         if is_training and torch.is_grad_enabled():
-            x_norm = x_norm.detach().requires_grad_(True)
-            x_in = BackwardEndDummy.apply(x_norm, self.profiler)
-            outputs = self.model(x_in)
+            outputs = self.model(x_norm)
         else:
             with torch.no_grad():
                 outputs = self.model(x_norm)
-            
-        # End forward profiling
-        self.profiler.record_forward_end(x.shape[0], is_training)
-            
+
         # outputs.last_hidden_state has shape (B, seq_len, D)
         # Sequence layout: [CLS] + [Prompts] + [Register Tokens (e.g. 4)] + [Patch Tokens]
         H, W = x.shape[2], x.shape[3]
         H_patch = H // self.patch_size
         W_patch = W // self.patch_size
-        
+
         num_patches = H_patch * W_patch
-        
+
         # VPT prompt length (if visual prompt is used, self.model is a VptWrappedBackbone or wraps one)
         num_prompts = 0
         if self.peft_type == "visual_prompt":
             num_prompts = getattr(self.model, "num_tokens", 0)
-            
+
         start_idx = 1 + num_prompts + self.num_registers
-        
+
         # Extract patch tokens only
         patch_tokens = outputs.last_hidden_state[:, start_idx : start_idx + num_patches, :]
-        
+
         # Reshape sequence back to 2D grid: (B, D, H_patch, W_patch)
         B, N, D = patch_tokens.shape
         grid = patch_tokens.transpose(1, 2).view(B, D, H_patch, W_patch)
-        
-        if is_training and torch.is_grad_enabled():
-            grid = BackwardStartDummy.apply(grid, self.profiler)
-            
+
         return grid
 
 
@@ -286,11 +214,11 @@ class DinoV3SFP_P3(nn.Module):
         self.upsample = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
         self.norm1 = nn.BatchNorm2d(in_channels // 2)
         self.act1 = nn.SiLU()
-        
+
         self.project = nn.Conv2d(in_channels // 2, out_channels, kernel_size=1)
         self.norm2 = nn.BatchNorm2d(out_channels)
         self.act2 = nn.SiLU()
-        
+
         self.smooth = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
         self.norm3 = nn.BatchNorm2d(out_channels)
         self.act3 = nn.SiLU()
@@ -313,7 +241,7 @@ class DinoV3SFP_P4(nn.Module):
         self.project = nn.Conv2d(in_channels, out_channels, kernel_size=1)
         self.norm1 = nn.BatchNorm2d(out_channels)
         self.act1 = nn.SiLU()
-        
+
         self.smooth = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
         self.norm2 = nn.BatchNorm2d(out_channels)
         self.act2 = nn.SiLU()
@@ -334,11 +262,11 @@ class DinoV3SFP_P5(nn.Module):
         super().__init__()
         # Downsample 2x: e.g. from stride 16 (40x40) to stride 32 (20x20)
         self.downsample = nn.MaxPool2d(kernel_size=2, stride=2)
-        
+
         self.project = nn.Conv2d(in_channels, out_channels, kernel_size=1)
         self.norm1 = nn.BatchNorm2d(out_channels)
         self.act1 = nn.SiLU()
-        
+
         self.smooth = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
         self.norm2 = nn.BatchNorm2d(out_channels)
         self.act2 = nn.SiLU()
