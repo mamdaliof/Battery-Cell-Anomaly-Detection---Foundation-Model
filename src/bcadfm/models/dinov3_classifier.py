@@ -334,6 +334,21 @@ class VptWrappedBackbone(nn.Module):
         )
 
 
+def _get_transformer_blocks(backbone: nn.Module):
+    """Return the list of transformer blocks from a backbone, regardless of nesting."""
+    if hasattr(backbone, "encoder") and hasattr(backbone.encoder, "layer"):
+        return backbone.encoder.layer
+    if hasattr(backbone, "model") and hasattr(backbone.model, "encoder") and hasattr(backbone.model.encoder, "layer"):
+        return backbone.model.encoder.layer
+    if hasattr(backbone, "model") and hasattr(backbone.model, "layer"):
+        return backbone.model.layer
+    if hasattr(backbone, "layer"):
+        return backbone.layer
+    if hasattr(backbone, "layers"):
+        return backbone.layers
+    return None
+
+
 class DinoV3Classifier(nn.Module):
     """Frozen DINOv3 backbone + configurable classification head, with PEFT support.
 
@@ -410,32 +425,29 @@ class DinoV3Classifier(nn.Module):
             if target_modules is None:
                 target_modules = ["q_proj", "v_proj"]
 
-            lora_kwargs = {
-                "r": r,
-                "lora_alpha": alpha,
-                "lora_dropout": dropout,
-                "target_modules": target_modules,
-                "bias": "none",
-            }
-            if target_blocks is not None and len(target_blocks) > 0:
-                lora_kwargs["layers_to_transform"] = target_blocks
-                # Detect the correct layers_pattern by walking the real module tree.
-                # PEFT uses layers_pattern as a substring match against named module paths
-                # (e.g. "encoder.layer" matches "encoder.layer.0", "encoder.layer.1", ...).
-                # We find the first module whose name ends in a digit — that's a transformer
-                # block — then strip the index to get the container path.
-                detected_pattern = next(
-                    (".".join(n.split(".")[:-1])
-                     for n, _ in self.backbone.named_modules()
-                     if n.split(".")[-1].isdigit()),
-                    None,
-                )
-                if detected_pattern is not None:
-                    lora_kwargs["layers_pattern"] = detected_pattern
-                # If detection fails, omit layers_pattern — PEFT applies LoRA to all layers.
-
-            peft_lora_config = LoraConfig(**lora_kwargs)
+            # Apply LoRA to ALL layers — never use layers_to_transform / layers_pattern
+            # because PEFT's block-index filtering is unreliable across ViT variants.
+            # Instead we apply LoRA globally, then manually freeze LoRA weights in
+            # blocks that are NOT in target_blocks.
+            peft_lora_config = LoraConfig(
+                r=r,
+                lora_alpha=alpha,
+                lora_dropout=dropout,
+                target_modules=target_modules,
+                bias="none",
+            )
             self.backbone = get_peft_model(self.backbone, peft_lora_config)
+
+            # Selectively freeze LoRA weights outside target_blocks
+            if target_blocks is not None and len(target_blocks) > 0:
+                blocks = _get_transformer_blocks(self.backbone)
+                if blocks is not None:
+                    target_set = set(target_blocks)
+                    for idx, block in enumerate(blocks):
+                        if idx not in target_set:
+                            for name, param in block.named_parameters():
+                                if "lora_" in name:
+                                    param.requires_grad = False
 
         elif peft_type == "adapter":
             if hasattr(peft_config, "adapter_bottleneck_dim"):
