@@ -92,6 +92,8 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
   - Custom layers and PEFT configurations are implemented in `src/bcadfm/models/yolo_dino.py`.
   - Dynamic class registration and tasks parser wrapping (supporting width/depth channel scaling and metadata attribute preservation) is managed in `src/bcadfm/utils/yolo_utils.py`.
   - Configured via `configs/yolo26_dino.yaml`.
+  - **YAML-driven Augmentation Mapping**: Augmentation parameters in config YAML files are fully mapped to YOLO overrides. Supports passing a custom `yolo_augmentations` dict or automatically mapping standard classification equivalents (or disabling them if `augmentations_enabled` is false).
+  - **Class Names Mapping Alignment**: Resolves configured `normal` / `abnormal` class names dynamically inside the detection pipeline, synchronizing metric logging keys and visualizer tab displays.
   - Fully verified and tested via shapes unit test suite `tests/test_yolo_shapes.py`.
 
 - **💾 Local Model Caching**
@@ -170,6 +172,25 @@ python scripts/validate_ablation_configs.py
 # Launch visualizer dashboard
 streamlit run visualize.py --server.port 8501
 ```
+
+## 🛠️ Development Logs
+
+The evolution and detailed implementation steps of the codebase are recorded in the developer logs:
+- [DEVLOG_YOLO_AUGMENTATION_AND_CLASS_SYNC.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_YOLO_AUGMENTATION_AND_CLASS_SYNC.md): Connects YOLO augmentations to YAML configuration, maps classification default parameters, and aligns class names across dashboards and metrics validator.
+- [DEVLOG_YOLO_DINO_PEFT_INTEGRATION_AND_REORGANIZATION.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_YOLO_DINO_PEFT_INTEGRATION_AND_REORGANIZATION.md): Integrates PEFT inside the YOLO detection model, config/output folder reorganization, and gradient routing.
+- [DEVLOG_LORA_BLOCK_TARGETING_FIX.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_LORA_BLOCK_TARGETING_FIX.md): Rewrote LoRA block-targeting using an architecture-agnostic freezing strategy.
+- [DEVLOG_VPT_FIX_AND_COLLISION_RESOLUTION.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_VPT_FIX_AND_COLLISION_RESOLUTION.md): Fixed VPT for DINOv3 architectures and resolved file collisions.
+- [DEVLOG_UNIFIED_METRICS_AND_VISUALIZER.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_UNIFIED_METRICS_AND_VISUALIZER.md): Integrated class indicators and confusion matrices, unified training state logging.
+- [DEVLOG_RESULTS_VISUALIZATION_SUITE.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_RESULTS_VISUALIZATION_SUITE.md): Enhanced Streamlit leaderboard, run comparing, and curve plots.
+- [DEVLOG_YOLO_DINO_DETECTION_CUSTOM_METRICS.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_YOLO_DINO_DETECTION_CUSTOM_METRICS.md): Bbox IoU, Dice coefficients, and image-level metrics.
+- [DEVLOG_YOLO_DINO_DETECTION_PEFT_FINE_TUNING.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_YOLO_DINO_DETECTION_PEFT_FINE_TUNING.md): Details of tuning adapter blocks in object detection.
+- [DEVLOG_YOLO_DINO_DETECTION_INTEGRATION.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_YOLO_DINO_DETECTION_INTEGRATION.md): Integration of YOLOv8 loss targets and DINOv3 backbone SFP neck.
+- [DEVLOG_YOLO_DINO_DETECTION_DATA_PREP.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_YOLO_DINO_DETECTION_DATA_PREP.md): Custom detection collate functions and shapes tests.
+- [DEVLOG_GLOBAL_SEED_AND_AUDIT_FIXES.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_GLOBAL_SEED_AND_AUDIT_FIXES.md): Global seeds, early stopping callbacks, and dataloader optimization.
+- [DEVLOG_LOCAL_MODEL_CACHING.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_LOCAL_MODEL_CACHING.md): Hugging Face local cache redirection.
+- [DEVLOG_PEFT_IMBALANCE_INTEGRATION.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_PEFT_IMBALANCE_INTEGRATION.md): Imbalance handling and initial classification PEFT hooks.
+- [DEVLOG_ABLATION_STUDY_AND_OPTIMIZATION.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_ABLATION_STUDY_AND_OPTIMIZATION.md): Parallel run schedulers and GPU allocation.
+- [DEVLOG_FIRST_SERVER_SMOKE_TEST.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_FIRST_SERVER_SMOKE_TEST.md): Initial server setup and DINOv3 classifier verify scripts.
 
 ## 📁 Repository Layout
 

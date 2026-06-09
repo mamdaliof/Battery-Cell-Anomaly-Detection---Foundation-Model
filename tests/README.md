@@ -10,13 +10,13 @@ This directory contains a comprehensive suite of unit tests and validation test 
 - **Why We Have It**: Verifies that the host server environment has correct PyTorch, CUDA, and third-party dependencies (such as `transformers`, `peft`, `ultralytics`, and `accelerate`) configured before running resource-heavy sweeps.
 - **How It Should Behave**: Checks for active library versions, lists available CUDA devices, prints CUDA names, and validates that local `bcadfm` source modules can import successfully.
 
-### 2. `test_dataset.py` (Dataset & Data Augmentations)
+### 2. [test_dataset.py](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/tests/test_dataset.py) (Dataset & Data Augmentations)
 - **Why We Have It**: Guarantees that data loading, parsing, and class sorting operate correctly under extreme imbalance, and that data-level oversampling is reproducible.
-- **How It Should Behave**: Builds a temporary dataset containing normal and abnormal samples, verifies that binary classification mapping matches targets, checks that `RandomAugmentationCombo` samples unique operations without replacement (no duplicates), and validates that oversampling shuffles and replicates deterministically when using identical seeds.
+- **How It Should Behave**: Builds a temporary dataset containing normal and abnormal samples, verifies that binary classification mapping matches targets, checks that `RandomAugmentationCombo` samples unique operations without replacement (no duplicates), validates that oversampling shuffles and replicates deterministically when using identical seeds, and runs a **DDP mock oversampling test** simulating multiple GPU ranks to ensure dataset lengths are replicated identically without rank-level collated drift.
 
-### 3. `test_models.py` (DINOv3 Classifier & PEFT Modules)
+### 3. [test_models.py](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/tests/test_models.py) (DINOv3 Classifier & PEFT Modules)
 - **Why We Have It**: Validates that frozen backbones, classification heads, bottleneck adapters, and visual prompts wrap correctly without parameter leaks.
-- **How It Should Behave**: Loads a DINOv3 model from Hugging Face (`facebook/dinov3-vits16-pretrain-lvd1689m`), verifies that classification heads parse hidden dim multipliers (e.g., `"0.5X"`), verifies that `BottleneckAdapter` maps to identity at training step 0, and checks that Visual Prompt Tuning (VPT) layouts structure tokens safely to match the DINOv3 registers slicing.
+- **How It Should Behave**: Loads a DINOv3 model from Hugging Face (`facebook/dinov3-vits16-pretrain-lvd1689m`), verifies that classification heads parse hidden dim multipliers (e.g., `"0.5X"`), verifies that `BottleneckAdapter` maps to identity at training step 0, checks that Visual Prompt Tuning (VPT) layouts structure tokens safely to match the DINOv3 registers slicing, and runs a **VPT deep layer prompt wrapper test** verifying that `VptLayerWrapper` discards prompt tokens from the previous layer's hidden states and prepends the new deep prompt tokens correctly.
 
 ### 4. `test_yolo_shapes.py` (YOLO26 + DINOv3 Object Detection)
 - **Why We Have It**: Verifies that the custom DINOv3 backbone and Simple Feature Pyramid (SFP) neck register correctly with the Ultralytics parser and output expected bounding box shapes.

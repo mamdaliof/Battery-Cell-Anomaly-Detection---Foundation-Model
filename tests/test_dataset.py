@@ -195,5 +195,42 @@ class TestBatteryCellDataset(unittest.TestCase):
         out_img = combo(img)
         self.assertEqual(out_img.size, (10, 10))
 
+    def test_ddp_mock_oversampling(self):
+        """
+        Verify that minority class oversampling yields identical results across mock DDP ranks,
+        preventing any rank-level collated drift/divergence.
+        """
+        import os
+        orig_local_rank = os.environ.get("LOCAL_RANK")
+        try:
+            # We will simulate 4 different ranks (0, 1, 2, 3)
+            samples_per_rank = []
+            
+            for rank in range(4):
+                os.environ["LOCAL_RANK"] = str(rank)
+                
+                # Instantiate dataset on this rank with the same seed
+                dataset = BatteryCellDataset(
+                    split="train",
+                    data_config=self.data_config,
+                    model_name_or_path=self.model_name,
+                    oversample=True,
+                    seed=42,
+                )
+                samples_per_rank.append([s.image_path.name for s in dataset.samples])
+                
+            # Verify that all ranks have exactly the same samples in the same order
+            # (no drift/deviation between ranks)
+            base_samples = samples_per_rank[0]
+            self.assertEqual(len(base_samples), 2 * self.num_normal) # 10 samples
+            
+            for rank in range(1, 4):
+                self.assertEqual(samples_per_rank[rank], base_samples, f"Rank {rank} has different samples than Rank 0!")
+        finally:
+            if orig_local_rank is not None:
+                os.environ["LOCAL_RANK"] = orig_local_rank
+            else:
+                os.environ.pop("LOCAL_RANK", None)
+
 if __name__ == "__main__":
     unittest.main()

@@ -5,7 +5,10 @@ output_dir: "outputs"
 yolo_model_config: "configs/det/yolo26_dino.yaml"
 yolo_data_yaml: "data/battery_detection_all.yaml"
 
-# Data configuration (kept for comparability)
+# Data configuration
+# WARNING: Standard augmentation fields below are placeholders kept for classification schema parity.
+# To configure YOLO's internal augmentations, set augmentations_enabled to true and use
+# the optional yolo_augmentations dictionary overrides.
 data:
   data_dir: "data"
   train_subdir: "train"
@@ -13,6 +16,13 @@ data:
   normal_class_name: "normal"
   abnormal_class_name: "abnormal"
   image_size: 224
+
+  # Optional direct YOLO overrides (ignored if augmentations_enabled: false)
+  # yolo_augmentations:
+  #   fliplr: 0.5       # 50% probability of horizontal flip
+  #   degrees: 15.0     # rotate up to 15 degrees
+  #   scale: 0.1        # scale between 90% and 110%
+  #   mosaic: 1.0       # enable 4-image mosaics
 
   augmentations_enabled: true
   aug_global_prob: 1.0

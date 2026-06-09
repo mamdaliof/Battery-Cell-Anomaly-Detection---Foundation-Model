@@ -4,7 +4,9 @@
 
 The Battery Cell Anomaly Detection framework has been successfully upgraded with **Parameter-Efficient Fine-Tuning (PEFT)** integration and **Imbalance Handling** modules. Automated tests and multi-GPU training smoke runs have been executed successfully on the target server.
 
-A subsequent **LoRA block-targeting rewrite** (2026-06-09) replaced the PEFT-native `layers_to_transform`/`layers_pattern` mechanism with an architecture-agnostic post-wrap freezing strategy, resolving silent mis-targeting on DINOv3 architectures. A `training_step` timing override was also removed to restore v1.0 trainer behaviour and fix a `TypeError` under HF Trainer v5.x.
+Recent updates include:
+- **LoRA block-targeting rewrite** (2026-06-09): Replaced the PEFT-native `layers_to_transform`/`layers_pattern` mechanism with an architecture-agnostic post-wrap freezing strategy, resolving silent mis-targeting on DINOv3 architectures. A `training_step` timing override was also removed to restore v1.0 trainer behavior and fix a `TypeError` under HF Trainer v5.x.
+- **YOLO-DINO Detection Configs & Metrics Alignment** (2026-06-09): Implemented configuration-driven YOLO data augmentations mapping and class names synchronization between the classification config and the object detection pipeline. This resolves discrepancies in augmentations usage and metrics mapping in the dashboard (see [DEVLOG_YOLO_AUGMENTATION_AND_CLASS_SYNC.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_YOLO_AUGMENTATION_AND_CLASS_SYNC.md)).
 
 ---
 
@@ -101,3 +103,11 @@ To verify independent access to the 8 A16 GPUs, two dummy scripts were developed
    CUDA_VISIBLE_DEVICES=5,6 torchrun --nproc_per_node=2 --master_port=29502 tests/ddp_alloc_test.py
    ```
    Both launches successfully initialized NCCL process groups and allocated 4 GB on all target devices in parallel.
+
+---
+
+### 4. YOLO-DINO Detection Configs & Metrics Alignment (2026-06-09)
+
+We resolved two integration gaps in the object detection pipeline:
+1. **YAML-driven Augmentation overrides**: Connected YAML data configurations to YOLO overrides in `train_detection.py`. Supported passing custom `yolo_augmentations` parameters, automatically mapping classification defaults (horizontal flip, rotation, color jitter, crop scale), or zeroing out augmentations when `augmentations_enabled: false`.
+2. **Class names alignment**: Synced configuration class names (normal, abnormal) with the detection validator indices, dynamically indexing target abnormality flags and duplicating metric output keys to maintain visualizer compatibility.

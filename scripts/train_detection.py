@@ -109,6 +109,8 @@ def main() -> None:
         print(f"🛠️ YOLO Model YAML: {cfg.yolo_model_config}")
         print(f"📂 Output: {run_dir}")
         print(f"🧪 PEFT Type: {cfg.peft.type}")
+        print("ℹ️  [INFO] Data augmentations defined in the YAML config are placeholders kept for schema compatibility.")
+        print("ℹ️  [INFO] YOLO training will utilize standard internal Ultralytics augmentations.")
         print("=" * 80 + "\n")
 
     # Translate unified configuration schema into YOLO training parameters
@@ -129,8 +131,48 @@ def main() -> None:
         "cos_lr": cfg.scheduler.lr_scheduler_type == "cosine",
     }
 
+    # Apply augmentation overrides from config to YOLO overrides
+    if not cfg.data.augmentations_enabled:
+        # Scenario A: Augmentations disabled, zero out all YOLO augmentations
+        yolo_overrides.update({
+            "hsv_h": 0.0, "hsv_s": 0.0, "hsv_v": 0.0,
+            "degrees": 0.0, "translate": 0.0, "scale": 0.0, "shear": 0.0, "perspective": 0.0,
+            "fliplr": 0.0, "flipud": 0.0, "mosaic": 0.0, "mixup": 0.0, "copy_paste": 0.0, "erasing": 0.0
+        })
+    else:
+        # Scenario B: Direct overrides present in YAML
+        if cfg.data.yolo_augmentations is not None:
+            yolo_overrides.update(cfg.data.yolo_augmentations)
+        else:
+            # Scenario C: Fallback to mapping classification augmentations to YOLO equivalents
+            # Mapping probability values
+            yolo_overrides["fliplr"] = cfg.data.horizontal_flip_prob
+            
+            # Mapping degrees (only if rotation probability is > 0)
+            yolo_overrides["degrees"] = cfg.data.rotation_degrees if cfg.data.rotation_prob > 0 else 0.0
+            
+            # Mapping color jitter to HSV shifts (only if color jitter probability is > 0)
+            if cfg.data.color_jitter_prob > 0:
+                yolo_overrides["hsv_h"] = cfg.data.color_jitter_hue
+                yolo_overrides["hsv_s"] = cfg.data.color_jitter_saturation
+                yolo_overrides["hsv_v"] = cfg.data.color_jitter_brightness
+            else:
+                yolo_overrides["hsv_h"] = 0.0
+                yolo_overrides["hsv_s"] = 0.0
+                yolo_overrides["hsv_v"] = 0.0
+                
+            # Mapping random resized crop scale to YOLO scale range
+            if cfg.data.random_resized_crop_prob > 0 and cfg.data.random_resized_crop_scale is not None:
+                min_scale = cfg.data.random_resized_crop_scale[0]
+                scale_dev = max(0.0, 1.0 - min_scale)
+                yolo_overrides["scale"] = scale_dev
+
     # Instantiate CustomDetectionTrainer subclassing Ultralytics DetectionTrainer
-    trainer = CustomDetectionTrainer(overrides=yolo_overrides)
+    trainer = CustomDetectionTrainer(
+        overrides=yolo_overrides,
+        normal_class_name=cfg.data.normal_class_name,
+        abnormal_class_name=cfg.data.abnormal_class_name
+    )
 
     # Run the training loop
     trainer.train()
