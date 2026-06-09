@@ -171,7 +171,7 @@ class DinoV3Backbone(nn.Module):
 
         is_training = self.training
 
-        if is_training and torch.is_grad_enabled():
+        if self.peft_type != "none" and is_training:
             outputs = self.model(x_norm)
         else:
             with torch.no_grad():
