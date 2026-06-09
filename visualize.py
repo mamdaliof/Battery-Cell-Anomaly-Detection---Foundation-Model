@@ -83,8 +83,9 @@ def load_results(base_path="outputs"):
             elif peft_type == "visual_prompt":
                 peft_detail = f"t={peft_cfg.get('vpt_num_tokens', 10)}"
             
-            # Default task is classification
-            task = "Classification"
+            # Determine task dynamically
+            is_det = "yolo_model_config" in cfg
+            task = "Detection" if is_det else "Classification"
             custom_param = "default"
             
             # 2. Parse trainer_state.json (look in root, fallback to latest checkpoint)
@@ -109,13 +110,29 @@ def load_results(base_path="outputs"):
                     history = state.get("log_history", [])
                     
                     # Extract metrics from evaluation steps in history
-                    eval_steps = [item for item in history if "eval_f1" in item]
+                    if is_det:
+                        eval_steps = [item for item in history if "eval_mAP50" in item or "eval_custom_cls_f1/abnormality" in item]
+                    else:
+                        eval_steps = [item for item in history if "eval_f1" in item]
+                        
                     train_losses = [item.get("loss") for item in history if "loss" in item]
                     
                     if eval_steps:
-                        # Find step with max eval_f1. If tie, select lowest eval_loss
-                        best_step = max(eval_steps, key=lambda x: (x.get("eval_f1", 0.0), -x.get("eval_loss", float('inf'))))
-                        best_eval_f1 = best_step.get("eval_f1", 0.0)
+                        if is_det:
+                            # Prioritize abnormality classification conversion F1, fallback to mAP50
+                            best_step = max(
+                                eval_steps,
+                                key=lambda x: (
+                                    x.get("eval_custom_cls_f1/abnormality", 0.0) or x.get("eval_mAP50", 0.0),
+                                    -x.get("eval_loss", float('inf'))
+                                )
+                            )
+                            best_eval_f1 = best_step.get("eval_custom_cls_f1/abnormality", 0.0)
+                        else:
+                            # Find step with max eval_f1. If tie, select lowest eval_loss
+                            best_step = max(eval_steps, key=lambda x: (x.get("eval_f1", 0.0), -x.get("eval_loss", float('inf'))))
+                            best_eval_f1 = best_step.get("eval_f1", 0.0)
+                            
                         best_eval_loss = best_step.get("eval_loss", float('inf'))
                         best_epoch_metrics = best_step
                     
@@ -125,6 +142,17 @@ def load_results(base_path="outputs"):
                 except Exception as e:
                     st.warning(f"⚠️ Error parsing state at {state_path}: {e}")
             
+            # Unified image-level classification metrics
+            img_f1 = 0.0
+            img_auroc = 0.5
+            if best_epoch_metrics:
+                if is_det:
+                    img_f1 = best_epoch_metrics.get("eval_custom_cls_f1/abnormality", 0.0)
+                    img_auroc = best_epoch_metrics.get("eval_custom_cls_auroc/abnormality", 0.5)
+                else:
+                    img_f1 = best_epoch_metrics.get("eval_f1", 0.0)
+                    img_auroc = best_epoch_metrics.get("eval_auroc", 0.5)
+
             # Calculate short directory name for display
             display_name = run_dir.parent.name if run_dir.parent.name != base_path_obj.name else run_dir.name
             # If the path looks like task__model__cfg_stem, extract the cfg_stem for easier reading
@@ -149,7 +177,9 @@ def load_results(base_path="outputs"):
                 "final_train_loss": final_train_loss,
                 "completed": completed,
                 "best_metrics": best_epoch_metrics,
-                "history": history
+                "history": history,
+                "img_abnormality_f1": img_f1,
+                "img_abnormality_auroc": img_auroc
             })
             
     return pd.DataFrame(runs_data)
@@ -246,44 +276,18 @@ def main():
         st.sidebar.multiselect("PEFT Methods", ["LoRA", "Bottleneck Adapters", "VPT", "Prefix Tuning (Future)"], default=["LoRA", "Bottleneck Adapters", "VPT"])
         return
 
-    # Placeholders for future features in filters (Tasks and custom hyperparameters)
+    # Task Profile filter
     st.sidebar.markdown("---")
     st.sidebar.markdown("### 🔍 Filter Experiments")
 
-    # 1. Task filter (Placeholder for future tasks)
-    task_options = ["Classification"] + ["Segmentation (Future)", "Object Detection (Future)", "Anomaly Localization (Future)"]
+    task_options = ["All Tasks", "Classification", "Detection"]
     selected_task = st.sidebar.selectbox("Task Profile", task_options, index=0)
 
-    if selected_task != "Classification":
-        st.info(f"No active runs found for '{selected_task}'. Showing future placeholder mockups.")
-        
-        # Render clean placeholder layout
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("Future Model Architectures")
-            st.write("Planned backbones: DINOv3-ViT-L/16, Segment Anything (SAM-2), and YOLOv11.")
-            fig = px.bar(
-                x=["ViT-S/16", "ViT-B/16", "ViT-L/16 (Future)", "SAM-2 (Future)"],
-                y=[0.89, 0.92, 0.94, 0.95],
-                labels={"x": "Architecture", "y": "Target F1 Score (Est.)"},
-                title="Target Performance Projections"
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        with col2:
-            st.subheader("Hyperparameter Space Expansion")
-            st.write("Planned additions: Cosine schedule restarts, AdamW ScheduleFree optimizer, and batch sizes up to 256.")
-            st.table(pd.DataFrame({
-                "Hyperparameter": ["Optimizer", "Batch Size", "LR Schedule", "Augmentations"],
-                "Current Ablation": ["AdamW", "64", "Cosine Annealing", "Gaussian + Color Jitter"],
-                "Proposed Future": ["AdamW / ScheduleFree", "32, 64, 128, 256", "Cosine with Restarts", "CutMix / MixUp / Synthetics"]
-            }))
-        return
-
     # Extract unique values from data
-    unique_models = df_results["model"].unique().tolist()
-    unique_pefts = df_results["peft_type"].unique().tolist()
-    unique_lrs = sorted(df_results["lr"].unique().tolist())
-    unique_imbs = df_results["imbalance_strategy"].unique().tolist()
+    unique_models = df_results["model"].unique().tolist() if not df_results.empty else []
+    unique_pefts = df_results["peft_type"].unique().tolist() if not df_results.empty else []
+    unique_lrs = sorted(df_results["lr"].unique().tolist()) if not df_results.empty else []
+    unique_imbs = df_results["imbalance_strategy"].unique().tolist() if not df_results.empty else []
 
     # Sidebar Filter Controls (with placeholder options)
     model_filter = st.sidebar.multiselect(
@@ -322,6 +326,12 @@ def main():
     # Apply filters to DataFrame
     df_filtered = df_results.copy()
     
+    # Filter by task
+    if selected_task == "Classification":
+        df_filtered = df_filtered[df_filtered["task"] == "Classification"]
+    elif selected_task == "Detection":
+        df_filtered = df_filtered[df_filtered["task"] == "Detection"]
+
     # Filter by model (ignore future placeholders if selected)
     active_models = [m for m in model_filter if m in unique_models]
     if active_models:
@@ -357,7 +367,7 @@ def main():
         df_filtered = df_filtered[df_filtered["completed"] == False]
 
     # Sort filtered runs by best F1 score descending
-    df_filtered = df_filtered.sort_values(by="best_eval_f1", ascending=False)
+    df_filtered = df_filtered.sort_values(by="img_abnormality_f1", ascending=False)
 
     # ── Render top metrics dashboard ──────────────────────────────────────────
     total_scanned = len(df_results)
@@ -387,29 +397,30 @@ def main():
             </div>
         """, unsafe_allow_html=True)
     with col4:
-        best_f1_overall = df_results["best_eval_f1"].max() if not df_results.empty else 0.0
-        best_run_overall = df_results.loc[df_results["best_eval_f1"].idxmax()]["short_cfg_name"] if not df_results.empty and best_f1_overall > 0 else "N/A"
+        best_f1_overall = df_results["img_abnormality_f1"].max() if not df_results.empty else 0.0
+        best_run_overall = df_results.loc[df_results["img_abnormality_f1"].idxmax()]["short_cfg_name"] if not df_results.empty and best_f1_overall > 0 else "N/A"
         st.markdown(f"""
             <div class="kpi-card">
                 <div class="kpi-val" style="color: #f43f5e;">{best_f1_overall:.4f}</div>
-                <div class="kpi-lbl">Best F1 ({best_run_overall[:15]})</div>
+                <div class="kpi-lbl">Best Image Abn F1 ({best_run_overall[:10]})</div>
             </div>
         """, unsafe_allow_html=True)
 
     st.write("")
 
     # ── Tabs Setup ────────────────────────────────────────────────────────────
-    tab_leaderboard, tab_curves, tab_inspector, tab_peft_analysis = st.tabs([
+    tab_leaderboard, tab_curves, tab_inspector, tab_peft_analysis, tab_comparison = st.tabs([
         "🏆 Leaderboard", 
         "📈 Trajectory Curves", 
         "🔬 Single Run Inspector", 
-        "📊 PEFT & Hyperparameter Analysis"
+        "📊 PEFT & Hyperparameter Analysis",
+        "⚖️ Classification vs. Detection Comparison"
     ])
 
     # ── Tab 1: Leaderboard ─────────────────────────────────────────────────────
     with tab_leaderboard:
         st.subheader("🏆 Ablation Experiment Leaderboard")
-        st.write("Showing all configurations matching filters. Sort by any column, prioritized by **Validation F1 Score**.")
+        st.write("Showing all configurations matching filters. Sort by any column, prioritized by **Image-Level Abnormality F1 Score**.")
         
         if df_filtered.empty:
             st.info("No runs match the current filters. Please adjust the sidebar settings.")
@@ -421,14 +432,20 @@ def main():
             display_df["status"] = display_df["completed"].apply(lambda x: "✅ Completed" if x else "⏳ Active/Interrupted")
             
             # Formatted column values for presentation
-            display_df["Best F1 Score"] = display_df["best_eval_f1"].map(lambda x: f"{x:.5f}")
+            display_df["Task Metric (F1/mAP50)"] = display_df.apply(
+                lambda r: f"{r['best_metrics'].get('eval_mAP50', 0.0):.5f} (mAP50)" if r["task"] == "Detection"
+                else f"{r['best_eval_f1']:.5f} (F1)",
+                axis=1
+            )
+            display_df["Image Abnormality F1"] = display_df["img_abnormality_f1"].map(lambda x: f"{x:.5f}")
+            display_df["Image Abnormality AUROC"] = display_df["img_abnormality_auroc"].map(lambda x: f"{x:.5f}")
             display_df["Best Val Loss"] = display_df["best_eval_loss"].map(lambda x: f"{x:.5f}" if pd.notna(x) else "N/A")
             display_df["Final Train Loss"] = display_df["final_train_loss"].map(lambda x: f"{x:.5f}" if pd.notna(x) else "N/A")
             display_df["LR"] = display_df["lr"].map(lambda x: f"{x:.5f}")
             
             leaderboard_cols = [
                 "short_cfg_name", "task", "model", "peft_type", "peft_detail", 
-                "imbalance_strategy", "LR", "Best F1 Score", "Best Val Loss", "Final Train Loss", "status"
+                "imbalance_strategy", "LR", "Task Metric (F1/mAP50)", "Image Abnormality F1", "Image Abnormality AUROC", "Best Val Loss", "Final Train Loss", "status"
             ]
             
             # Rename columns for presentation
@@ -444,11 +461,11 @@ def main():
             
             # Highlight max F1 score row
             def highlight_max_f1(s):
-                is_max = s == s.max() if s.name == "Best F1 Score" else [False] * len(s)
+                is_max = s == s.max() if s.name == "Image Abnormality F1" else [False] * len(s)
                 return ['background-color: rgba(79, 172, 254, 0.25)' if v else '' for v in is_max]
             
             st.dataframe(
-                renamed_df.style.apply(highlight_max_f1, subset=["Best F1 Score"]),
+                renamed_df.style.apply(highlight_max_f1, subset=["Image Abnormality F1"]),
                 use_container_width=True
             )
 
@@ -473,26 +490,37 @@ def main():
                 
                 selected_indices = [run_mapping[name] for name in selected_run_names]
                 
-                # Metric to plot selection
+                # Gather all metric keys available in the selected runs' history
+                available_metrics = set()
+                for idx in selected_indices:
+                    run = df_results.loc[idx]
+                    for entry in run["history"]:
+                        for k in entry.keys():
+                            if k not in ("epoch", "step", "learning_rate"):
+                                available_metrics.add(k)
+                                
+                metric_options = sorted(list(available_metrics))
+                # Put common metrics first if they exist
+                preferred_order = ["eval_f1", "eval_custom_cls_f1/abnormality", "eval_mAP50", "eval_loss", "loss", "eval_custom_mean_bbox_IoU"]
+                metric_options = [m for m in preferred_order if m in metric_options] + [m for m in metric_options if m not in preferred_order]
+                
                 plot_metric = st.selectbox(
                     "Select Metric to Compare",
-                    options=[
-                        "eval_f1", 
-                        "eval_loss", 
-                        "loss", # train loss
-                        "eval_accuracy", 
-                        "eval_auroc",
-                        "eval_precision",
-                        "eval_recall"
-                    ],
+                    options=metric_options,
                     format_func=lambda x: {
-                        "eval_f1": "Validation F1 Score (Priority)",
+                        "eval_f1": "Validation F1 Score (Cls)",
+                        "eval_custom_cls_f1/abnormality": "Converted Image-Level Abnormality F1 (Det)",
+                        "eval_custom_cls_auroc/abnormality": "Converted Image-Level Abnormality AUROC (Det)",
+                        "eval_mAP50": "Validation mAP50 (Det Box)",
+                        "eval_mAP50-95": "Validation mAP50-95 (Det Box)",
+                        "eval_custom_mean_bbox_IoU": "Mean Bbox IoU (Det Box)",
+                        "eval_custom_mean_bbox_Dice": "Mean Bbox Dice (Det Box)",
                         "eval_loss": "Validation Loss",
                         "loss": "Training Loss",
-                        "eval_accuracy": "Validation Accuracy",
-                        "eval_auroc": "Validation AUROC",
-                        "eval_precision": "Validation Precision",
-                        "eval_recall": "Validation Recall"
+                        "eval_accuracy": "Validation Accuracy (Cls)",
+                        "eval_auroc": "Validation AUROC (Cls)",
+                        "eval_precision": "Validation Precision (Cls)",
+                        "eval_recall": "Validation Recall (Cls)"
                     }.get(x, x)
                 )
                 
@@ -592,7 +620,7 @@ def main():
                         f"{run_data['lr']:.5f}",
                         run_data["imbalance_strategy"],
                         run_data["loss_type"],
-                        run_data["epochs_configured"]
+                        str(run_data["epochs_configured"])
                     ]
                 }))
                 
@@ -607,28 +635,89 @@ def main():
                 if not best_metrics:
                     st.info("No evaluation logs found for this run yet.")
                 else:
-                    st.markdown("#### 📊 Best Validation Metrics")
-                    st.write(f"The following metrics were achieved at the best epoch (**Epoch {best_metrics.get('epoch', 'N/A')}**):")
-                    
-                    subcol1, subcol2, subcol3 = st.columns(3)
-                    with subcol1:
-                        st.metric("Eval F1 Score", f"{best_metrics.get('eval_f1', 0.0):.4f}")
-                        st.metric("Eval Precision", f"{best_metrics.get('eval_precision', 0.0):.4f}")
-                    with subcol2:
-                        st.metric("Eval Loss", f"{best_metrics.get('eval_loss', 0.0):.4f}")
-                        st.metric("Eval Recall", f"{best_metrics.get('eval_recall', 0.0):.4f}")
-                    with subcol3:
-                        st.metric("Eval Accuracy", f"{best_metrics.get('eval_accuracy', 0.0):.4f}")
-                        st.metric("Eval AUROC", f"{best_metrics.get('eval_auroc', 0.0):.4f}")
+                    if run_data["task"] == "Detection":
+                        st.markdown("#### 📊 Best Bbox Detection Metrics (IoU=0.50:0.95)")
+                        subcol1, subcol2, subcol3, subcol4 = st.columns(4)
+                        with subcol1:
+                            st.metric("mAP50", f"{best_metrics.get('eval_mAP50', 0.0):.4f}")
+                        with subcol2:
+                            st.metric("mAP50-95", f"{best_metrics.get('eval_mAP50-95', 0.0):.4f}")
+                        with subcol3:
+                            st.metric("Box Precision", f"{best_metrics.get('eval_precision', 0.0):.4f}")
+                        with subcol4:
+                            st.metric("Box Recall", f"{best_metrics.get('eval_recall', 0.0):.4f}")
+
+                        st.markdown("#### 📐 Custom Box Matching Metrics")
+                        subcol1, subcol2, subcol3 = st.columns(3)
+                        with subcol1:
+                            st.metric("Mean Bbox IoU", f"{best_metrics.get('eval_custom_mean_bbox_IoU', 0.0):.4f}")
+                        with subcol2:
+                            st.metric("Mean Bbox Dice", f"{best_metrics.get('eval_custom_mean_bbox_Dice', 0.0):.4f}")
+                        with subcol3:
+                            st.metric("Val Loss", f"{best_metrics.get('eval_loss', 0.0):.4f}")
+
+                        st.markdown("#### 🖥️ Converted Image-Level Classification")
+                        subcol1, subcol2, subcol3 = st.columns(3)
+                        with subcol1:
+                            st.metric("Image Abnormality F1", f"{best_metrics.get('eval_custom_cls_f1/abnormality', 0.0):.4f}")
+                            st.metric("Image Text F1", f"{best_metrics.get('eval_custom_cls_f1/text', 0.0):.4f}")
+                        with subcol2:
+                            st.metric("Image Abnormality AUROC", f"{best_metrics.get('eval_custom_cls_auroc/abnormality', 0.0):.4f}")
+                            st.metric("Image Text AUROC", f"{best_metrics.get('eval_custom_cls_auroc/text', 0.0):.4f}")
+                        with subcol3:
+                            st.metric("Image Abnormality Acc", f"{best_metrics.get('eval_custom_cls_accuracy/abnormality', 0.0):.4f}")
+                            st.metric("Image Text Acc", f"{best_metrics.get('eval_custom_cls_accuracy/text', 0.0):.4f}")
+
+                        # Per-class box metrics table
+                        st.markdown("#### 📦 Bbox Metrics Per-Class")
+                        class_rows = []
+                        for c_name in ["abnormality", "cell", "text"]:
+                            tp_key = f"eval_custom_TP/{c_name}"
+                            if tp_key in best_metrics:
+                                class_rows.append({
+                                    "Class": c_name,
+                                    "TP": int(best_metrics.get(f"eval_custom_TP/{c_name}", 0)),
+                                    "FP": int(best_metrics.get(f"eval_custom_FP/{c_name}", 0)),
+                                    "FN": int(best_metrics.get(f"eval_custom_FN/{c_name}", 0)),
+                                    "Precision": f"{best_metrics.get(f'eval_custom_P/{c_name}', 0.0):.4f}",
+                                    "Recall": f"{best_metrics.get(f'eval_custom_R/{c_name}', 0.0):.4f}",
+                                    "F1": f"{best_metrics.get(f'eval_custom_F1/{c_name}', 0.0):.4f}",
+                                    "mAP50": f"{best_metrics.get(f'eval_custom_mAP50/{c_name}', 0.0):.4f}",
+                                    "mAP50-95": f"{best_metrics.get(f'eval_custom_mAP50-95/{c_name}', 0.0):.4f}",
+                                })
+                        if class_rows:
+                            st.dataframe(pd.DataFrame(class_rows), use_container_width=True)
+
+                        # Confusion Matrix for converted image-level abnormality classification
+                        tp = best_metrics.get("eval_custom_cls_tp/abnormality")
+                        fp = best_metrics.get("eval_custom_cls_fp/abnormality")
+                        tn = best_metrics.get("eval_custom_cls_tn/abnormality")
+                        fn = best_metrics.get("eval_custom_cls_fn/abnormality")
+                        cm_title = "Converted Abnormality Confusion Matrix"
+                    else:
+                        st.markdown("#### 📊 Best Validation Metrics")
+                        st.write(f"The following metrics were achieved at the best epoch (**Epoch {best_metrics.get('epoch', 'N/A')}**):")
                         
-                    # Confusion Matrix calculation
-                    tp = best_metrics.get("eval_tp")
-                    fp = best_metrics.get("eval_fp")
-                    tn = best_metrics.get("eval_tn")
-                    fn = best_metrics.get("eval_fn")
+                        subcol1, subcol2, subcol3 = st.columns(3)
+                        with subcol1:
+                            st.metric("Eval F1 Score", f"{best_metrics.get('eval_f1', 0.0):.4f}")
+                            st.metric("Eval Precision", f"{best_metrics.get('eval_precision', 0.0):.4f}")
+                        with subcol2:
+                            st.metric("Eval Loss", f"{best_metrics.get('eval_loss', 0.0):.4f}")
+                            st.metric("Eval Recall", f"{best_metrics.get('eval_recall', 0.0):.4f}")
+                        with subcol3:
+                            st.metric("Eval Accuracy", f"{best_metrics.get('eval_accuracy', 0.0):.4f}")
+                            st.metric("Eval AUROC", f"{best_metrics.get('eval_auroc', 0.0):.4f}")
+                            
+                        # Confusion Matrix calculation
+                        tp = best_metrics.get("eval_tp")
+                        fp = best_metrics.get("eval_fp")
+                        tn = best_metrics.get("eval_tn")
+                        fn = best_metrics.get("eval_fn")
+                        cm_title = "Confusion Matrix"
                     
                     if all(v is not None for v in [tp, fp, tn, fn]):
-                        st.markdown("#### 🧮 Confusion Matrix (Best Epoch)")
+                        st.markdown(f"#### 🧮 {cm_title} (Best Epoch)")
                         
                         # Create interactive Plotly Heatmap for confusion matrix
                         z = [[tn, fp], [fn, tp]]
@@ -640,7 +729,7 @@ def main():
                             color_continuous_scale="Blues",
                             aspect="auto",
                             text_auto=True,
-                            title="Confusion Matrix"
+                            title=cm_title
                         )
                         fig_cm.update_layout(
                             coloraxis_showscale=False,
@@ -660,12 +749,24 @@ def main():
             if run_data["history"]:
                 st.markdown("#### 📜 Full Epoch Trajectory History")
                 hist_df = pd.DataFrame(run_data["history"])
+                
                 # Filter down to display columns
-                cols_to_display = ["epoch", "step", "loss", "eval_loss", "eval_f1", "eval_accuracy", "eval_auroc", "eval_precision", "eval_recall"]
+                cols_to_display = [
+                    "epoch", "step", "loss", "eval_loss", "eval_f1", "eval_accuracy", 
+                    "eval_auroc", "eval_precision", "eval_recall", "eval_mAP50", 
+                    "eval_custom_mean_bbox_IoU", "eval_custom_mean_bbox_Dice"
+                ]
                 cols_present = [c for c in cols_to_display if c in hist_df.columns]
                 
+                # Clean history to only show validation epochs
+                val_cols = [c for c in cols_present if c.startswith("eval_")]
+                if val_cols:
+                    hist_df_clean = hist_df.dropna(subset=val_cols, how="all")
+                else:
+                    hist_df_clean = hist_df
+                
                 st.dataframe(
-                    hist_df[cols_present].sort_values(by="epoch").dropna(subset=["eval_f1"]),
+                    hist_df_clean[cols_present].sort_values(by="epoch"),
                     use_container_width=True
                 )
 
@@ -760,6 +861,89 @@ def main():
             )
             fig_par.update_layout(template="plotly_dark")
             st.plotly_chart(fig_par, use_container_width=True)
+
+    # ── Tab 5: Classification vs. Detection Comparison ──────────────────────────
+    with tab_comparison:
+        st.subheader("⚖️ Classification vs. Detection Model Comparison")
+        st.write("Compare the classification models directly with the detection models on the target task: **image-level abnormality classification**.")
+        
+        if df_results.empty:
+            st.info("No runs available for comparison.")
+        else:
+            # Filter to get classification and detection runs
+            cls_runs = df_results[df_results["task"] == "Classification"]
+            det_runs = df_results[df_results["task"] == "Detection"]
+            
+            if cls_runs.empty or det_runs.empty:
+                st.info("To see comparative charts, make sure you have at least one completed run for both Classification and Detection tasks.")
+            else:
+                best_cls = cls_runs.loc[cls_runs["img_abnormality_f1"].idxmax()]
+                best_det = det_runs.loc[det_runs["img_abnormality_f1"].idxmax()]
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("### 🏆 Best Classification Model")
+                    st.write(f"**Configuration**: {best_cls['short_cfg_name']}")
+                    st.write(f"**Model**: {best_cls['model']}")
+                    st.write(f"**PEFT Type**: {best_cls['peft_type']} ({best_cls['peft_detail']})")
+                    
+                    st.metric("Image Abnormality F1", f"{best_cls['img_abnormality_f1']:.4f}")
+                    st.metric("Image Abnormality AUROC", f"{best_cls['img_abnormality_auroc']:.4f}")
+                    
+                    # Confusion Matrix
+                    bm_cls = best_cls["best_metrics"]
+                    tp_c, fp_c, tn_c, fn_c = bm_cls.get("eval_tp"), bm_cls.get("eval_fp"), bm_cls.get("eval_tn"), bm_cls.get("eval_fn")
+                    if all(v is not None for v in [tp_c, fp_c, tn_c, fn_c]):
+                        fig_cm_cls = px.imshow(
+                            [[tn_c, fp_c], [fn_c, tp_c]], x=["Predicted Normal", "Predicted Abnormal"], y=["Actual Normal", "Actual Abnormal"],
+                            color_continuous_scale="Greens", aspect="auto", text_auto=True, title="Best Classification Confusion Matrix"
+                        )
+                        fig_cm_cls.update_layout(coloraxis_showscale=False, width=350, height=220, template="plotly_dark")
+                        st.plotly_chart(fig_cm_cls, use_container_width=False)
+                        
+                with col2:
+                    st.markdown("### 🔍 Best Detection Model (Image-Level Conversion)")
+                    st.write(f"**Configuration**: {best_det['short_cfg_name']}")
+                    st.write(f"**Model**: {best_det['model']}")
+                    st.write(f"**PEFT Type**: {best_det['peft_type']} ({best_det['peft_detail']})")
+                    
+                    st.metric("Image Abnormality F1", f"{best_det['img_abnormality_f1']:.4f}")
+                    st.metric("Image Abnormality AUROC", f"{best_det['img_abnormality_auroc']:.4f}")
+                    
+                    # Confusion Matrix
+                    bm_det = best_det["best_metrics"]
+                    tp_d = bm_det.get("eval_custom_cls_tp/abnormality")
+                    fp_d = bm_det.get("eval_custom_cls_fp/abnormality")
+                    tn_d = bm_det.get("eval_custom_cls_tn/abnormality")
+                    fn_d = bm_det.get("eval_custom_cls_fn/abnormality")
+                    if all(v is not None for v in [tp_d, fp_d, tn_d, fn_d]):
+                        fig_cm_det = px.imshow(
+                            [[tn_d, fp_d], [fn_d, tp_d]], x=["Predicted Normal", "Predicted Abnormal"], y=["Actual Normal", "Actual Abnormal"],
+                            color_continuous_scale="Oranges", aspect="auto", text_auto=True, title="Best Converted Detection Confusion Matrix"
+                        )
+                        fig_cm_det.update_layout(coloraxis_showscale=False, width=350, height=220, template="plotly_dark")
+                        st.plotly_chart(fig_cm_det, use_container_width=False)
+                        
+                # Summary bar plot
+                st.divider()
+                st.markdown("### 📊 Performance Metrics Comparison")
+                comp_data = pd.DataFrame({
+                    "Task": ["Classification", "Classification", "Detection", "Detection"],
+                    "Metric": ["F1 Score", "AUROC", "F1 Score", "AUROC"],
+                    "Value": [
+                        float(best_cls['img_abnormality_f1']), 
+                        float(best_cls['img_abnormality_auroc']), 
+                        float(best_det['img_abnormality_f1']), 
+                        float(best_det['img_abnormality_auroc'])
+                    ]
+                })
+                fig_comp = px.bar(
+                    comp_data, x="Metric", y="Value", color="Task", barmode="group",
+                    color_discrete_sequence=["#22c55e", "#ff7f0e"], title="Classification vs. Converted Detection Abnormality Performance",
+                    text_auto=".4f"
+                )
+                fig_comp.update_layout(template="plotly_dark", yaxis_range=[0.0, 1.05])
+                st.plotly_chart(fig_comp, use_container_width=True)
 
 if __name__ == "__main__":
     main()

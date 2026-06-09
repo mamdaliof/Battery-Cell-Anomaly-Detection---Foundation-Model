@@ -100,6 +100,14 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
   - The local `models/` directory is registered in `.gitignore` to prevent large model weight binaries from being tracked in the repository.
 
 
+- **🖥️ Streamlit Visualization Dashboard (Enhanced)**
+  - An interactive dashboard (`visualize.py`) loads and parses classification and detection training results uniformly.
+  - **Leaderboard**: Compares runs across backbones, PEFT configurations, and training parameters, ranked by image-level anomaly classification F1.
+  - **Trajectory Curves**: Plots training/validation loss, learning rates, standard detection (mAP50, mAP50-95), and custom metrics (IoU, Dice, image-level F1).
+  - **Single Run Inspector**: Shows config properties, bbox details, per-class metrics, and interactive confusion matrices.
+  - **Comparison Tab**: Compares the best classification model directly with the best detection model on image-level anomaly classification, complete with side-by-side confusion matrices and performance metrics.
+  - Driven by the unified `trainer_state.json` file generated at the end of each training epoch.
+
 ## 📂 Dataset conversion and usage
 
 The raw dataset is assumed to live under a directory like `split_base/` with the following structure:
@@ -158,6 +166,9 @@ python -m pytest tests/test_yolo_shapes.py
 
 # Ablation config validation
 python scripts/validate_ablation_configs.py
+
+# Launch visualizer dashboard
+streamlit run visualize.py --server.port 8501
 ```
 
 ## 📁 Repository Layout

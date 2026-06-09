@@ -1,17 +1,43 @@
 from __future__ import annotations
 
 import os
+import json
 from pathlib import Path
 from typing import Any, Dict, List
 
 import numpy as np
 import torch
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, roc_auc_score
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, roc_auc_score, confusion_matrix
 
 import ultralytics.nn.tasks
+from ultralytics import settings
 from ultralytics.models.yolo.detect.train import DetectionTrainer
 from ultralytics.models.yolo.detect.val import DetectionValidator
 from ultralytics.utils.metrics import box_iou
+
+# Force Ultralytics to use outputs/det as the default run directory
+try:
+    settings.update({"runs_dir": "outputs/det"})
+except Exception as e:
+    print(f"⚠️ [WARN] Failed to set Ultralytics runs_dir setting: {e}")
+
+
+def ddp_gather_list(data_list: List[Any]) -> List[Any]:
+    """Gather lists of arbitrary picklable objects from all DDP ranks to Rank 0."""
+    if not (torch.distributed.is_initialized() and torch.distributed.get_world_size() > 1):
+        return data_list
+    try:
+        gathered_data = [None] * torch.distributed.get_world_size()
+        torch.distributed.all_gather_object(gathered_data, data_list)
+        flat_list = []
+        for sublist in gathered_data:
+            if sublist is not None:
+                flat_list.extend(sublist)
+        return flat_list
+    except Exception as e:
+        print(f"⚠️ [WARN] Failed to gather data across DDP ranks: {e}")
+        return data_list
+
 
 
 class CustomDetectionValidator(DetectionValidator):
@@ -36,6 +62,17 @@ class CustomDetectionValidator(DetectionValidator):
         self.cls_gt_text: List[int] = []
         self.cls_pred_text: List[int] = []
         self.cls_prob_text: List[float] = []
+
+    def init_metrics(self, model):
+        """Initializes/resets metric collectors at the start of each validation epoch."""
+        super().init_metrics(model)
+        self.custom_iou_dice_stats = []
+        self.cls_gt_abnormality = []
+        self.cls_pred_abnormality = []
+        self.cls_prob_abnormality = []
+        self.cls_gt_text = []
+        self.cls_pred_text = []
+        self.cls_prob_text = []
 
     def update_metrics(self, preds: list[dict[str, torch.Tensor]], batch: dict[str, Any]) -> None:
         """Accumulates standard metrics and extracts custom verification metrics."""
@@ -135,6 +172,17 @@ class CustomDetectionValidator(DetectionValidator):
 
         names_list = sorted(self.names.keys())
 
+        # Gather custom validator metrics across all DDP ranks
+        cls_gt_abnormality = ddp_gather_list(self.cls_gt_abnormality)
+        cls_pred_abnormality = ddp_gather_list(self.cls_pred_abnormality)
+        cls_prob_abnormality = ddp_gather_list(self.cls_prob_abnormality)
+        
+        cls_gt_text = ddp_gather_list(self.cls_gt_text)
+        cls_pred_text = ddp_gather_list(self.cls_pred_text)
+        cls_prob_text = ddp_gather_list(self.cls_prob_text)
+        
+        custom_iou_dice_stats = ddp_gather_list(self.custom_iou_dice_stats)
+
         # 1. Bbox class-specific TP, FP, FN, Precision, Recall, F1, maps
         try:
             if hasattr(self.metrics, "stats") and self.metrics.stats:
@@ -172,9 +220,9 @@ class CustomDetectionValidator(DetectionValidator):
 
         # 2. Matched bbox IoU and Dice averages
         try:
-            if self.custom_iou_dice_stats:
-                ious = [x[0] for x in self.custom_iou_dice_stats]
-                dices = [x[1] for x in self.custom_iou_dice_stats]
+            if custom_iou_dice_stats:
+                ious = [x[0] for x in custom_iou_dice_stats]
+                dices = [x[1] for x in custom_iou_dice_stats]
                 stats["metrics/custom_mean_bbox_IoU"] = float(np.mean(ious))
                 stats["metrics/custom_mean_bbox_Dice"] = float(np.mean(dices))
             else:
@@ -187,8 +235,8 @@ class CustomDetectionValidator(DetectionValidator):
         # 3. Image-level Multi-Label Classification Metrics
         try:
             for cls_name, gt, pred, prob in [
-                ("abnormality", self.cls_gt_abnormality, self.cls_pred_abnormality, self.cls_prob_abnormality),
-                ("text", self.cls_gt_text, self.cls_pred_text, self.cls_prob_text)
+                ("abnormality", cls_gt_abnormality, cls_pred_abnormality, cls_prob_abnormality),
+                ("text", cls_gt_text, cls_pred_text, cls_prob_text)
             ]:
                 if gt:
                     gt_arr = np.array(gt)
@@ -203,6 +251,17 @@ class CustomDetectionValidator(DetectionValidator):
                         stats[f"metrics/custom_cls_auroc/{cls_name}"] = float(roc_auc_score(gt_arr, prob_arr))
                     else:
                         stats[f"metrics/custom_cls_auroc/{cls_name}"] = 0.5
+
+                    # Abnormality and Text classification confusion matrix counts
+                    cm = confusion_matrix(gt_arr, pred_arr, labels=[0, 1])
+                    if cm.shape == (2, 2):
+                        tn, fp, fn, tp = cm.ravel()
+                    else:
+                        tn = fp = fn = tp = 0
+                    stats[f"metrics/custom_cls_tn/{cls_name}"] = float(tn)
+                    stats[f"metrics/custom_cls_fp/{cls_name}"] = float(fp)
+                    stats[f"metrics/custom_cls_fn/{cls_name}"] = float(fn)
+                    stats[f"metrics/custom_cls_tp/{cls_name}"] = float(tp)
         except Exception as e:
             print(f"⚠️ [WARN] Error calculating classification metrics: {e}")
 
@@ -257,7 +316,145 @@ class CustomDetectionValidator(DetectionValidator):
 class CustomDetectionTrainer(DetectionTrainer):
     """Custom YOLO Trainer class that registers CustomDetectionValidator."""
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Register the trainer_state.json writing callback
+        self.add_callback("on_fit_epoch_end", save_yolo_trainer_state_callback)
+
     def get_validator(self) -> CustomDetectionValidator:
         """Returns the custom validator instance."""
         self.loss_names = "box_loss", "cls_loss", "dfl_loss"
         return CustomDetectionValidator(self.test_loader, save_dir=self.save_dir, args=self.args, _callbacks=self.callbacks)
+
+
+def save_yolo_trainer_state_callback(trainer) -> None:
+    """Callback to save YOLO training progress in HF trainer_state.json format."""
+    # Only save on the main process to avoid DDP write collisions
+    if not (getattr(trainer, "is_world_process_zero", True) or int(os.environ.get("LOCAL_RANK", "0")) == 0):
+        return
+
+    save_dir = Path(trainer.save_dir)
+    state_file = save_dir / "trainer_state.json"
+    
+    epoch = float(trainer.epoch + 1)
+    step = int(trainer.epoch + 1)
+    
+    # 1. Load existing state or initialize new
+    state = {
+        "best_global_step": 0,
+        "best_metric": 0.0,
+        "best_model_checkpoint": "",
+        "epoch": epoch,
+        "global_step": step,
+        "log_history": []
+    }
+    
+    if state_file.exists():
+        try:
+            with open(state_file, "r") as f:
+                state = json.load(f)
+        except Exception:
+            pass
+            
+    # Update current epoch and step
+    state["epoch"] = epoch
+    state["global_step"] = step
+    
+    # Remove previous log_history entries for this epoch to support resumption or safety overrides
+    state["log_history"] = [entry for entry in state["log_history"] if entry.get("epoch") != epoch]
+    
+    # 2. Get training loss
+    train_loss = 0.0
+    if hasattr(trainer, "tloss") and trainer.tloss is not None:
+        if isinstance(trainer.tloss, (list, tuple, np.ndarray)):
+            train_loss = float(sum(trainer.tloss))
+        elif torch.is_tensor(trainer.tloss):
+            train_loss = float(trainer.tloss.sum().item())
+            
+    # Get current learning rate
+    lr = 0.0
+    if hasattr(trainer, "lr") and trainer.lr is not None:
+        if isinstance(trainer.lr, dict):
+            lr = float(next(iter(trainer.lr.values())))
+        elif isinstance(trainer.lr, (list, tuple, np.ndarray)) and len(trainer.lr) > 0:
+            lr = float(trainer.lr[0])
+        else:
+            lr = float(trainer.lr)
+            
+    # Add training entry
+    train_entry = {
+        "epoch": epoch,
+        "learning_rate": lr,
+        "loss": train_loss,
+        "step": step
+    }
+    state["log_history"].append(train_entry)
+    
+    # 3. Get evaluation metrics
+    eval_entry = {
+        "epoch": epoch,
+        "step": step
+    }
+    
+    # Get validation loss
+    val_loss = 0.0
+    if hasattr(trainer, "validator") and trainer.validator is not None:
+        if hasattr(trainer.validator, "loss") and trainer.validator.loss is not None:
+            if isinstance(trainer.validator.loss, (list, tuple, np.ndarray)):
+                val_loss = float(sum(trainer.validator.loss))
+            elif torch.is_tensor(trainer.validator.loss):
+                val_loss = float(trainer.validator.loss.sum().item())
+                
+    if val_loss == 0.0 and trainer.metrics:
+        # Fallback from metrics dict
+        val_loss = float(
+            trainer.metrics.get("val/box_loss", 0.0) +
+            trainer.metrics.get("val/cls_loss", 0.0) +
+            trainer.metrics.get("val/dfl_loss", 0.0)
+        )
+        
+    eval_entry["eval_loss"] = val_loss
+    
+    # Copy and map validation metrics
+    if trainer.metrics:
+        # Map standard YOLO metrics
+        eval_entry["eval_precision"] = float(trainer.metrics.get("metrics/precision(B)", 0.0))
+        eval_entry["eval_recall"] = float(trainer.metrics.get("metrics/recall(B)", 0.0))
+        eval_entry["eval_mAP50"] = float(trainer.metrics.get("metrics/mAP50(B)", 0.0))
+        eval_entry["eval_mAP50-95"] = float(trainer.metrics.get("metrics/mAP50-95(B)", 0.0))
+        
+        # Map all custom metrics directly
+        for k, v in trainer.metrics.items():
+            if k.startswith("metrics/custom_") and isinstance(v, (int, float, np.integer, np.floating)):
+                new_key = k.replace("metrics/custom_", "eval_custom_")
+                eval_entry[new_key] = float(v)
+                
+    state["log_history"].append(eval_entry)
+    
+    # 4. Update best metric and best checkpoint path
+    # Prioritize abnormality classification F1 as best metric, fallback to mAP50
+    metric_for_best = "eval_custom_cls_f1/abnormality"
+    current_best_val = eval_entry.get(metric_for_best, 0.0)
+    if current_best_val == 0.0:
+        metric_for_best = "eval_mAP50"
+        current_best_val = eval_entry.get(metric_for_best, 0.0)
+        
+    if current_best_val > state.get("best_metric", 0.0):
+        state["best_metric"] = current_best_val
+        state["best_global_step"] = step
+        # Path to best weight checkpoint
+        best_ckpt = save_dir / "weights" / "best.pt"
+        if best_ckpt.exists():
+            try:
+                state["best_model_checkpoint"] = str(best_ckpt.relative_to(Path.cwd()))
+            except Exception:
+                state["best_model_checkpoint"] = str(best_ckpt)
+        else:
+            state["best_model_checkpoint"] = str(best_ckpt)
+            
+    # Write to file
+    try:
+        with open(state_file, "w") as f:
+            json.dump(state, f, indent=2)
+    except Exception as e:
+        print(f"⚠️ [WARN] Failed to write trainer_state.json: {e}")

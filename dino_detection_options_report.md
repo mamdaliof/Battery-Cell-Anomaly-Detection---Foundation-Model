@@ -34,6 +34,17 @@ This approach couples the self-supervised dense representations of DINOv2/DINOv3
     *   **DINO-YOLO Integration**: [itsprakhar/Yolo-DinoV2](https://github.com/itsprakhar/Yolo-DinoV2)
     *   **YOLO26 Framework**: [Ultralytics YOLO26 Documentation](https://github.com/ultralytics/ultralytics)
 
+### Concrete Implementation & Ablation Summary (Approach 2)
+
+We have fully implemented, trained, and evaluated this framework:
+1.  **Model Structure**: Integrates DINOv3 backbones (ViT-S/16 and ViT-B/16) with a **Simple Feature Pyramid (SFP)** neck to feed multi-scale representation maps directly to YOLO26's detection head.
+2.  **Unified Metric Conversion**: Formulated a box-to-image conversion layer during validation. Bounding box detections are evaluated at a decision threshold (0.25 confidence) to yield image-level abnormality classification indicators. This computes Accuracy, Precision, Recall, F1, and AUROC side-by-side with classification runs.
+3.  **Ablation Sweep (58 Runs)**: Executed a grid sweep across:
+    - **Backbones**: DINOv3 ViT-S/16 and ViT-B/16.
+    - **PEFT Methods**: LoRA (ranks 8/16, targeting attention projections), Bottleneck Adapters (dimensions 32/64), and Visual Prompt Tuning (VPT; shallow/deep, 10/20 tokens).
+    - **Hyperparameters**: Learning rates (3e-4, 5e-4, 1e-3).
+4.  **Dashboard Integration**: Completed runs are saved in a unified `trainer_state.json` schema inside `outputs/det/`, enabling direct leaderboard rankings and trajectory plots comparing classification vs. detection performance.
+
 ---
 
 ## Approach 3: DINOv2/v3 Backbone with Faster/Mask R-CNN Head

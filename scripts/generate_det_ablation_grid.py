@@ -23,7 +23,7 @@ def main():
     
     # YOLO specific defaults
     base_cfg["yolo_model_config"] = "configs/det/yolo26_dino.yaml"
-    base_cfg["yolo_data_yaml"] = "data/det_v1.0/battery_detection_all.yaml"
+    base_cfg["yolo_data_yaml"] = "data/battery_detection_all.yaml"
 
     # Output directory
     out_dir = Path("configs/det/ablations")
