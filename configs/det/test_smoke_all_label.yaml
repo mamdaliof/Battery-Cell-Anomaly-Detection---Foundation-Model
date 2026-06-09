@@ -1,5 +1,5 @@
 model_name: "facebook/dinov3-vitb16-pretrain-lvd1689m"
-output_dir: "outputs"
+output_dir: "outputs/all_label"
 
 # YOLO specific options
 yolo_model_config: "configs/det/yolo26_dino.yaml"
