@@ -1,7 +1,7 @@
 amp:
   bf16: false
   fp16: true
-batch_size: 64
+batch_size: 32
 data:
   abnormal_class_name: abnormal
   aug_global_prob: 1.0
