@@ -121,6 +121,15 @@ wandb/
 /models/
 
 # Run outputs
-/outputs/
+# Run outputs
+/outputs/**
+!/outputs/
+!/outputs/**/
+!/outputs/**/DONE
+!/outputs/**/*.json
+!/outputs/**/*.yaml
+!/outputs/**/*.yml
+
+
 
 
