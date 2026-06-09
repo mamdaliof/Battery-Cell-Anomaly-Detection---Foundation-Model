@@ -1,0 +1,49 @@
+# Scale Specifier
+scale: m
+
+# Ultralytics YOLO26 with DINOv3 Backbone & Simple Feature Pyramid (SFP)
+# Designed for Battery Cell Anomaly Detection (defect bounding box localization)
+
+# Parameters
+nc: 1 # number of classes (abnormal cell defects)
+end2end: True # use end-to-end NMS-free mode
+reg_max: 1 # DFL bins (YOLO26 uses 1 for DFL-free regression)
+
+# Model compound scaling constants
+scales:
+  # [depth, width, max_channels]
+  n: [0.50, 0.25, 1024]
+  s: [0.50, 0.50, 1024]
+  m: [0.50, 1.00, 512]
+  l: [1.00, 1.00, 512]
+  x: [1.00, 1.50, 512]
+
+# Custom DINOv3 + SFP Backbone
+backbone:
+  # [from, repeats, module, args]
+  # DinoV3Backbone takes [output_dim, model_name]
+  # Output dim is 768 for ViT-B/16, which will be dynamically matched by the SFP layers.
+  - [-1, 1, DinoV3Backbone, [768, "facebook/dinov3-vitb16-pretrain-lvd1689m"]] # 0 - Stride 16
+  - [0, 1, DinoV3SFP_P3, [256]]                                               # 1 - Stride 8 P3 Neck Input
+  - [0, 1, DinoV3SFP_P4, [512]]                                               # 2 - Stride 16 P4 Neck Input
+  - [0, 1, DinoV3SFP_P5, [1024]]                                              # 3 - Stride 32 P5 Neck Input
+
+# YOLO26 Head (PANet FPN structure)
+head:
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]                                # 4 - Upsample P5 to Stride 16
+  - [[-1, 2], 1, Concat, [1]]                                                 # 5 - Concat with P4 backbone (Layer 2)
+  - [-1, 2, C3k2, [512, True]]                                                # 6
+
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]                                # 7 - Upsample to Stride 8
+  - [[-1, 1], 1, Concat, [1]]                                                 # 8 - Concat with P3 backbone (Layer 1)
+  - [-1, 2, C3k2, [256, True]]                                                # 9 (P3/8-small output)
+
+  - [-1, 1, Conv, [256, 3, 2]]                                                # 10 - Downsample to Stride 16
+  - [[-1, 6], 1, Concat, [1]]                                                 # 11 - Concat with head P4 (Layer 6)
+  - [-1, 2, C3k2, [512, True]]                                                # 12 (P4/16-medium output)
+
+  - [-1, 1, Conv, [512, 3, 2]]                                                # 13 - Downsample to Stride 32
+  - [[-1, 3], 1, Concat, [1]]                                                 # 14 - Concat with P5 backbone (Layer 3)
+  - [-1, 1, C3k2, [1024, True, 0.5, True]]                                    # 15 (P5/32-large output)
+
+  - [[9, 12, 15], 1, Detect, [nc]]                                            # 16 - Detect(P3, P4, P5)
