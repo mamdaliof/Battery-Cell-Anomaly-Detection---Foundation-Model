@@ -8,7 +8,7 @@ data:
   val_subdir: "val"  # subdirectory name for validation split under data_dir
   normal_class_name: "normal"  # folder name for the normal class
   abnormal_class_name: "abnormal"  # folder name for the abnormal class
-  image_size: null  # if null, use DINOv3 processor default size; otherwise override with this value
+  image_size: 256  # if null, use DINOv3 processor default size; otherwise override with this value
 
   augmentations_enabled: true  # master switch to turn all training-time augmentations on/off
   aug_global_prob: 1.0  # probability that any augmentation is applied to a given training image

@@ -8,7 +8,7 @@ data:
   val_subdir: "val"  # subdirectory name for validation split under data_dir
   normal_class_name: "normal"  # folder name for the normal class
   abnormal_class_name: "abnormal"  # folder name for the abnormal class
-  image_size: null  # if null, use DINOv3 processor default size; otherwise override with this value
+  image_size: 256  # if null, use DINOv3 processor default size; otherwise override with this value
 
   augmentations_enabled: false  # disable augmentations for a quick smoke test run
   aug_global_prob: 0.0  # no augmentations applied in this test config

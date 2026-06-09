@@ -67,6 +67,39 @@ def main():
         generated_configs.append(path)
         run_id += 1
 
+    # 1b. Standard YOLO Baseline Runs (YOLOv8 Nano, YOLOv8 Small, local YOLO26/11 Nano)
+    standard_yolos = [
+        ("yolov8n", "yolov8n.pt", 640),
+        ("yolov8s", "yolov8s.pt", 640),
+        ("yolo26n", "yolo26n.pt", 640)
+    ]
+    for model_key, model_config, img_size in standard_yolos:
+        cfg = base_cfg.copy()
+        cfg["model_name"] = model_key
+        cfg["yolo_model_config"] = model_config
+        cfg["data"] = base_cfg["data"].copy()
+        cfg["data"]["image_size"] = img_size
+        cfg["peft"] = {
+            "type": "none",
+            "lora_r": 8,
+            "lora_alpha": 16,
+            "lora_dropout": 0.0,
+            "lora_target_modules": ["q_proj", "v_proj"],
+            "lora_target_blocks": None,
+            "adapter_bottleneck_dim": 64,
+            "adapter_dropout": 0.0,
+            "adapter_target_blocks": None,
+            "vpt_num_tokens": 10,
+            "vpt_deep": False,
+            "vpt_target_blocks": None
+        }
+        
+        path = out_dir / f"{run_id:02d}_baseline_standard_{model_key}.yaml"
+        with open(path, "w") as f:
+            yaml.safe_dump(cfg, f)
+        generated_configs.append(path)
+        run_id += 1
+
     # 2. LoRA Runs (24 runs: 2 models x 2 ranks x 3 blocks x 2 LRs)
     lora_ranks = [8, 16]
     lora_blocks = [

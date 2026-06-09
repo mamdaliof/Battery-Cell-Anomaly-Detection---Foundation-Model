@@ -8,7 +8,7 @@ data:
   val_subdir: "val"
   normal_class_name: "normal"
   abnormal_class_name: "abnormality"
-  image_size: null
+  image_size: 256
 
   augmentations_enabled: true
   aug_global_prob: 1.0

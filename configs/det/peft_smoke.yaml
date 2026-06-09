@@ -15,7 +15,7 @@ data:
   val_subdir: "val"
   normal_class_name: "normal"
   abnormal_class_name: "abnormal"
-  image_size: 224
+  image_size: 256
 
   # Optional direct YOLO overrides (ignored if augmentations_enabled: false)
   # yolo_augmentations:

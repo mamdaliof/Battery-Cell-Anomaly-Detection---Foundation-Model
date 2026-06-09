@@ -1,0 +1,11 @@
+# Battery Cell Anomaly Detection Dataset Config - Variant 'no_cell'
+# Generated automatically for YOLO26 + DINOv3 SFP object detection model
+
+path: /home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/data/det_v1.0/battery_detection_no_cell
+train: images/train
+val: images/val
+
+nc: 2
+names:
+  0: abnormality
+  1: text
