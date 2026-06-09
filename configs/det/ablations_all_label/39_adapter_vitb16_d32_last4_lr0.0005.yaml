@@ -46,7 +46,7 @@ learning_rate: 0.0005
 metric_for_best: eval_f1
 model_name: facebook/dinov3-vitb16-pretrain-lvd1689m
 num_epochs: 300
-output_dir: outputs
+output_dir: outputs/all_label
 peft:
   adapter_bottleneck_dim: 32
   adapter_dropout: 0.1
