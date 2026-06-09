@@ -1,0 +1,53 @@
+{
+  "best_global_step": 1,
+  "best_metric": 0.58929,
+  "best_model_checkpoint": "outputs/det/yolov8x__yolov8x_train/20260609_222608/weights/best.pt",
+  "epoch": 1.0,
+  "global_step": 1,
+  "log_history": [
+    {
+      "epoch": 1.0,
+      "learning_rate": 0.00021434999999999998,
+      "loss": 7.68607234954834,
+      "step": 1
+    },
+    {
+      "epoch": 1.0,
+      "step": 1,
+      "eval_loss": Infinity,
+      "eval_precision": 0.0708,
+      "eval_recall": 0.11556,
+      "eval_mAP50": 0.01265,
+      "eval_mAP50-95": 0.00487,
+      "eval_custom_mean_bbox_IoU": 0.72678,
+      "eval_custom_mean_bbox_Dice": 0.83676,
+      "eval_custom_cls_accuracy/abnormality": 0.41772,
+      "eval_custom_cls_precision/abnormality": 0.41772,
+      "eval_custom_cls_recall/abnormality": 1.0,
+      "eval_custom_cls_f1/abnormality": 0.58929,
+      "eval_custom_cls_auroc/abnormality": 0.5,
+      "eval_custom_cls_tn/abnormality": 0.0,
+      "eval_custom_cls_fp/abnormality": 46.0,
+      "eval_custom_cls_fn/abnormality": 0.0,
+      "eval_custom_cls_tp/abnormality": 33.0,
+      "eval_custom_cls_accuracy/text": 0.41772,
+      "eval_custom_cls_precision/text": 0.40909,
+      "eval_custom_cls_recall/text": 0.21429,
+      "eval_custom_cls_f1/text": 0.28125,
+      "eval_custom_cls_auroc/text": 0.34717,
+      "eval_custom_cls_tn/text": 24.0,
+      "eval_custom_cls_fp/text": 13.0,
+      "eval_custom_cls_fn/text": 33.0,
+      "eval_custom_cls_tp/text": 9.0,
+      "eval_custom_cls_accuracy/abnormal": 0.41772,
+      "eval_custom_cls_precision/abnormal": 0.41772,
+      "eval_custom_cls_recall/abnormal": 1.0,
+      "eval_custom_cls_f1/abnormal": 0.58929,
+      "eval_custom_cls_auroc/abnormal": 0.5,
+      "eval_custom_cls_tn/abnormal": 0.0,
+      "eval_custom_cls_fp/abnormal": 46.0,
+      "eval_custom_cls_fn/abnormal": 0.0,
+      "eval_custom_cls_tp/abnormal": 33.0
+    }
+  ]
+}
