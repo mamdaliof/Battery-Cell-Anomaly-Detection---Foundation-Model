@@ -120,4 +120,7 @@ wandb/
 # Local cached models
 /models/
 
+# Run outputs
+/outputs/
+
 

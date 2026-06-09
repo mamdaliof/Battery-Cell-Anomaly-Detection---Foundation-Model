@@ -254,9 +254,17 @@ def _equiv(a: Dict, b: Dict) -> bool:
             return False
     return True
 
+def _verify_weights(parent_dir: Path) -> bool:
+    return any(
+        (parent_dir / name).exists() and (parent_dir / name).stat().st_size > 0
+        for name in ("model.safetensors", "pytorch_model.bin", "best_f1.pt", "best_loss.pt")
+    )
+
 def _done_cfgs(out_dir: Path) -> List[Dict]:
     result = []
     for p in out_dir.glob("**/DONE"):
+        if not _verify_weights(p.parent):
+            continue
         cfg_p = p.parent / "config.yaml"
         if cfg_p.exists():
             try: result.append(_load(cfg_p))

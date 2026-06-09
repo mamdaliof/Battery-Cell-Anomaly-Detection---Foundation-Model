@@ -184,8 +184,20 @@ def main() -> None:
         print(f"📂 Output: {run_dir}")
         print("=" * 80 + "\n")
         
-        # Touch DONE file to mark successful completion
-        (run_dir / "DONE").touch()
+        # Verify that training outputs are present and non-empty
+        weights_dir = run_dir / "weights"
+        best_weights = weights_dir / "best.pt"
+        last_weights = weights_dir / "last.pt"
+        
+        weights_exist = (
+            (best_weights.exists() and best_weights.stat().st_size > 0) or
+            (last_weights.exists() and last_weights.stat().st_size > 0)
+        )
+        if weights_exist:
+            # Touch DONE file to mark successful completion
+            (run_dir / "DONE").touch()
+        else:
+            raise RuntimeError(f"Training finished but YOLO model weights were not successfully saved in {weights_dir}.")
 
 
 if __name__ == "__main__":

@@ -77,6 +77,7 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
   - **Visual Prompt Tuning (VPT)**: Support for Shallow (input-level prompt parameters) and Deep (layer-wise prompt replacement wrappers) prompt tuning.
   - Supports dynamic model structure routing via a new `_get_transformer_blocks()` helper that probes common attribute paths (`model.encoder.layer`, `model.layer`, `encoder.layer`, `layers`, `layer`) in order — works correctly across DINOv3, standard ViT, and other transformer variants.
   - VPT (Visual Prompt Tuning) includes a sequential block execution fallback for architectures without a nested `encoder` module (such as DINOv3).
+  - **VPT Checkpoint Saving Fallback & Safety Bypass**: Overrides `_save` in `ImbalanceTrainer` to catch Safetensors parameter-sharing serialization errors, falling back to PyTorch pickle format (`pytorch_model.bin`). Monkeypatches the Hugging Face `check_torch_load_is_safe` safety validation function in `transformers` modules to allow reloading pickle checkpoints on PyTorch versions older than 2.6.
   - The SFP (Simple Feature Pyramid) neck and the backbone gradients are automatically routed to permit training the PEFT layers when active, adjusting feature extraction slice indices to account for prepended prompt tokens.
 
 - **🖥️ Parallel Training Dashboard**
