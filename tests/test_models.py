@@ -245,5 +245,62 @@ class TestDinoClassifierAndPeft(unittest.TestCase):
         print(f"    => LoRA params check: found {lora_params} trainable LoRA parameters, {frozen_params} frozen parameters [OK]")
         print("✅ [test_models] Passed: test_lora_wrapping")
 
+    def test_vpt_deep_layer_prompt_wrapper(self):
+        """
+        Verify that VptLayerWrapper correctly discards prompt tokens from the
+        previous layer's hidden states and prepends the new deep prompt tokens.
+        """
+        print("\n🧪 [test_models] Running: test_vpt_deep_layer_prompt_wrapper")
+        
+        # Instantiate a dummy nn.Module (e.g. Identity) to be wrapped
+        dummy_layer = nn.Identity()
+        num_tokens = 5
+        hidden_size = 128
+        batch_size = 2
+        
+        # Create a trainable prompt parameter (deep prompt tokens for this layer)
+        # Initialize to all 4.0
+        prompt_param = nn.Parameter(torch.ones(1, num_tokens, hidden_size) * 4.0)
+        
+        # Instantiate VptLayerWrapper
+        wrapper = VptLayerWrapper(
+            original_layer=dummy_layer,
+            num_tokens=num_tokens,
+            prompt_parameter=prompt_param
+        )
+        
+        # Create input hidden states representing output of previous layer:
+        # Layout: [CLS] (index 0) + [Old Prompts] (indices 1..5) + [Patches] (indices 6..15)
+        # Let's populate with distinctive values:
+        # CLS token is all 1.0
+        # Old prompt tokens are all 2.0
+        # Patch/register tokens are all 3.0
+        cls_tokens = torch.ones(batch_size, 1, hidden_size) * 1.0
+        old_prompts = torch.ones(batch_size, num_tokens, hidden_size) * 2.0
+        patch_tokens = torch.ones(batch_size, 10, hidden_size) * 3.0
+        
+        input_hidden_states = torch.cat([cls_tokens, old_prompts, patch_tokens], dim=1)
+        self.assertEqual(input_hidden_states.shape, (batch_size, 1 + num_tokens + 10, hidden_size))
+        
+        # Pass through wrapper
+        output = wrapper(input_hidden_states)
+        
+        # The output shape must remain the same: (batch_size, 1 + num_tokens + 10, hidden_size)
+        self.assertEqual(output.shape, (batch_size, 1 + num_tokens + 10, hidden_size))
+        
+        # Verify tokens at different slices:
+        # 1. CLS token (index 0) should be 1.0
+        self.assertTrue(torch.allclose(output[:, 0, :], torch.ones(batch_size, hidden_size) * 1.0))
+        
+        # 2. Prompt tokens (indices 1 to 5) should be 4.0 (the new prompt tokens)
+        self.assertTrue(torch.allclose(output[:, 1:1+num_tokens, :], torch.ones(batch_size, num_tokens, hidden_size) * 4.0))
+        
+        # 3. Patch tokens (indices 6 to 15) should be 3.0 (old prompt tokens discarded)
+        self.assertTrue(torch.allclose(output[:, 1+num_tokens:, :], torch.ones(batch_size, 10, hidden_size) * 3.0))
+        
+        print("    => Output tensor shape and values validated successfully [OK]")
+        print("    => Old prompt tokens (2.0) correctly replaced by new prompt tokens (4.0) [OK]")
+        print("✅ [test_models] Passed: test_vpt_deep_layer_prompt_wrapper")
+
 if __name__ == "__main__":
     unittest.main()

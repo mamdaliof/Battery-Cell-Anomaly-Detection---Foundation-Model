@@ -1,12 +1,42 @@
 #!/usr/bin/env python3
 import os
 import yaml
+import argparse
 from pathlib import Path
 from typing import Any, Dict
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Generate YOLO detection ablation study configs.")
+    parser.add_argument(
+        "--strategy",
+        type=str,
+        default="all_label",
+        choices=["all_label", "no_cell", "abnormal_only"],
+        help="Dataset split strategy to generate configs for."
+    )
+    return parser.parse_args()
+
 def main():
-    # Load base configuration as template
-    base_config_path = Path("configs/det/benchmark_baseline.yaml")
+    args = parse_args()
+    
+    # Map strategy to datasets and outputs
+    strategy = args.strategy
+    data_name = "all" if strategy == "all_label" else strategy
+    yolo_data_yaml = f"data/det_v1.0/battery_detection_{data_name}.yaml"
+    
+    if strategy == "all_label":
+        output_dir = "outputs/det_all"
+    elif strategy == "no_cell":
+        output_dir = "outputs/det_no_cell"
+    elif strategy == "abnormal_only":
+        output_dir = "outputs/det_abnormal"
+    else:
+        output_dir = f"outputs/{strategy}"
+    
+    out_dir = Path(f"configs/det/ablations_{strategy}")
+    
+    # Load base configuration as template (use peft_smoke_all_label as template)
+    base_config_path = Path("configs/det/peft_smoke_all_label.yaml")
     if not base_config_path.exists():
         print(f"❌ Error: {base_config_path} does not exist.")
         return
@@ -23,10 +53,9 @@ def main():
     
     # YOLO specific defaults
     base_cfg["yolo_model_config"] = "configs/det/yolo26_dino.yaml"
-    base_cfg["yolo_data_yaml"] = "data/battery_detection_all.yaml"
+    base_cfg["yolo_data_yaml"] = yolo_data_yaml
+    base_cfg["output_dir"] = output_dir
 
-    # Output directory
-    out_dir = Path("configs/det/ablations")
     # Clean previous generated yaml files to avoid mixing old/new runs
     if out_dir.exists():
         for f in out_dir.glob("*.yaml"):
@@ -62,6 +91,39 @@ def main():
         }
         
         path = out_dir / f"{run_id:02d}_baseline_{model_key}.yaml"
+        with open(path, "w") as f:
+            yaml.safe_dump(cfg, f)
+        generated_configs.append(path)
+        run_id += 1
+
+    # 1b. Standard YOLO Baseline Runs (YOLOv8 Nano, YOLOv8 Small, local YOLO26/11 Nano)
+    standard_yolos = [
+        ("yolov8n", "yolov8n.pt", 640),
+        ("yolov8s", "yolov8s.pt", 640),
+        ("yolo26n", "yolo26n.pt", 640)
+    ]
+    for model_key, model_config, img_size in standard_yolos:
+        cfg = base_cfg.copy()
+        cfg["model_name"] = model_key
+        cfg["yolo_model_config"] = model_config
+        cfg["data"] = base_cfg["data"].copy()
+        cfg["data"]["image_size"] = img_size
+        cfg["peft"] = {
+            "type": "none",
+            "lora_r": 8,
+            "lora_alpha": 16,
+            "lora_dropout": 0.0,
+            "lora_target_modules": ["q_proj", "v_proj"],
+            "lora_target_blocks": None,
+            "adapter_bottleneck_dim": 64,
+            "adapter_dropout": 0.0,
+            "adapter_target_blocks": None,
+            "vpt_num_tokens": 10,
+            "vpt_deep": False,
+            "vpt_target_blocks": None
+        }
+        
+        path = out_dir / f"{run_id:02d}_baseline_standard_{model_key}.yaml"
         with open(path, "w") as f:
             yaml.safe_dump(cfg, f)
         generated_configs.append(path)
@@ -176,25 +238,7 @@ def main():
                     generated_configs.append(path)
                     run_id += 1
 
-    # Write runner shell script
-    runner_path = Path("run_det_ablations.sh")
-    with open(runner_path, "w") as f:
-        f.write("#!/bin/bash\n\n")
-        f.write("# Exit immediately on failure\nset -e\n\n")
-        f.write("export PYTHONPATH=$(pwd)/src:$PYTHONPATH\n\n")
-        f.write(f"echo \"🚀 Starting YOLO Detection Ablation Study execution sequence ({len(generated_configs)} runs)...\"\n\n")
-        
-        for config_file in generated_configs:
-            f.write(f"echo \"----------------------------------------------------------------\"\n")
-            f.write(f"echo \"🏃 Running config: {config_file}\"\n")
-            f.write(f"python scripts/train_detection.py --config {config_file}\n\n")
-            
-        f.write(f"echo \"🎉 All {len(generated_configs)} detection ablation runs completed successfully!\"\n")
-        
-    os.chmod(runner_path, 0o755)
-
     print(f"✅ Generated {len(generated_configs)} detection configuration files under {out_dir}/")
-    print(f"✅ Generated execution script: {runner_path}")
 
 if __name__ == "__main__":
     main()

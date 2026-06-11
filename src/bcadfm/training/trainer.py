@@ -185,6 +185,25 @@ class ImbalanceTrainer(Trainer):
 
         return super()._get_train_sampler(*args, **kwargs)
 
+    def _save(self, output_dir: Optional[str] = None, state_dict: Optional[Dict[str, Any]] = None) -> None:
+        try:
+            super()._save(output_dir, state_dict)
+        except Exception as e:
+            # Fall back to standard PyTorch serialization if safetensors fails
+            output_dir = output_dir if output_dir is not None else self.args.output_dir
+            os.makedirs(output_dir, exist_ok=True)
+            if state_dict is None:
+                state_dict = self.model.state_dict()
+            
+            # Save standard pytorch weights
+            torch.save(state_dict, os.path.join(output_dir, "pytorch_model.bin"))
+            # Save training arguments
+            torch.save(self.args, os.path.join(output_dir, "training_args.bin"))
+            
+            # Print fallback message
+            if int(os.environ.get("LOCAL_RANK", "0")) == 0:
+                print(f"⚠️ [WARN] safetensors save failed ({e}). Successfully saved checkpoint using PyTorch fallback (pytorch_model.bin).")
+
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
         """Compute loss using custom loss function and imbalance strategies."""
         # Ensure loss_fn is initialized

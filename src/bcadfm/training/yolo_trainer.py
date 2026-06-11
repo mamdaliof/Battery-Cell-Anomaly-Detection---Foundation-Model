@@ -15,9 +15,9 @@ from ultralytics.models.yolo.detect.train import DetectionTrainer
 from ultralytics.models.yolo.detect.val import DetectionValidator
 from ultralytics.utils.metrics import box_iou
 
-# Force Ultralytics to use outputs/det as the default run directory
+# Force Ultralytics to use outputs as the default run directory
 try:
-    settings.update({"runs_dir": "outputs/det"})
+    settings.update({"runs_dir": "outputs"})
 except Exception as e:
     print(f"⚠️ [WARN] Failed to set Ultralytics runs_dir setting: {e}")
 
@@ -50,6 +50,8 @@ class CustomDetectionValidator(DetectionValidator):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.normal_class_name = "normal"
+        self.abnormal_class_name = "abnormal"
         # Bbox IoU and Dice collectors
         self.custom_iou_dice_stats: List[tuple[float, float]] = []
         
@@ -82,8 +84,9 @@ class CustomDetectionValidator(DetectionValidator):
         # Class names to indices map
         abnormality_idx = None
         text_idx = None
+        cfg_abnormal = getattr(self, "abnormal_class_name", "abnormal")
         for idx, name in self.names.items():
-            if name == "abnormality":
+            if name in (cfg_abnormal, "abnormality", "abnormal"):
                 abnormality_idx = idx
             elif name == "text":
                 text_idx = idx
@@ -265,6 +268,16 @@ class CustomDetectionValidator(DetectionValidator):
         except Exception as e:
             print(f"⚠️ [WARN] Error calculating classification metrics: {e}")
 
+        # Duplicate abnormal metric keys for config abnormal_class_name compatibility
+        cfg_abnormal = getattr(self, "abnormal_class_name", "abnormal")
+        if cfg_abnormal != "abnormality":
+            extra_stats = {}
+            for k, v in stats.items():
+                if "/abnormality" in k:
+                    new_key = k.replace("/abnormality", f"/{cfg_abnormal}")
+                    extra_stats[new_key] = v
+            stats.update(extra_stats)
+
         return stats
 
     def finalize_metrics(self) -> None:
@@ -302,9 +315,14 @@ class CustomDetectionValidator(DetectionValidator):
         print("\n🖥️ Image-Level Multi-Label Classification Conversion:")
         print(f"{'Class Indicator':<18} | {'Accuracy':<8} | {'Precision':<9} | {'Recall':<8} | {'F1':<6} | {'AUROC':<6}")
         print("-" * 80)
-        for cls_name in ["abnormality", "text"]:
+        cfg_abnormal = getattr(self, "abnormal_class_name", "abnormal")
+        printed_classes = []
+        for cls_name in ["abnormality", cfg_abnormal, "text"]:
+            if cls_name in printed_classes:
+                continue
             acc = stats.get(f"metrics/custom_cls_accuracy/{cls_name}")
             if acc is not None:
+                printed_classes.append(cls_name)
                 p = stats.get(f"metrics/custom_cls_precision/{cls_name}", 0.0)
                 r = stats.get(f"metrics/custom_cls_recall/{cls_name}", 0.0)
                 f1 = stats.get(f"metrics/custom_cls_f1/{cls_name}", 0.0)
@@ -317,6 +335,8 @@ class CustomDetectionTrainer(DetectionTrainer):
     """Custom YOLO Trainer class that registers CustomDetectionValidator."""
 
     def __init__(self, *args, **kwargs):
+        self.normal_class_name = kwargs.pop("normal_class_name", "normal")
+        self.abnormal_class_name = kwargs.pop("abnormal_class_name", "abnormal")
         super().__init__(*args, **kwargs)
         # Register the trainer_state.json writing callback
         self.add_callback("on_fit_epoch_end", save_yolo_trainer_state_callback)
@@ -324,7 +344,10 @@ class CustomDetectionTrainer(DetectionTrainer):
     def get_validator(self) -> CustomDetectionValidator:
         """Returns the custom validator instance."""
         self.loss_names = "box_loss", "cls_loss", "dfl_loss"
-        return CustomDetectionValidator(self.test_loader, save_dir=self.save_dir, args=self.args, _callbacks=self.callbacks)
+        validator = CustomDetectionValidator(self.test_loader, save_dir=self.save_dir, args=self.args, _callbacks=self.callbacks)
+        validator.normal_class_name = self.normal_class_name
+        validator.abnormal_class_name = self.abnormal_class_name
+        return validator
 
 
 def save_yolo_trainer_state_callback(trainer) -> None:

@@ -251,9 +251,18 @@ def _equiv(a: Dict, b: Dict) -> bool:
             return False
     return True
 
+def _verify_weights(parent_dir: Path) -> bool:
+    weights_dir = parent_dir / "weights"
+    return any(
+        (weights_dir / name).exists() and (weights_dir / name).stat().st_size > 0
+        for name in ("best.pt", "last.pt")
+    )
+
 def _done_cfgs(out_dir: Path) -> List[Dict]:
     result = []
     for p in out_dir.glob("**/DONE"):
+        if not _verify_weights(p.parent):
+            continue
         cfg_p = p.parent / "config.yaml"
         if cfg_p.exists():
             try: result.append(_load(cfg_p))
@@ -275,18 +284,42 @@ def _free_gpus() -> List[int]:
         return [0]
 
 
+def parse_args():
+    import argparse
+    parser = argparse.ArgumentParser(description="Parallel detection ablation runner.")
+    parser.add_argument(
+        "--config_dir",
+        type=str,
+        default="configs/det/ablations_all_label",
+        help="Path to the directory containing configuration YAML files to run.",
+    )
+    return parser.parse_args()
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
-    cfg_dir = Path("configs/det/ablations")
-    out_dir = Path("outputs/det")
+    args = parse_args()
+    cfg_dir = Path(args.config_dir)
+    strategy = cfg_dir.name.replace("ablations_", "")
+    
+    if strategy == "all_label":
+        out_folder = "det_all"
+    elif strategy == "no_cell":
+        out_folder = "det_no_cell"
+    elif strategy == "abnormal_only":
+        out_folder = "det_abnormal"
+    else:
+        out_folder = strategy
+        
+    out_dir = Path("outputs") / out_folder
     log_dir = out_dir / "logs"
 
     if not cfg_dir.exists():
-        sys.exit("❌  configs/det/ablations/ not found. Run generate_det_ablation_grid.py first.")
+        sys.exit(f"❌  {cfg_dir}/ not found.")
 
     cfg_files = sorted(cfg_dir.glob("*.yaml"))
     if not cfg_files:
-        sys.exit("❌  No YAML configs in configs/det/ablations/")
+        sys.exit(f"❌  No YAML configs in {cfg_dir}/")
 
     print(f"🔍  Found {len(cfg_files)} configs.")
     print("🧹  Scanning for completed runs…")

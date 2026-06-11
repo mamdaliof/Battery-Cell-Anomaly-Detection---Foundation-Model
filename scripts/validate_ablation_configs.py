@@ -46,7 +46,7 @@ if "HF_HOME" not in os.environ:
 # ── Settings ──────────────────────────────────────────────────────────────────
 MIN_FREE_VRAM_MIB = 12000
 MAX_PARALLEL_JOBS  = 8
-REPORT_PATH        = Path("outputs/cls/validation_report.txt")
+REPORT_PATH        = Path("outputs/cls_all/validation_report.txt")
 
 # ── ANSI colours ──────────────────────────────────────────────────────────────
 GPU_COLORS = [
@@ -142,14 +142,14 @@ def run_check(slot_idx: int, cfg_path: Path, use_gpu: bool, gpu_id: int = 0) -> 
 
 
 def main():
-    config_dir = Path("configs/cls/ablations")
+    config_dir = Path("configs/cls/ablations_all_label")
     if not config_dir.exists():
-        print("❌  configs/cls/ablations/ not found. Run generate_ablation_grid.py first.")
+        print("❌  configs/cls/ablations_all_label/ not found. Run generate_ablation_grid.py first.")
         return
 
     config_files = sorted(config_dir.glob("*.yaml"))
     if not config_files:
-        print("❌  No YAML files in configs/cls/ablations/")
+        print("❌  No YAML files in configs/cls/ablations_all_label/")
         return
 
     print(f"🔍 Found {len(config_files)} configs to validate.\n")

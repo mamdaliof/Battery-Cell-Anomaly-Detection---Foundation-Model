@@ -42,6 +42,9 @@ class DataConfig:
     gaussian_noise_std: float = 0.01  # standard deviation of Gaussian noise added to image
     gaussian_noise_prob: float = 0.4  # probability of selecting Gaussian noise when augmenting
 
+    # YOLO-specific overrides (optional dict)
+    yolo_augmentations: Optional[dict] = None
+
     def train_dir(self) -> Path:
         return Path(self.data_dir) / self.train_subdir
 

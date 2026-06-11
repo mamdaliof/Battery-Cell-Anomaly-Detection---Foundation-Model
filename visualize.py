@@ -87,6 +87,7 @@ def load_results(base_path="outputs"):
             is_det = "yolo_model_config" in cfg
             task = "Detection" if is_det else "Classification"
             custom_param = "default"
+            abnormal_class_name = cfg.get("data", {}).get("abnormal_class_name", "abnormal")
             
             # 2. Parse trainer_state.json (look in root, fallback to latest checkpoint)
             state_path = run_dir / "trainer_state.json"
@@ -179,7 +180,8 @@ def load_results(base_path="outputs"):
                 "best_metrics": best_epoch_metrics,
                 "history": history,
                 "img_abnormality_f1": img_f1,
-                "img_abnormality_auroc": img_auroc
+                "img_abnormality_auroc": img_auroc,
+                "abnormal_class_name": abnormal_class_name
             })
             
     return pd.DataFrame(runs_data)
@@ -788,7 +790,12 @@ def main():
                         # Per-class box metrics table
                         st.markdown("#### 📦 Bbox Metrics Per-Class")
                         class_rows = []
-                        for c_name in ["abnormality", "cell", "text"]:
+                        abnormal_name = run_data.get("abnormal_class_name", "abnormal")
+                        classes_to_check = []
+                        for c in ["abnormality", abnormal_name, "cell", "text"]:
+                            if c not in classes_to_check:
+                                classes_to_check.append(c)
+                        for c_name in classes_to_check:
                             tp_key = f"eval_custom_TP/{c_name}"
                             if tp_key in best_metrics:
                                 class_rows.append({
@@ -806,10 +813,10 @@ def main():
                             st.dataframe(pd.DataFrame(class_rows), use_container_width=True)
 
                         # Confusion Matrix for converted image-level abnormality classification
-                        tp = best_metrics.get("eval_custom_cls_tp/abnormality")
-                        fp = best_metrics.get("eval_custom_cls_fp/abnormality")
-                        tn = best_metrics.get("eval_custom_cls_tn/abnormality")
-                        fn = best_metrics.get("eval_custom_cls_fn/abnormality")
+                        tp = best_metrics.get(f"eval_custom_cls_tp/{abnormal_name}") or best_metrics.get("eval_custom_cls_tp/abnormality")
+                        fp = best_metrics.get(f"eval_custom_cls_fp/{abnormal_name}") or best_metrics.get("eval_custom_cls_fp/abnormality")
+                        tn = best_metrics.get(f"eval_custom_cls_tn/{abnormal_name}") or best_metrics.get("eval_custom_cls_tn/abnormality")
+                        fn = best_metrics.get(f"eval_custom_cls_fn/{abnormal_name}") or best_metrics.get("eval_custom_cls_fn/abnormality")
                         cm_title = "Converted Abnormality Confusion Matrix"
                     else:
                         st.markdown("#### 📊 Best Validation Metrics")
@@ -1029,10 +1036,11 @@ def main():
                     
                     # Confusion Matrix
                     bm_det = best_det["best_metrics"]
-                    tp_d = bm_det.get("eval_custom_cls_tp/abnormality")
-                    fp_d = bm_det.get("eval_custom_cls_fp/abnormality")
-                    tn_d = bm_det.get("eval_custom_cls_tn/abnormality")
-                    fn_d = bm_det.get("eval_custom_cls_fn/abnormality")
+                    abnormal_name_d = best_det.get("abnormal_class_name", "abnormal")
+                    tp_d = bm_det.get(f"eval_custom_cls_tp/{abnormal_name_d}") or bm_det.get("eval_custom_cls_tp/abnormality")
+                    fp_d = bm_det.get(f"eval_custom_cls_fp/{abnormal_name_d}") or bm_det.get("eval_custom_cls_fp/abnormality")
+                    tn_d = bm_det.get(f"eval_custom_cls_tn/{abnormal_name_d}") or bm_det.get("eval_custom_cls_tn/abnormality")
+                    fn_d = bm_det.get(f"eval_custom_cls_fn/{abnormal_name_d}") or bm_det.get("eval_custom_cls_fn/abnormality")
                     if all(v is not None for v in [tp_d, fp_d, tn_d, fn_d]):
                         fig_cm_det = px.imshow(
                             [[tn_d, fp_d], [fn_d, tp_d]], x=["Predicted Normal", "Predicted Abnormal"], y=["Actual Normal", "Actual Abnormal"],

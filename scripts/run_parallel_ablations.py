@@ -254,9 +254,17 @@ def _equiv(a: Dict, b: Dict) -> bool:
             return False
     return True
 
+def _verify_weights(parent_dir: Path) -> bool:
+    return any(
+        (parent_dir / name).exists() and (parent_dir / name).stat().st_size > 0
+        for name in ("model.safetensors", "pytorch_model.bin", "best_f1.pt", "best_loss.pt")
+    )
+
 def _done_cfgs(out_dir: Path) -> List[Dict]:
     result = []
     for p in out_dir.glob("**/DONE"):
+        if not _verify_weights(p.parent):
+            continue
         cfg_p = p.parent / "config.yaml"
         if cfg_p.exists():
             try: result.append(_load(cfg_p))
@@ -280,16 +288,16 @@ def _free_gpus() -> List[int]:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
-    cfg_dir = Path("configs/cls/ablations")
-    out_dir = Path("outputs/cls")
+    cfg_dir = Path("configs/cls/ablations_all_label")
+    out_dir = Path("outputs/cls_all")
     log_dir = out_dir / "logs"
 
     if not cfg_dir.exists():
-        sys.exit("❌  configs/cls/ablations/ not found. Run generate_ablation_grid.py first.")
+        sys.exit("❌  configs/cls/ablations_all_label/ not found. Run generate_ablation_grid.py first.")
 
     cfg_files = sorted(cfg_dir.glob("*.yaml"))
     if not cfg_files:
-        sys.exit("❌  No YAML configs in configs/cls/ablations/")
+        sys.exit("❌  No YAML configs in configs/cls/ablations_all_label/")
 
     print(f"🔍  Found {len(cfg_files)} configs.")
     print("🧹  Scanning for completed runs…")

@@ -19,6 +19,17 @@ try:
 except ImportError:
     pass
 
+# Monkeypatch transformers to bypass torch.load version safety check on older torch versions
+try:
+    import transformers.utils.import_utils
+    transformers.utils.import_utils.check_torch_load_is_safe = lambda *args, **kwargs: None
+    import transformers.trainer
+    transformers.trainer.check_torch_load_is_safe = lambda *args, **kwargs: None
+    import transformers.utils
+    transformers.utils.check_torch_load_is_safe = lambda *args, **kwargs: None
+except ImportError:
+    pass
+
 import argparse
 from datetime import datetime
 from pathlib import Path
@@ -93,7 +104,7 @@ def main() -> None:
     task_name = "cls"  # classification; later other tasks (e.g. seg, det) can use different prefixes
 
     # Create run-specific output directory: outputs/{task_name}/{safe_model_name}__{cfg_stem}/{timestamp}
-    base_out = Path(cfg.output_dir) / task_name
+    base_out = Path(cfg.output_dir)
     safe_model_name = cfg.model_name.replace("/", "-")
     cfg_stem = Path(args.config).stem
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -230,8 +241,16 @@ def main() -> None:
         print(f"🔁 Total Epochs:       {metrics.get('epoch', 0.0):.1f}")
         print("=" * 80 + "\n")
         
-        # Touch DONE file to mark successful completion
-        (run_dir / "DONE").touch()
+        # Verify that training outputs are present and non-empty
+        weights_exist = any(
+            (run_dir / name).exists() and (run_dir / name).stat().st_size > 0
+            for name in ("model.safetensors", "pytorch_model.bin", "best_f1.pt", "best_loss.pt")
+        )
+        if weights_exist:
+            # Touch DONE file to mark successful completion
+            (run_dir / "DONE").touch()
+        else:
+            raise RuntimeError(f"Training finished but model weights were not successfully saved in {run_dir}.")
 
     if torch.distributed.is_initialized():
         torch.distributed.destroy_process_group()

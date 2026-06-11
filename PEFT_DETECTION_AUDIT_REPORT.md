@@ -60,7 +60,10 @@ In detection, [configs/det/peft_smoke.yaml](file:///home/jovyan/Battery-Cell-Ano
 * `yolo_model_config` maps to the custom architecture YAML ([configs/det/yolo26_dino.yaml](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/configs/det/yolo26_dino.yaml)).
 * `yolo_data_yaml` points to the Ultralytics dataset configuration.
 * `epochs`, `batch_size`, `learning_rate`, `early_stopping_patience`, `seed`, and `amp` are mapped to YOLO training properties.
-* **Important Note**: Data augmentations and imbalance options defined in the detection configuration YAML are **not** applied to YOLO training. They are kept purely for configuration schema compatibility. YOLO uses standard Ultralytics augmentations and loss functions (CIoU/DFL/BCE).
+* **Important Note**: Data augmentations defined in the detection configuration YAML are now connected to YOLO training!
+  - If `yolo_augmentations` dictionary overrides are defined inside `data:` in the config YAML, they are passed directly to YOLO overrides (supporting native YOLO parameters like `fliplr`, `degrees`, `scale`, `mosaic`, etc.).
+  - If omitted but `augmentations_enabled: true` is set, standard classification augmentation values are automatically mapped to YOLO equivalents.
+  - If `augmentations_enabled: false` is set, all YOLO augmentations are explicitly zeroed out for clean baselines.
 
 ### 3. Audited Loopholes & Bugs (Detection)
 * **Custom Model Parsing**: The Ultralytics model parser does not recognize `DinoV3Backbone` and `DinoV3SFP` modules, which would normally crash scaling operations. The framework uses a global monkey-patch `custom_parse_model` in [yolo_utils.py](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/yolo_utils.py#L48) to substitute custom layers with standard Conv layers, calculate depth/width scaling, and then swap in the reconstructed DINO/SFP modules. This works reliably.
@@ -102,28 +105,28 @@ The Streamlit dashboard in [visualize.py](file:///home/jovyan/Battery-Cell-Anoma
 
 ## 🧪 Part 4: Unittests Execution
 
-The unittest suite was run using the Conda environment at `/home/jovyan/pytorch_env`. All **30 tests** compiled and executed successfully:
+The unittest suite was run using the Conda environment at `/home/jovyan/pytorch_env`. All **32 tests** compiled and executed successfully:
 
 ```text
-Ran 30 tests in 56.581s
+Ran 32 tests in 35.353s
 
 OK
 ```
 
 ### 1. Test Coverage Overview
-* **`test_models.py`**: Asserts linear and MLP head layers, bottleneck adapter residual identities (initializes to exactly equal inputs at step 0), and VPT layout sequence slices.
-* **`test_dataset.py`**: Verifies oversampling reproducibility with locked seeds, image load formats, and augmentation combi-samplers.
-* **`test_yolo_shapes.py`**: Checks that the custom DINO backbone and SFP neck build successfully, compile layer weights, preserve metadata indices, and yield the expected output grid shapes (`[batch, 300, 6]`).
-* **`test_yolo_metrics.py`**: Runs mock evaluations on coordinates matching and checks validation reports.
+* **[test_models.py](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/tests/test_models.py)**: Asserts linear and MLP head layers, bottleneck adapter residual identities (initializes to exactly equal inputs at step 0), VPT layout sequence slices, and contains the **VPT Deep Layer Prompt Wrapper Test** verifying prompt token swapping.
+* **[test_dataset.py](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/tests/test_dataset.py)**: Verifies oversampling reproducibility with locked seeds, image load formats, augmentation combi-samplers, and contains the **DDP Mock Oversampling Test** simulating multi-rank environments.
+* **[test_yolo_shapes.py](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/tests/test_yolo_shapes.py)**: Checks that the custom DINO backbone and SFP neck build successfully, compile layer weights, preserve metadata indices, and yield the expected output grid shapes (`[batch, 300, 6]`).
+* **[test_yolo_metrics.py](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/tests/test_yolo_metrics.py)**: Runs mock evaluations on coordinates matching and checks validation reports.
 
-### 2. Suggested Additional Tests
-To further reinforce the test suite, we could add:
-1. **DDP Mock Oversampling Test**: Simulates multi-GPU runs to verify that dataset lengths are replicated properly without rank-level collated drift.
+### 2. Implemented Additional Tests
+To further reinforce the test suite, we successfully added:
+1. **DDP Mock Oversampling Test**: Simulates multi-GPU runs (Ranks 0-3) to verify that dataset lengths and order are replicated properly without rank-level collated drift.
 2. **VPT Deep Layer Prompt Wrapper Test**: Checks that the `VptLayerWrapper` correctly removes prompt tokens from the previous layer's hidden states and prepends the new deep prompt tokens.
 
 ---
 
 ## 🪟 Recommendations & Findings Summary
 * **No critical bugs or crashes** were found during this audit. The framework is highly cohesive, modular, and robust.
-* **Augmentation Override Clarification**: Ensure that users are aware that detection data augmentations in the config YAML are placeholders kept for schema comparison, and that YOLO training uses standard internal augmentations.
-* **Class Weights Sync**: Ensure class names mapping match between the YAML config (`normal`, `abnormal`) and the detection dataset YAML (`abnormality`, `cell`, `text`) to guarantee correct metric mapping.
+* **Augmentation Override Clarification**: Resolved! Connected YAML config parameters to the YOLO overrides. Users can now pass native YOLO augmentations via the `yolo_augmentations` config dictionary or rely on the fallback mapping of classification variables.
+* **Class Weights Sync**: Resolved! Passed configuration class names down to `CustomDetectionTrainer` and `CustomDetectionValidator`. The validator dynamically resolves the matching abnormality index and duplicates the logged metric keys under both the default name (`abnormality`) and the custom config name (e.g. `abnormal`). `visualize.py` was updated to look up metrics dynamically under both names, maintaining backward compatibility.
