@@ -356,7 +356,7 @@ def get_best_epoch_metrics(history: list, benchmark_metric: str, mode: str = "ma
         # Fail-safe fallback: return the last eval step
         return valid_steps[-1]
 
-def update_best_metrics_inplace(df: pd.DataFrame, benchmark_metric: str, mode: str, selected_label: str = "abnormal"):
+def update_best_metrics_inplace(df: pd.DataFrame, benchmark_metric: str, mode: str, selected_label: str = "abnormal", use_custom: bool = True):
     if df.empty:
         return
     
@@ -365,17 +365,29 @@ def update_best_metrics_inplace(df: pd.DataFrame, benchmark_metric: str, mode: s
         history = row["history"]
         is_det = row["task"] == "Detection"
         
-        # Resolve labels available in this run's history
+        # Check if the run has custom metrics or normal metrics in its history
+        run_has_custom = False
+        run_has_normal = False
         run_labels = []
         for entry in history:
             for key in entry.keys():
                 if key.startswith("eval_custom_cls_f1/"):
+                    run_has_custom = True
                     lbl = key.split("/")[-1]
                     if lbl not in run_labels:
                         run_labels.append(lbl)
-                        
+                if key in ["eval_f1", "eval_accuracy"]:
+                    run_has_normal = True
+        
+        # Determine actual mode to use for this specific run
+        actual_use_custom = use_custom
+        if use_custom and not run_has_custom and run_has_normal:
+            actual_use_custom = False
+        elif not use_custom and not run_has_normal and run_has_custom:
+            actual_use_custom = True
+            
         actual_label = selected_label
-        if is_det:
+        if actual_use_custom:
             if run_labels:
                 if selected_label not in run_labels:
                     actual_label = run_labels[0]
@@ -387,7 +399,7 @@ def update_best_metrics_inplace(df: pd.DataFrame, benchmark_metric: str, mode: s
         target_mode = mode
         
         if benchmark_metric == "default":
-            target_metric = f"eval_custom_cls_f1/{actual_label}" if is_det else "eval_f1"
+            target_metric = f"eval_custom_cls_f1/{actual_label}" if actual_use_custom else "eval_f1"
             target_mode = "max"
             
         best_step = get_best_epoch_metrics(history, target_metric, target_mode)
@@ -395,14 +407,28 @@ def update_best_metrics_inplace(df: pd.DataFrame, benchmark_metric: str, mode: s
         # Write updated metrics to the row
         df.at[idx, "best_metrics"] = best_step
         if best_step:
-            df.at[idx, "best_eval_f1"] = best_step.get("eval_f1", 0.0) if not is_det else best_step.get(f"eval_custom_cls_f1/{actual_label}", 0.0)
+            if actual_use_custom:
+                df.at[idx, "best_eval_f1"] = best_step.get(f"eval_custom_cls_f1/{actual_label}", 0.0)
+                df.at[idx, "img_abnormal_f1"] = best_step.get(f"eval_custom_cls_f1/{actual_label}", 0.0)
+                df.at[idx, "img_abnormal_auroc"] = best_step.get(f"eval_custom_cls_auroc/{actual_label}", 0.5)
+                
+                df.at[idx, "image_cls_f1"] = best_step.get(f"eval_custom_cls_f1/{actual_label}", None)
+                df.at[idx, "image_cls_auroc"] = best_step.get(f"eval_custom_cls_auroc/{actual_label}", None)
+                df.at[idx, "image_cls_precision"] = best_step.get(f"eval_custom_cls_precision/{actual_label}", None)
+                df.at[idx, "image_cls_recall"] = best_step.get(f"eval_custom_cls_recall/{actual_label}", None)
+            else:
+                df.at[idx, "best_eval_f1"] = best_step.get("eval_f1", 0.0)
+                df.at[idx, "img_abnormal_f1"] = best_step.get("eval_f1", 0.0)
+                df.at[idx, "img_abnormal_auroc"] = best_step.get("eval_auroc", 0.5)
+                
+                df.at[idx, "image_cls_f1"] = best_step.get("eval_f1", None)
+                df.at[idx, "image_cls_auroc"] = best_step.get("eval_auroc", None)
+                df.at[idx, "image_cls_precision"] = best_step.get("eval_precision", None)
+                df.at[idx, "image_cls_recall"] = best_step.get("eval_recall", None)
             
             # Handle float conversions safely
             val_loss = best_step.get("eval_loss", None)
             df.at[idx, "best_eval_loss"] = float(val_loss) if val_loss is not None else None
-            
-            df.at[idx, "img_abnormal_f1"] = best_step.get(f"eval_custom_cls_f1/{actual_label}", 0.0) if is_det else best_step.get("eval_f1", 0.0)
-            df.at[idx, "img_abnormal_auroc"] = best_step.get(f"eval_custom_cls_auroc/{actual_label}", 0.5) if is_det else best_step.get("eval_auroc", 0.5)
             
             # Extract individual columns for leaderboard selection
             df.at[idx, "eval_f1"] = best_step.get("eval_f1", None)
@@ -415,11 +441,6 @@ def update_best_metrics_inplace(df: pd.DataFrame, benchmark_metric: str, mode: s
             df.at[idx, "eval_recall"] = best_step.get("eval_recall", None)
             df.at[idx, "eval_custom_mean_bbox_IoU"] = best_step.get("eval_custom_mean_bbox_IoU", None)
             df.at[idx, "eval_custom_mean_bbox_Dice"] = best_step.get("eval_custom_mean_bbox_Dice", None)
-            
-            df.at[idx, "image_cls_f1"] = best_step.get(f"eval_custom_cls_f1/{actual_label}", None) if is_det else best_step.get("eval_f1", None)
-            df.at[idx, "image_cls_auroc"] = best_step.get(f"eval_custom_cls_auroc/{actual_label}", None) if is_det else best_step.get("eval_auroc", None)
-            df.at[idx, "image_cls_precision"] = best_step.get(f"eval_custom_cls_precision/{actual_label}", None) if is_det else best_step.get("eval_precision", None)
-            df.at[idx, "image_cls_recall"] = best_step.get(f"eval_custom_cls_recall/{actual_label}", None) if is_det else best_step.get("eval_recall", None)
         else:
             df.at[idx, "best_eval_f1"] = 0.0
             df.at[idx, "best_eval_loss"] = None
@@ -530,29 +551,69 @@ def main():
             for entry in history:
                 for key in entry.keys():
                     if key.startswith("eval_custom_cls_f1/"):
-                        cls_name = key.split("/")[-1]
-                        classes.add(cls_name)
+                        classes.add(key.split("/")[-1])
+                    elif key.startswith("eval_custom_F1/"):
+                        classes.add(key.split("/")[-1])
+                    elif key.startswith("eval_custom_TP/"):
+                        classes.add(key.split("/")[-1])
         return sorted(list(classes))
+
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 🎯 Classification Metric Type & Class")
+
+    # Check if any run in df_results has custom metrics or normal metrics
+    has_custom = False
+    has_normal = False
+    for history in df_results["history"]:
+        for entry in history:
+            for key in entry.keys():
+                if key.startswith("eval_custom_cls_f1/"):
+                    has_custom = True
+                if key in ["eval_f1", "eval_accuracy"]:
+                    has_normal = True
+
+    metric_modes = []
+    if has_custom:
+        metric_modes.append("Custom Classification Metrics (by Class)")
+    if has_normal:
+        metric_modes.append("Normal/Standard Classification Metrics")
+    if not metric_modes:
+        metric_modes = ["Custom Classification Metrics (by Class)", "Normal/Standard Classification Metrics"]
+
+    selected_mode = st.sidebar.selectbox(
+        "Metric Source Mode",
+        options=metric_modes,
+        index=0
+    )
+
+    metric_source_is_custom = "Custom" in selected_mode
 
     unique_classes = get_unique_classes(df_results)
     if not unique_classes:
         unique_classes = ["abnormal", "cell", "text"]
 
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 🏷️ Target Label Monitoring")
-    selected_label = st.sidebar.selectbox(
-        "Class Label for Custom Metrics",
-        options=unique_classes,
-        index=unique_classes.index("abnormal") if "abnormal" in unique_classes else 0
-    )
+    if metric_source_is_custom:
+        selected_label = st.sidebar.selectbox(
+            "Target Class Label",
+            options=unique_classes,
+            index=unique_classes.index("abnormal") if "abnormal" in unique_classes else 0
+        )
+    else:
+        selected_label = "normal"
 
     # Benchmark Metric selector
     st.sidebar.markdown("---")
     st.sidebar.markdown("### 🎯 Best Epoch Benchmark Selection")
+    
+    if metric_source_is_custom:
+        f1_label = f"F1 Score / Converted {selected_label.capitalize()} F1 (Max)"
+    else:
+        f1_label = "F1 Score / Standard F1 (Max)"
+        
     benchmark_option = st.sidebar.selectbox(
         "Benchmark Metric",
         options=[
-            f"F1 Score / Converted {selected_label.capitalize()} F1 (Max)",
+            f1_label,
             "Validation Loss (Min)",
             "Validation mAP50 (Max)",
             "Validation Mean Bbox IoU (Max)",
@@ -562,7 +623,7 @@ def main():
     )
     
     # Map selection to key and mode
-    if benchmark_option.startswith("F1 Score"):
+    if benchmark_option.endswith("F1 (Max)"):
         benchmark_metric = "default"
         benchmark_mode = "max"
     elif benchmark_option.startswith("Validation Loss"):
@@ -579,7 +640,7 @@ def main():
         benchmark_mode = "min"
         
     # Recalculate metrics in-place for df_results
-    update_best_metrics_inplace(df_results, benchmark_metric, benchmark_mode, selected_label=selected_label)
+    update_best_metrics_inplace(df_results, benchmark_metric, benchmark_mode, selected_label=selected_label, use_custom=metric_source_is_custom)
 
     # Task Profile filter
     st.sidebar.markdown("---")
@@ -759,10 +820,10 @@ def main():
                 "eval_recall": "Bbox/Cls Recall",
                 "eval_custom_mean_bbox_IoU": "Bbox Mean IoU (Detection)",
                 "eval_custom_mean_bbox_Dice": "Bbox Mean Dice (Detection)",
-                "image_cls_f1": f"Image {selected_label.capitalize()} F1 (Converted)",
-                "image_cls_auroc": f"Image {selected_label.capitalize()} AUROC (Converted)",
-                "image_cls_precision": f"Image {selected_label.capitalize()} Precision (Converted)",
-                "image_cls_recall": f"Image {selected_label.capitalize()} Recall (Converted)"
+                "image_cls_f1": f"Image {selected_label.capitalize()} F1 (Custom)" if metric_source_is_custom else "Image F1 (Standard)",
+                "image_cls_auroc": f"Image {selected_label.capitalize()} AUROC (Custom)" if metric_source_is_custom else "Image AUROC (Standard)",
+                "image_cls_precision": f"Image {selected_label.capitalize()} Precision (Custom)" if metric_source_is_custom else "Image Precision (Standard)",
+                "image_cls_recall": f"Image {selected_label.capitalize()} Recall (Custom)" if metric_source_is_custom else "Image Recall (Standard)"
             }
             
             default_metrics = ["eval_loss", "image_cls_f1", "image_cls_auroc"]
@@ -1070,49 +1131,65 @@ def main():
                         with subcol3:
                             st.metric("Val Loss", f"{best_metrics.get('eval_loss', 0.0):.4f}")
 
-                        st.markdown("#### 🖥️ Converted Image-Level Classification")
-                        subcol1, subcol2, subcol3 = st.columns(3)
-                        with subcol1:
-                            st.metric("Image Abnormal F1", f"{best_metrics.get('eval_custom_cls_f1/abnormal', 0.0):.4f}")
-                            st.metric("Image Text F1", f"{best_metrics.get('eval_custom_cls_f1/text', 0.0):.4f}")
-                        with subcol2:
-                            st.metric("Image Abnormal AUROC", f"{best_metrics.get('eval_custom_cls_auroc/abnormal', 0.0):.4f}")
-                            st.metric("Image Text AUROC", f"{best_metrics.get('eval_custom_cls_auroc/text', 0.0):.4f}")
-                        with subcol3:
-                            st.metric("Image Abnormal Acc", f"{best_metrics.get('eval_custom_cls_accuracy/abnormal', 0.0):.4f}")
-                            st.metric("Image Text Acc", f"{best_metrics.get('eval_custom_cls_accuracy/text', 0.0):.4f}")
-
-                        # Per-class box metrics table
-                        st.markdown("#### 📦 Bbox Metrics Per-Class")
-                        class_rows = []
-                        abnormal_name = run_data.get("abnormal_class_name", "abnormal")
-                        classes_to_check = []
-                        for c in ["abnormal", abnormal_name, "cell", "text"]:
-                            if c not in classes_to_check:
-                                classes_to_check.append(c)
-                        for c_name in classes_to_check:
-                            tp_key = f"eval_custom_TP/{c_name}"
-                            if tp_key in best_metrics:
-                                class_rows.append({
-                                    "Class": c_name,
-                                    "TP": int(best_metrics.get(f"eval_custom_TP/{c_name}", 0)),
-                                    "FP": int(best_metrics.get(f"eval_custom_FP/{c_name}", 0)),
-                                    "FN": int(best_metrics.get(f"eval_custom_FN/{c_name}", 0)),
-                                    "Precision": f"{best_metrics.get(f'eval_custom_P/{c_name}', 0.0):.4f}",
-                                    "Recall": f"{best_metrics.get(f'eval_custom_R/{c_name}', 0.0):.4f}",
-                                    "F1": f"{best_metrics.get(f'eval_custom_F1/{c_name}', 0.0):.4f}",
-                                    "mAP50": f"{best_metrics.get(f'eval_custom_mAP50/{c_name}', 0.0):.4f}",
-                                    "mAP50-95": f"{best_metrics.get(f'eval_custom_mAP50-95/{c_name}', 0.0):.4f}",
+                        run_custom_classes = []
+                        for key in best_metrics.keys():
+                            if key.startswith("eval_custom_cls_f1/"):
+                                run_custom_classes.append(key.split("/")[-1])
+                        
+                        if run_custom_classes:
+                            st.markdown("#### 🖥️ Converted Image-Level Classification")
+                            cls_data = []
+                            for c in run_custom_classes:
+                                cls_data.append({
+                                    "Class Label": c,
+                                    "Image-Level F1": f"{best_metrics.get(f'eval_custom_cls_f1/{c}', 0.0):.4f}",
+                                    "Image-Level AUROC": f"{best_metrics.get(f'eval_custom_cls_auroc/{c}', 0.0):.4f}",
+                                    "Image-Level Accuracy": f"{best_metrics.get(f'eval_custom_cls_accuracy/{c}', 0.0):.4f}",
+                                    "Image-Level Precision": f"{best_metrics.get(f'eval_custom_cls_precision/{c}', 0.0):.4f}",
+                                    "Image-Level Recall": f"{best_metrics.get(f'eval_custom_cls_recall/{c}', 0.0):.4f}",
                                 })
-                        if class_rows:
-                            st.dataframe(pd.DataFrame(class_rows), use_container_width=True)
-
-                        # Confusion Matrix for converted image-level abnormal classification
-                        tp = best_metrics.get(f"eval_custom_cls_tp/{abnormal_name}") or best_metrics.get("eval_custom_cls_tp/abnormal")
-                        fp = best_metrics.get(f"eval_custom_cls_fp/{abnormal_name}") or best_metrics.get("eval_custom_cls_fp/abnormal")
-                        tn = best_metrics.get(f"eval_custom_cls_tn/{abnormal_name}") or best_metrics.get("eval_custom_cls_tn/abnormal")
-                        fn = best_metrics.get(f"eval_custom_cls_fn/{abnormal_name}") or best_metrics.get("eval_custom_cls_fn/abnormal")
-                        cm_title = "Converted Abnormal Confusion Matrix"
+                            st.dataframe(pd.DataFrame(cls_data), use_container_width=True)
+                            
+                            # Per-class box metrics table
+                            st.markdown("#### 📦 Bbox Metrics Per-Class")
+                            class_rows = []
+                            abnormal_name = run_data.get("abnormal_class_name", "abnormal")
+                            classes_to_check = []
+                            for c in ["abnormal", abnormal_name, "cell", "text"]:
+                                if c not in classes_to_check:
+                                    classes_to_check.append(c)
+                            for c_name in classes_to_check:
+                                tp_key = f"eval_custom_TP/{c_name}"
+                                if tp_key in best_metrics:
+                                    class_rows.append({
+                                        "Class": c_name,
+                                        "TP": int(best_metrics.get(f"eval_custom_TP/{c_name}", 0)),
+                                        "FP": int(best_metrics.get(f"eval_custom_FP/{c_name}", 0)),
+                                        "FN": int(best_metrics.get(f"eval_custom_FN/{c_name}", 0)),
+                                        "Precision": f"{best_metrics.get(f'eval_custom_P/{c_name}', 0.0):.4f}",
+                                        "Recall": f"{best_metrics.get(f'eval_custom_R/{c_name}', 0.0):.4f}",
+                                        "F1": f"{best_metrics.get(f'eval_custom_F1/{c_name}', 0.0):.4f}",
+                                        "mAP50": f"{best_metrics.get(f'eval_custom_mAP50/{c_name}', 0.0):.4f}",
+                                        "mAP50-95": f"{best_metrics.get(f'eval_custom_mAP50-95/{c_name}', 0.0):.4f}",
+                                    })
+                            if class_rows:
+                                st.dataframe(pd.DataFrame(class_rows), use_container_width=True)
+                            
+                            # Let them choose which class to show the Confusion Matrix for
+                            selected_cm_class = st.selectbox(
+                                "Select Class Label for Confusion Matrix",
+                                options=run_custom_classes,
+                                index=run_custom_classes.index(selected_label) if selected_label in run_custom_classes else 0,
+                                key="cm_class_selector"
+                            )
+                            tp = best_metrics.get(f"eval_custom_cls_tp/{selected_cm_class}")
+                            fp = best_metrics.get(f"eval_custom_cls_fp/{selected_cm_class}")
+                            tn = best_metrics.get(f"eval_custom_cls_tn/{selected_cm_class}")
+                            fn = best_metrics.get(f"eval_custom_cls_fn/{selected_cm_class}")
+                            cm_title = f"Converted {selected_cm_class.capitalize()} Confusion Matrix"
+                        else:
+                            tp = fp = tn = fn = None
+                            cm_title = ""
                     else:
                         st.markdown("#### 📊 Best Validation Metrics")
                         st.write(f"The following metrics were achieved at the best epoch (**Epoch {best_metrics.get('epoch', 'N/A')}**):")
@@ -1325,7 +1402,9 @@ def main():
     # ── Tab 5: Classification vs. Detection Comparison ──────────────────────────
     with tab_comparison:
         st.subheader("⚖️ Classification vs. Detection Model Comparison")
-        st.write("Compare the classification models directly with the detection models on the target task: **image-level abnormal classification**.")
+        
+        comp_label = selected_label if selected_label in ["abnormal", "text"] else "abnormal"
+        st.write(f"Compare the classification models directly with the detection models on the target task: **image-level {comp_label} classification**.")
         
         if df_results.empty:
             st.info("No runs available for comparison.")
@@ -1362,25 +1441,24 @@ def main():
                         st.plotly_chart(fig_cm_cls, use_container_width=False)
                         
                 with col2:
-                    st.markdown("### 🔍 Best Detection Model (Image-Level Conversion)")
+                    st.markdown(f"### 🔍 Best Detection Model (Image-Level {comp_label.capitalize()} Conversion)")
                     st.write(f"**Configuration**: {best_det['short_cfg_name']}")
                     st.write(f"**Model**: {best_det['model']}")
                     st.write(f"**PEFT Type**: {best_det['peft_type']} ({best_det['peft_detail']})")
                     
-                    st.metric("Image Abnormal F1", f"{best_det['img_abnormal_f1']:.4f}")
-                    st.metric("Image Abnormal AUROC", f"{best_det['img_abnormal_auroc']:.4f}")
+                    st.metric(f"Image {comp_label.capitalize()} F1", f"{best_det['img_abnormal_f1']:.4f}")
+                    st.metric(f"Image {comp_label.capitalize()} AUROC", f"{best_det['img_abnormal_auroc']:.4f}")
                     
                     # Confusion Matrix
                     bm_det = best_det["best_metrics"]
-                    abnormal_name_d = best_det.get("abnormal_class_name", "abnormal")
-                    tp_d = bm_det.get(f"eval_custom_cls_tp/{abnormal_name_d}") or bm_det.get("eval_custom_cls_tp/abnormal")
-                    fp_d = bm_det.get(f"eval_custom_cls_fp/{abnormal_name_d}") or bm_det.get("eval_custom_cls_fp/abnormal")
-                    tn_d = bm_det.get(f"eval_custom_cls_tn/{abnormal_name_d}") or bm_det.get("eval_custom_cls_tn/abnormal")
-                    fn_d = bm_det.get(f"eval_custom_cls_fn/{abnormal_name_d}") or bm_det.get("eval_custom_cls_fn/abnormal")
+                    tp_d = bm_det.get(f"eval_custom_cls_tp/{comp_label}") or bm_det.get("eval_custom_cls_tp/abnormal")
+                    fp_d = bm_det.get(f"eval_custom_cls_fp/{comp_label}") or bm_det.get("eval_custom_cls_fp/abnormal")
+                    tn_d = bm_det.get(f"eval_custom_cls_tn/{comp_label}") or bm_det.get("eval_custom_cls_tn/abnormal")
+                    fn_d = bm_det.get(f"eval_custom_cls_fn/{comp_label}") or bm_det.get("eval_custom_cls_fn/abnormal")
                     if all(v is not None for v in [tp_d, fp_d, tn_d, fn_d]):
                         fig_cm_det = px.imshow(
                             [[tn_d, fp_d], [fn_d, tp_d]], x=["Predicted Normal", "Predicted Abnormal"], y=["Actual Normal", "Actual Abnormal"],
-                            color_continuous_scale="Oranges", aspect="auto", text_auto=True, title="Best Converted Detection Confusion Matrix"
+                            color_continuous_scale="Oranges", aspect="auto", text_auto=True, title=f"Best Converted Detection {comp_label.capitalize()} Confusion Matrix"
                         )
                         fig_cm_det.update_layout(coloraxis_showscale=False, width=350, height=220, template="plotly_dark")
                         st.plotly_chart(fig_cm_det, use_container_width=False)
@@ -1400,7 +1478,7 @@ def main():
                 })
                 fig_comp = px.bar(
                     comp_data, x="Metric", y="Value", color="Task", barmode="group",
-                    color_discrete_sequence=["#22c55e", "#ff7f0e"], title="Classification vs. Converted Detection Abnormal Performance",
+                    color_discrete_sequence=["#22c55e", "#ff7f0e"], title=f"Classification vs. Converted Detection {comp_label.capitalize()} Performance",
                     text_auto=".4f"
                 )
                 fig_comp.update_layout(template="plotly_dark", yaxis_range=[0.0, 1.05])
