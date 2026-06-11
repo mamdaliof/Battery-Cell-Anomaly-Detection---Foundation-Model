@@ -1,0 +1,53 @@
+{
+  "best_global_step": 1,
+  "best_metric": 0.20513,
+  "best_model_checkpoint": "outputs/det_all/yolo11m__yolo11m_train/20260610_215557/weights/best.pt",
+  "epoch": 1.0,
+  "global_step": 1,
+  "log_history": [
+    {
+      "epoch": 1.0,
+      "learning_rate": 0.00010002999999999999,
+      "loss": 8.006950378417969,
+      "step": 1
+    },
+    {
+      "epoch": 1.0,
+      "step": 1,
+      "eval_loss": 14.510502815246582,
+      "eval_precision": 0.04706,
+      "eval_recall": 0.10391,
+      "eval_mAP50": 0.02963,
+      "eval_mAP50-95": 0.01041,
+      "eval_custom_mean_bbox_IoU": 0.74295,
+      "eval_custom_mean_bbox_Dice": 0.84523,
+      "eval_custom_cls_accuracy/abnormality": 0.60759,
+      "eval_custom_cls_precision/abnormality": 0.66667,
+      "eval_custom_cls_recall/abnormality": 0.12121,
+      "eval_custom_cls_f1/abnormality": 0.20513,
+      "eval_custom_cls_auroc/abnormality": 0.74802,
+      "eval_custom_cls_tn/abnormality": 44.0,
+      "eval_custom_cls_fp/abnormality": 2.0,
+      "eval_custom_cls_fn/abnormality": 29.0,
+      "eval_custom_cls_tp/abnormality": 4.0,
+      "eval_custom_cls_accuracy/text": 0.46835,
+      "eval_custom_cls_precision/text": 0.0,
+      "eval_custom_cls_recall/text": 0.0,
+      "eval_custom_cls_f1/text": 0.0,
+      "eval_custom_cls_auroc/text": 0.27638,
+      "eval_custom_cls_tn/text": 37.0,
+      "eval_custom_cls_fp/text": 0.0,
+      "eval_custom_cls_fn/text": 42.0,
+      "eval_custom_cls_tp/text": 0.0,
+      "eval_custom_cls_accuracy/abnormal": 0.60759,
+      "eval_custom_cls_precision/abnormal": 0.66667,
+      "eval_custom_cls_recall/abnormal": 0.12121,
+      "eval_custom_cls_f1/abnormal": 0.20513,
+      "eval_custom_cls_auroc/abnormal": 0.74802,
+      "eval_custom_cls_tn/abnormal": 44.0,
+      "eval_custom_cls_fp/abnormal": 2.0,
+      "eval_custom_cls_fn/abnormal": 29.0,
+      "eval_custom_cls_tp/abnormal": 4.0
+    }
+  ]
+}

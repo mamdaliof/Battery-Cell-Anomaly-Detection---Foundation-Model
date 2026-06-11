@@ -288,16 +288,16 @@ def _free_gpus() -> List[int]:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
-    cfg_dir = Path("configs/cls/ablations")
-    out_dir = Path("outputs/cls")
+    cfg_dir = Path("configs/cls/ablations_all_label")
+    out_dir = Path("outputs/cls_all")
     log_dir = out_dir / "logs"
 
     if not cfg_dir.exists():
-        sys.exit("❌  configs/cls/ablations/ not found. Run generate_ablation_grid.py first.")
+        sys.exit("❌  configs/cls/ablations_all_label/ not found. Run generate_ablation_grid.py first.")
 
     cfg_files = sorted(cfg_dir.glob("*.yaml"))
     if not cfg_files:
-        sys.exit("❌  No YAML configs in configs/cls/ablations/")
+        sys.exit("❌  No YAML configs in configs/cls/ablations_all_label/")
 
     print(f"🔍  Found {len(cfg_files)} configs.")
     print("🧹  Scanning for completed runs…")

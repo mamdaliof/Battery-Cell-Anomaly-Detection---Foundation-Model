@@ -26,15 +26,19 @@ def main():
     print("=" * 80)
 
     # 1. Check CLS configurations
-    cls_configs = glob.glob("configs/cls/ablations/*.yaml")
+    cls_configs = glob.glob("configs/cls/ablations_all_label/*.yaml")
     missing_cls = []
     for cfg in cls_configs:
         abs_cfg = os.path.abspath(cfg)
         if abs_cfg not in completed_configs:
             missing_cls.append(cfg)
 
-    # 2. Check DET configurations
-    det_configs = glob.glob("configs/det/ablations/*.yaml")
+    # 2. Check DET configurations across all 3 datasets
+    det_configs = (
+        glob.glob("configs/det/ablations_all_label/*.yaml") +
+        glob.glob("configs/det/ablations_no_cell/*.yaml") +
+        glob.glob("configs/det/ablations_abnormal_only/*.yaml")
+    )
     missing_det = []
     for cfg in det_configs:
         abs_cfg = os.path.abspath(cfg)

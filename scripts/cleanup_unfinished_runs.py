@@ -7,6 +7,8 @@ Deletes folders that do not have a DONE file or are missing weight files.
 import os
 import shutil
 import sys
+import re
+import json
 
 def verify_weights(root, task):
     if task == "cls":
@@ -22,6 +24,17 @@ def verify_weights(root, task):
         )
     return False
 
+def verify_trainer_state(root):
+    state_path = os.path.join(root, "trainer_state.json")
+    if not os.path.exists(state_path) or os.path.getsize(state_path) == 0:
+        return False
+    try:
+        with open(state_path, "r") as f:
+            json.load(f)
+        return True
+    except Exception:
+        return False
+
 def main():
     base_path = "outputs"
     if not os.path.exists(base_path):
@@ -36,23 +49,44 @@ def main():
         rel_path = os.path.relpath(root, base_path)
         parts = [p for p in rel_path.split(os.sep) if p and p != "."]
         
-        # We only care about directories at depth 3 under outputs (e.g. outputs/{cls|det}/{run_name}/{timestamp})
-        if len(parts) != 3:
-            continue
-            
-        task = parts[0]
-        run_name = parts[1]
-        timestamp = parts[2]
-        
-        if task not in ("cls", "det"):
-            continue
-            
         if any(p in ("log", "runs", ".ipynb_checkpoints") for p in parts):
             continue
 
-        # Check if training finished successfully and weights were saved
+        # Identify run directories by the timestamp format (e.g. 20260609_222030)
+        timestamp = parts[-1] if parts else ""
+        if not re.match(r"^\d{8}_\d{6}$", timestamp):
+            continue
+
+        # Determine the task (cls or det) based on path or contents
+        task = "unknown"
+        for part in parts:
+            if "cls" in part:
+                task = "cls"
+                break
+            elif "det" in part or "no_cell" in part or "only_cell" in part or "abnormal_only" in part:
+                task = "det"
+                break
+
+        if task == "unknown":
+            config_path = os.path.join(root, "config.yaml")
+            if not os.path.exists(config_path):
+                config_path = os.path.join(root, "args.yaml")
+            if os.path.exists(config_path):
+                try:
+                    with open(config_path, "r") as f:
+                        cfg = yaml.safe_load(f)
+                    if cfg and ("yolo_model_config" in cfg or "yolo_data_yaml" in cfg):
+                        task = "det"
+                    else:
+                        task = "cls"
+                except Exception:
+                    task = "cls"
+            else:
+                task = "cls"
+
+        # Check if training finished successfully and weights/trainer_state were saved correctly
         has_done = "DONE" in files
-        is_valid = has_done and verify_weights(root, task)
+        is_valid = has_done and verify_weights(root, task) and verify_trainer_state(root)
 
         if not is_valid:
             to_delete.append(root)

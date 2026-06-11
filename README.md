@@ -51,7 +51,7 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
   - **Efficient augmentations**: Gaussian noise augmentation uses direct **NumPy array injection**, avoiding costly PIL↔Tensor round-trips.
   - **Deferred checkpointing**: `state_dict()` is only called inside callbacks when an actual metric improvement is detected, reducing unnecessary I/O overhead.
   - **Evaluation & saving**: Evaluation, checkpointing, and logging are performed **per epoch** (`eval_strategy='epoch'`, `save_strategy='epoch'`, and `logging_strategy='epoch'`) to ensure consistent, stable checkpoint evaluation.
-  - Each training run creates a unique run directory under `outputs/cls/` or `outputs/det/` (e.g. `outputs/cls/{safe_model_name}__{cfg_stem}/{timestamp}/`) to prevent concurrent folder write collisions when running parallel GPU runs, and copies the used YAML config into that directory as `config.yaml` for reproducibility.
+  - Each training run creates a unique run directory under the corresponding output folder: `outputs/cls_all/`, `outputs/det_all/`, `outputs/det_no_cell/`, or `outputs/det_abnormal/` (e.g. `outputs/cls_all/{safe_model_name}__{cfg_stem}/{timestamp}/`) to prevent concurrent folder write collisions when running parallel GPU runs, and copies the used YAML config into that directory as `config.yaml` for reproducibility.
 
 - **📊 Metrics and objective**
   - Target task: binary classification (normal vs abnormal) on highly imbalanced battery cell data.
@@ -85,7 +85,7 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
   - Uses **threading** to parse subprocess stdout in real-time.
   - Fixed **8-line in-place ANSI terminal display** (no scrolling) for live monitoring.
   - Shows: GPU ID, config name, epoch progress, tqdm bar, loss, F1, and completion status.
-  - Full output per config is logged to `outputs/logs/<config_name>.log`.
+  - Full output per config is logged to `outputs/{strategy}/logs/<config_name>.log`.
 
 - **🎯 YOLO26 + DINOv3 SFP Object Detection**
   - Integrated the DINOv3 vision backbone and a **Simple Feature Pyramid (SFP)** neck with standard **Ultralytics YOLO26** object detection head and native losses.
@@ -150,13 +150,25 @@ torchrun --nproc_per_node=4 scripts/train.py --config configs/baseline.yaml
 ```
 
 ### Parallel Ablations (8-GPU dashboard)
-```bash
-python run_parallel_ablations.py
-```
+* **Classification**:
+  ```bash
+  python scripts/run_parallel_ablations.py
+  ```
+* **Detection (across all 3 datasets)**:
+  ```bash
+  # 1. All Labels (battery_detection_all)
+  python scripts/run_parallel_det_ablations.py --config_dir configs/det/ablations_all_label
+
+  # 2. No Cell (battery_detection_no_cell)
+  python scripts/run_parallel_det_ablations.py --config_dir configs/det/ablations_no_cell
+
+  # 3. Abnormal Only (battery_detection_abnormal_only)
+  python scripts/run_parallel_det_ablations.py --config_dir configs/det/ablations_abnormal_only
+  ```
 
 ## 🔬 PEFT Training Example
 ```bash
-torchrun --nproc_per_node=2 scripts/train.py --config configs/peft_smoke.yaml
+torchrun --nproc_per_node=2 scripts/train.py --config configs/cls/peft_smoke_all_label.yaml
 ```
 
 ## 🧪 Testing & Verification
@@ -170,13 +182,49 @@ python -m pytest tests/test_yolo_shapes.py
 # Ablation config validation
 python scripts/validate_ablation_configs.py
 
+# Check completed/incomplete training run status
+python scripts/check_ablation_status.py
+# Use the --show-completed flag to list successfully completed runs:
+python scripts/check_ablation_status.py --show-completed
+
 # Launch visualizer dashboard
 streamlit run visualize.py --server.port 8501
 ```
 
+## 💡 Project Experimentation & Config Architecture
+
+This section explains the core goals, directory architecture, and configuration layouts of the project in simple terms.
+
+### 1. Project Objective & Methodology
+* **Core Goal**: Compare Parameter-Efficient Fine-Tuning (PEFT) methods (LoRA, Pfeiffer Bottleneck Adapters, and VPT) against standard full fine-tuning.
+* **Task Comparison**: 
+  * **Classification**: Compares how different PEFT adapters perform on a frozen DINOv3 foundation model to classify images as normal or abnormal under class imbalance.
+  * **Detection**: Compares the custom YOLO26 architecture (frozen DINOv3 backbone + trainable SFP neck + YOLO detection head wrapped with PEFT) against standard fully-trained YOLO architectures (YOLOv8 and YOLO11).
+* **Dataset Strategy Ablations**: In addition to comparing architectures, we train detection models on three distinct dataset strategies to see how learning other structures affects abnormality localization:
+  1. `all_label` (classes: abnormality, cell, text)
+  2. `no_cell` (classes: abnormality, text)
+  3. `abnormal_only` (class: abnormality)
+
+### 2. Configuration Directories (`configs/`)
+To systematically execute the grid search of hyperparameters, we use python scripts under `scripts/` to generate configuration YAML files:
+* `configs/cls/ablations_all_label/`: Contains 60 classification experiment configs (sweeping PEFT types, layers to transform, ranks, and learning rates).
+* `configs/det/`:
+  * `ablations_all_label/`: Contains the 61 PEFT-DINOv3 and standard YOLO configs trained on the `all_label` split.
+  * `ablations_no_cell/`: Contains the same configs trained on the `no_cell` split.
+  * `ablations_abnormal_only/`: Contains the same configs trained on the `abnormal_only` split.
+  * `yolo_variants/`: Holds standard model architecture YAML templates (e.g. `yolo26l.yaml`, `yolo26x.yaml`) defining the scale configuration for custom YOLO26 detection layers.
+
+### 3. Comparing Performance on Abnormality Detection
+* During validation, the custom validator evaluates bounding boxes **individually for each label** (computing TP, FP, FN, Precision, Recall, F1, and mAP50 for each specific class).
+* These metrics are saved in `trainer_state.json` under keys like `eval_custom_F1/abnormality` and `eval_custom_mAP50/abnormality`.
+* Because the anomaly class is consistently named `"abnormality"` across all three strategies, you can directly compare this metric across different models trained on `all_label`, `no_cell`, and `abnormal_only` to analyze the exact impact of each dataset strategy on localizing anomalies.
+
+---
+
 ## 🛠️ Development Logs
 
 The evolution and detailed implementation steps of the codebase are recorded in the developer logs:
+- [DEVLOG_STATUS_CHECKER_AND_MULTI_DATASET_RUNNER.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_STATUS_CHECKER_AND_MULTI_DATASET_RUNNER.md): Explains updates to status check scripts (recursive folder depth, corruption detection, completed filter) and updates to parallel detection runners supporting three different dataset strategies.
 - [DEVLOG_YOLO_AUGMENTATION_AND_CLASS_SYNC.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_YOLO_AUGMENTATION_AND_CLASS_SYNC.md): Connects YOLO augmentations to YAML configuration, maps classification default parameters, and aligns class names across dashboards and metrics validator.
 - [DEVLOG_YOLO_DINO_PEFT_INTEGRATION_AND_REORGANIZATION.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_YOLO_DINO_PEFT_INTEGRATION_AND_REORGANIZATION.md): Integrates PEFT inside the YOLO detection model, config/output folder reorganization, and gradient routing.
 - [DEVLOG_LORA_BLOCK_TARGETING_FIX.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_LORA_BLOCK_TARGETING_FIX.md): Rewrote LoRA block-targeting using an architecture-agnostic freezing strategy.

@@ -1,9 +1,9 @@
 model_name: "facebook/dinov3-vitb16-pretrain-lvd1689m"
-output_dir: "outputs/all_label"
+output_dir: "outputs/det_all"
 
 # YOLO specific options
 yolo_model_config: "configs/det/yolo26_dino.yaml"
-yolo_data_yaml: "data/battery_detection_all.yaml"
+yolo_data_yaml: "data/det_v1.0/battery_detection_all.yaml"
 
 # Data configuration
 # WARNING: Standard augmentation fields below are placeholders kept for classification schema parity.

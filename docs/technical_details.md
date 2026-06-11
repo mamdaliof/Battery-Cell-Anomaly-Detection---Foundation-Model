@@ -416,16 +416,27 @@ Outputs a **PASS/FAIL report** with per-config parameter summaries:
        Error: Adapter dim 32 exceeds hidden_dim for ViT-S/16 block
 ```
 
-### 🚀 6.3. Parallel Training Runner (`scripts/run_parallel_ablations.py`)
+### 🚀 6.3. Parallel Training Runners (`scripts/run_parallel_ablations.py` & `scripts/run_parallel_det_ablations.py`)
 
 Distributes training jobs across **8 GPUs** using a shared queue architecture.
+
+* **Classification**: Managed via `scripts/run_parallel_ablations.py` which targets `configs/cls/ablations_all_label/`.
+* **Detection**: Managed via `scripts/run_parallel_det_ablations.py` which targets object detection configurations. It supports multi-dataset strategies via the `--config_dir` argument:
+  ```bash
+  # Run for All Labels split
+  python scripts/run_parallel_det_ablations.py --config_dir configs/det/ablations_all_label
+  # Run for No Cell split
+  python scripts/run_parallel_det_ablations.py --config_dir configs/det/ablations_no_cell
+  # Run for Abnormal Only split
+  python scripts/run_parallel_det_ablations.py --config_dir configs/det/ablations_abnormal_only
+  ```
 
 #### Execution Architecture
 
 ```mermaid
 graph TD
     subgraph Main Thread
-        Q["Job Queue<br/>(58 configs)"] --> Assign["GPU Slot Assignment"]
+        Q["Job Queue<br/>(Abilities Grid)"] --> Assign["GPU Slot Assignment"]
         Assign --> |"CUDA_VISIBLE_DEVICES=i"| Sub0["subprocess.Popen<br/>GPU 0"]
         Assign --> |"CUDA_VISIBLE_DEVICES=i"| Sub1["subprocess.Popen<br/>GPU 1"]
         Assign --> |"..."| SubN["..."]
@@ -452,11 +463,11 @@ graph TD
 |---|---|
 | **GPU isolation** | Each subprocess launched with `CUDA_VISIBLE_DEVICES` environment variable |
 | **Concurrency** | One config per GPU at a time; 8 jobs run in parallel |
-| **Progress parsing** | 8 reader threads parse subprocess stdout via regex for epoch, loss, and F1 |
+| **Progress parsing** | 8 reader threads parse subprocess stdout via regex for epoch, loss, and F1/mAP50 |
 | **Thread safety** | Shared `_slots` dictionary guarded by `threading.Lock` |
 | **Terminal dashboard** | ANSI escape codes for fixed 8-line in-place display |
-| **Logging** | Full logs per config written to `outputs/logs/<config_name>.log` |
-| **Resume support** | Skips configs with existing completed output directories |
+| **Logging** | Full logs per config written to `outputs/det/logs/<config_name>.log` or `outputs/cls/logs/<config_name>.log` |
+| **Resume support** | Skips configs with existing completed output directories (matching parameters and dataset config strings) |
 | **Graceful shutdown** | `Ctrl+C` handler terminates all subprocesses cleanly |
 
 #### Output Directory Collision Resolution
@@ -464,17 +475,32 @@ graph TD
 When executing multiple parallel ablation runs concurrently, a race condition occurred where concurrent runs generated identical seconds-level timestamps. This caused directory name clashes, resulting in file access conflicts and `SafetensorError: I/O error` failures when attempting to save or load checkpoints.
 
 To resolve this, output directories are now isolated by appending the original configuration file's stem (`__cfg_stem`) before the timestamp:
-`outputs/cls__<safe_model_name>__<cfg_stem>/<timestamp>`
+`outputs/cls__<safe_model_name>__<cfg_stem>/<timestamp>` or `outputs/<strategy>/det/<safe_model_name>__<cfg_stem>/<timestamp>`
 
 #### Dashboard Display
 
 Each of the 8 lines displays:
 
 ```
-[GPU 3] 007_lora_vit-b16_r16 | Epoch 42/300 |████████░░| loss: 0.234 | F1: 0.891 | training
+[GPU 3] 007_lora_vit-b16_r16 | Epoch 42/300 |████████░░| loss: 0.234 | F1/mAP50: 0.891 | training
 ```
 
-Fields: GPU ID, config name, epoch progress, tqdm-style bar, current loss, current F1 score, status (`loading` / `training` / `done` / `failed`).
+Fields: GPU ID, config name, epoch progress, tqdm-style bar, current loss, current F1 score (classification) or mAP50 (detection), status (`loading` / `training` / `done` / `failed`).
+
+---
+
+### 🔍 6.4. Training Status Check & Cleanup Utilities
+
+To audit running results and prune interrupted folders, two main scripts are provided:
+
+1. **Status Checker (`scripts/check_ablation_status.py`)**:
+   * Scans all subdirectories under `outputs/` at any depth to trace completed vs. incomplete runs, supporting nested strategy output folders.
+   * Verifies successful completion by checking the presence of a `DONE` file, non-empty weights (`verify_weights`), and a valid `trainer_state.json` file.
+   * Runs that completed but lack weights or have corrupt state files are flagged as **Failed / Incorrect Runs**.
+   * Provides a `--show-completed` argument to show details of successful runs, hiding them by default to focus on incomplete ones.
+   * Prints a list of config files to run again.
+2. **Cleanup Script (`scripts/cleanup_unfinished_runs.py`)**:
+   * Scans the `outputs/` directory for any runs marked as incomplete or invalid (missing weights/corrupt state/no `DONE` file) and prunes them from disk to free storage space.
 
 ---
 
@@ -845,6 +871,21 @@ During VPT training, standard Hugging Face checkpoint serialization can raise a 
 To resolve this:
 - **PyTorch Fallback**: Overrides the custom `_save` method in `ImbalanceTrainer` to catch Safetensors serialization exceptions and automatically save weights in standard PyTorch pickle format (`pytorch_model.bin`).
 - **Monkeypatched Security Checks**: Globally overrides `check_torch_load_is_safe` across `transformers.trainer` and `transformers.utils` namespaces inside `scripts/train.py`. This bypasses the security version lock, enabling the trainer to seamlessly load pickle format weights during evaluation and best-model checkpoint selection.
+
+### 13.5. GPU VRAM Optimization & OOM Mitigation
+To support standard and custom YOLO models on GPUs with 15GB VRAM (e.g., NVIDIA A16), the configuration generators dynamically adjust the training `batch_size` based on the model scale to prevent PyTorch CUDA Out Of Memory (OOM) errors during backward passes:
+- **Nano (`n`) / Small (`s`)**: batch size 64 (both DINOv3 and standard YOLO backbones)
+- **Medium (`m`)**: batch size 32 (both DINOv3 and standard YOLO backbones)
+- **Large (`l`)**: batch size 16 (standard YOLO at $640 \times 640$) or 32 (YOLO26 with DINOv3 at $256 \times 256$)
+- **Largest (`x`)**: batch size 8 (standard YOLO at $640 \times 640$) or 16 (YOLO26 with DINOv3 at $256 \times 256$)
+
+This optimization guarantees stable parallel training execution across the entire 219 configuration combination matrix of the multi-dataset ablation study.
+
+### 13.6. Robust Multi-Dataset Logging and Status Verification
+To prevent filesystem race conditions and config name collisions:
+- **Strategy-Specific Logging**: Log files for subprocess execution in `scripts/run_parallel_det_ablations.py` are saved in separate subdirectories `outputs/{strategy}/det/logs/`.
+- **Strategy-Aware Status Checker**: `scripts/check_ablation_status.py` extracts the strategy namespace from the run folder path to correctly pair the run with its original configuration file.
+
 ```
 
 

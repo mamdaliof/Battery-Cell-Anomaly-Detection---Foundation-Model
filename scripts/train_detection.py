@@ -89,7 +89,7 @@ def main() -> None:
     task_name = "det"  # detection task name
     
     # Create run-specific output directory under outputs/det
-    base_out = Path(cfg.output_dir) / task_name
+    base_out = Path(cfg.output_dir)
     safe_model_name = cfg.model_name.replace("/", "-")
     cfg_stem = Path(args.config).stem
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

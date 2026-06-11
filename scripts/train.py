@@ -104,7 +104,7 @@ def main() -> None:
     task_name = "cls"  # classification; later other tasks (e.g. seg, det) can use different prefixes
 
     # Create run-specific output directory: outputs/{task_name}/{safe_model_name}__{cfg_stem}/{timestamp}
-    base_out = Path(cfg.output_dir) / task_name
+    base_out = Path(cfg.output_dir)
     safe_model_name = cfg.model_name.replace("/", "-")
     cfg_stem = Path(args.config).stem
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

@@ -1,5 +1,5 @@
 model_name: "facebook/dinov3-vitb16-pretrain-lvd1689m"
-output_dir: "outputs/all_label"  # base directory where all experiment runs will be stored
+output_dir: "outputs/cls_all"  # base directory where all experiment runs will be stored
 
 # Data configuration
 data:

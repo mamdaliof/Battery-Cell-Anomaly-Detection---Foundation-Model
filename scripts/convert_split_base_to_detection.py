@@ -55,9 +55,9 @@ VARIANTS = {
         "labels": {"abnormality", "text"},
         "mapping": {"abnormality": 0, "text": 1}
     },
-    "only_cell": {
-        "labels": {"cell"},
-        "mapping": {"cell": 0}
+    "abnormal_only": {
+        "labels": {"abnormality"},
+        "mapping": {"abnormality": 0}
     }
 }
 

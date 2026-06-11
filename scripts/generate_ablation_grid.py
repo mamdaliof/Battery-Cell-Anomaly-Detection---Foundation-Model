@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import Any, Dict
 
 def main():
-    # Load base configuration as template
-    base_config_path = Path("configs/cls/benchmark_baseline.yaml")
+    # Load base configuration as template (use peft_smoke_all_label as template)
+    base_config_path = Path("configs/cls/peft_smoke_all_label.yaml")
     if not base_config_path.exists():
         print(f"❌ Error: {base_config_path} does not exist.")
         return
@@ -23,9 +23,10 @@ def main():
     base_cfg["early_stopping_patience"] = 20
     base_cfg["amp"]["fp16"] = True
     base_cfg["amp"]["bf16"] = False
+    base_cfg["output_dir"] = "outputs/cls_all"
 
     # Output directory
-    out_dir = Path("configs/cls/ablations")
+    out_dir = Path("configs/cls/ablations_all_label")
     # Clean previous generated yaml files to avoid mixing old/new runs
     if out_dir.exists():
         for f in out_dir.glob("*.yaml"):
@@ -175,25 +176,7 @@ def main():
                     generated_configs.append(path)
                     run_id += 1
 
-    # Write runner shell script
-    runner_path = Path("run_ablations.sh")
-    with open(runner_path, "w") as f:
-        f.write("#!/bin/bash\n\n")
-        f.write("# Exit immediately on failure\nset -e\n\n")
-        f.write("export PYTHONPATH=$(pwd)/src:$PYTHONPATH\n\n")
-        f.write(f"echo \"🚀 Starting Ablation Study execution sequence ({len(generated_configs)} runs)...\"\n\n")
-        
-        for config_file in generated_configs:
-            f.write(f"echo \"----------------------------------------------------------------\"\n")
-            f.write(f"echo \"🏃 Running config: {config_file}\"\n")
-            f.write(f"python scripts/train.py --config {config_file}\n\n")
-            
-        f.write(f"echo \"🎉 All {len(generated_configs)} ablation runs completed successfully!\"\n")
-        
-    os.chmod(runner_path, 0o755)
-
     print(f"✅ Generated {len(generated_configs)} configuration files under {out_dir}/")
-    print(f"✅ Generated execution script: {runner_path}")
 
 if __name__ == "__main__":
     main()

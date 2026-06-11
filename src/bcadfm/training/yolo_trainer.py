@@ -15,9 +15,9 @@ from ultralytics.models.yolo.detect.train import DetectionTrainer
 from ultralytics.models.yolo.detect.val import DetectionValidator
 from ultralytics.utils.metrics import box_iou
 
-# Force Ultralytics to use outputs/det as the default run directory
+# Force Ultralytics to use outputs as the default run directory
 try:
-    settings.update({"runs_dir": "outputs/det"})
+    settings.update({"runs_dir": "outputs"})
 except Exception as e:
     print(f"⚠️ [WARN] Failed to set Ultralytics runs_dir setting: {e}")
 

@@ -12,7 +12,7 @@ def main():
         original_yaml_content = f.read()
 
     yolo_variants_dir = workspace / "configs" / "det" / "yolo_variants"
-    ablations_dir = workspace / "configs" / "det" / "ablations"
+    ablations_dir = workspace / "configs" / "det" / "ablations_all_label"
     
     yolo_variants_dir.mkdir(parents=True, exist_ok=True)
     ablations_dir.mkdir(parents=True, exist_ok=True)
@@ -20,7 +20,7 @@ def main():
     scales = ["n", "s", "m", "l", "x"]
 
     # Load template config from one of standard yolo training configs
-    template_config_path = yolo_variants_dir / "yolo11n_train.yaml"
+    template_config_path = ablations_dir / "yolo11n_train.yaml"
     with open(template_config_path, "r") as f:
         train_template = yaml.safe_load(f)
 
@@ -50,11 +50,11 @@ def main():
         with open(yolo_variants_dir / train_filename, "w") as f:
             yaml.safe_dump(train_cfg, f)
             
-        # Write to configs/det/ablations/
+        # Write to configs/det/ablations_all_label/
         with open(ablations_dir / train_filename, "w") as f:
             yaml.safe_dump(train_cfg, f)
 
-        print(f"Generated training config: configs/det/ablations/{train_filename}")
+        print(f"Generated training config: configs/det/ablations_all_label/{train_filename}")
 
 if __name__ == "__main__":
     main()
