@@ -386,11 +386,33 @@ def update_best_metrics_inplace(df: pd.DataFrame, benchmark_metric: str, mode: s
             
             df.at[idx, "img_abnormality_f1"] = best_step.get(f"eval_custom_cls_f1/{selected_label}", 0.0) if is_det else best_step.get("eval_f1", 0.0)
             df.at[idx, "img_abnormality_auroc"] = best_step.get(f"eval_custom_cls_auroc/{selected_label}", 0.5) if is_det else best_step.get("eval_auroc", 0.5)
+            
+            # Extract individual columns for leaderboard selection
+            df.at[idx, "eval_f1"] = best_step.get("eval_f1", None)
+            df.at[idx, "eval_accuracy"] = best_step.get("eval_accuracy", None)
+            df.at[idx, "eval_auroc"] = best_step.get("eval_auroc", None)
+            df.at[idx, "eval_loss"] = best_step.get("eval_loss", None)
+            df.at[idx, "eval_mAP50"] = best_step.get("eval_mAP50", None)
+            df.at[idx, "eval_mAP50-95"] = best_step.get("eval_mAP50-95", None)
+            df.at[idx, "eval_precision"] = best_step.get("eval_precision", None)
+            df.at[idx, "eval_recall"] = best_step.get("eval_recall", None)
+            df.at[idx, "eval_custom_mean_bbox_IoU"] = best_step.get("eval_custom_mean_bbox_IoU", None)
+            df.at[idx, "eval_custom_mean_bbox_Dice"] = best_step.get("eval_custom_mean_bbox_Dice", None)
+            
+            df.at[idx, "image_cls_f1"] = best_step.get(f"eval_custom_cls_f1/{selected_label}", None) if is_det else best_step.get("eval_f1", None)
+            df.at[idx, "image_cls_auroc"] = best_step.get(f"eval_custom_cls_auroc/{selected_label}", None) if is_det else best_step.get("eval_auroc", None)
+            df.at[idx, "image_cls_precision"] = best_step.get(f"eval_custom_cls_precision/{selected_label}", None) if is_det else best_step.get("eval_precision", None)
+            df.at[idx, "image_cls_recall"] = best_step.get(f"eval_custom_cls_recall/{selected_label}", None) if is_det else best_step.get("eval_recall", None)
         else:
             df.at[idx, "best_eval_f1"] = 0.0
             df.at[idx, "best_eval_loss"] = None
             df.at[idx, "img_abnormality_f1"] = 0.0
             df.at[idx, "img_abnormality_auroc"] = 0.5
+            
+            for col in ["eval_f1", "eval_accuracy", "eval_auroc", "eval_loss", "eval_mAP50", "eval_mAP50-95", 
+                        "eval_precision", "eval_recall", "eval_custom_mean_bbox_IoU", "eval_custom_mean_bbox_Dice",
+                        "image_cls_f1", "image_cls_auroc", "image_cls_precision", "image_cls_recall"]:
+                df.at[idx, col] = None
 
 def main():
     st.set_page_config(
@@ -697,7 +719,7 @@ def main():
     # ── Tab 1: Leaderboard ─────────────────────────────────────────────────────
     with tab_leaderboard:
         st.subheader("🏆 Ablation Experiment Leaderboard")
-        st.write("Showing all configurations matching filters. Sort by any column, prioritized by **Image-Level Abnormality F1 Score**.")
+        st.write("Showing all configurations matching filters. Select which validation metrics to display in the table.")
         
         if df_filtered.empty:
             st.info("No runs match the current filters. Please adjust the sidebar settings.")
@@ -708,35 +730,53 @@ def main():
             # Map completed boolean to emojis for rich design
             display_df["status"] = display_df["completed"].apply(lambda x: "✅ Completed" if x else "⏳ Active/Interrupted")
             
-            # Formatted column values for presentation
-            display_df["Task Metric (F1/mAP50)"] = display_df.apply(
-                lambda r: f"{r['best_metrics'].get('eval_mAP50', 0.0):.5f} (mAP50)" if r["task"] == "Detection"
-                else f"{r['best_eval_f1']:.5f} (F1)",
-                axis=1
+            # Available metrics choices
+            available_metrics_map = {
+                "eval_loss": "Validation Loss",
+                "eval_f1": "Validation F1 (Classification)",
+                "eval_accuracy": "Validation Accuracy (Classification)",
+                "eval_auroc": "Validation AUROC (Classification)",
+                "eval_mAP50": "Bbox mAP50 (Detection)",
+                "eval_mAP50-95": "Bbox mAP50-95 (Detection)",
+                "eval_precision": "Bbox/Cls Precision",
+                "eval_recall": "Bbox/Cls Recall",
+                "eval_custom_mean_bbox_IoU": "Bbox Mean IoU (Detection)",
+                "eval_custom_mean_bbox_Dice": "Bbox Mean Dice (Detection)",
+                "image_cls_f1": f"Image {selected_label.capitalize()} F1 (Converted)",
+                "image_cls_auroc": f"Image {selected_label.capitalize()} AUROC (Converted)",
+                "image_cls_precision": f"Image {selected_label.capitalize()} Precision (Converted)",
+                "image_cls_recall": f"Image {selected_label.capitalize()} Recall (Converted)"
+            }
+            
+            default_metrics = ["eval_loss", "image_cls_f1", "image_cls_auroc"]
+            if selected_task == "Detection" or any(df_filtered["task"] == "Detection"):
+                default_metrics.extend(["eval_mAP50", "eval_custom_mean_bbox_IoU", "eval_custom_mean_bbox_Dice"])
+            elif selected_task == "Classification" or any(df_filtered["task"] == "Classification"):
+                default_metrics.append("eval_f1")
+            
+            # Keep only metrics that exist in map
+            default_metrics = [m for m in default_metrics if m in available_metrics_map]
+            
+            selected_metrics_keys = st.multiselect(
+                "Leaderboard Metrics to Display",
+                options=list(available_metrics_map.keys()),
+                default=default_metrics,
+                format_func=lambda x: available_metrics_map[x]
             )
-            
-            f1_col_name = f"Image {selected_label.capitalize()} F1"
-            auroc_col_name = f"Image {selected_label.capitalize()} AUROC"
-            display_df[f1_col_name] = display_df["img_abnormality_f1"].map(lambda x: f"{x:.5f}")
-            display_df[auroc_col_name] = display_df["img_abnormality_auroc"].map(lambda x: f"{x:.5f}")
-            
-            display_df["Best Val Loss"] = display_df["best_eval_loss"].map(lambda x: f"{x:.5f}" if pd.notna(x) else "N/A")
-            display_df["Final Train Loss"] = display_df["final_train_loss"].map(lambda x: f"{x:.5f}" if pd.notna(x) else "N/A")
-            display_df["LR"] = display_df["lr"].map(lambda x: f"{x:.5f}")
             
             # Parameter formatting
             display_df["Total Params"] = display_df["total_params"].map(lambda x: f"{x:,}" if pd.notna(x) else "N/A")
             display_df["Trainable Params"] = display_df["trainable_params"].map(lambda x: f"{x:,}" if pd.notna(x) else "N/A")
             display_df["% Trainable"] = display_df["pct_trainable"].map(lambda x: f"{x:.4f}%" if pd.notna(x) else "N/A")
+            display_df["LR"] = display_df["lr"].map(lambda x: f"{x:.5f}")
             
+            # Base columns (always present)
             leaderboard_cols = [
                 "short_cfg_name", "task", "dataset", "model", "peft_type", "peft_detail", 
-                "imbalance_strategy", "LR", "Total Params", "Trainable Params", "% Trainable",
-                "Task Metric (F1/mAP50)", f1_col_name, auroc_col_name, "Best Val Loss", "Final Train Loss", "status"
+                "imbalance_strategy", "LR", "Total Params", "Trainable Params", "% Trainable"
             ]
             
-            # Rename columns for presentation
-            renamed_df = display_df[leaderboard_cols].rename(columns={
+            rename_map = {
                 "short_cfg_name": "Configuration",
                 "task": "Task",
                 "dataset": "Dataset",
@@ -745,15 +785,31 @@ def main():
                 "peft_detail": "PEFT Hyperparams",
                 "imbalance_strategy": "Imbalance Strategy",
                 "status": "Status"
-            })
+            }
             
-            # Highlight max F1 score row
-            def highlight_max_f1(s):
-                is_max = s == s.max() if s.name == f1_col_name else [False] * len(s)
-                return ['background-color: rgba(79, 172, 254, 0.25)' if v else '' for v in is_max]
+            # Map selected metrics into display_df and leaderboard_cols
+            for metric_key in selected_metrics_keys:
+                clean_name = available_metrics_map[metric_key]
+                display_df[clean_name] = display_df[metric_key].map(lambda x: f"{x:.5f}" if pd.notna(x) else "N/A")
+                leaderboard_cols.append(clean_name)
+                
+            # Add final train loss and status at the end
+            display_df["Final Train Loss"] = display_df["final_train_loss"].map(lambda x: f"{x:.5f}" if pd.notna(x) else "N/A")
+            leaderboard_cols.extend(["Final Train Loss", "status"])
+            
+            renamed_df = display_df[leaderboard_cols].rename(columns=rename_map)
+            
+            # Highlight max values for F1/mAP/accuracy columns dynamically
+            def highlight_max_metric(s):
+                is_metric = any(term in s.name for term in ["F1", "mAP", "IoU", "Dice", "Accuracy", "AUROC", "Recall", "Precision"]) and "Loss" not in s.name
+                if is_metric:
+                    numeric_vals = pd.to_numeric(s, errors='coerce')
+                    is_max = numeric_vals == numeric_vals.max()
+                    return ['background-color: rgba(79, 172, 254, 0.25)' if v else '' for v in is_max]
+                return [''] * len(s)
             
             st.dataframe(
-                renamed_df.style.apply(highlight_max_f1, subset=[f1_col_name]),
+                renamed_df.style.apply(highlight_max_metric),
                 use_container_width=True
             )
 
