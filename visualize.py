@@ -764,16 +764,54 @@ def main():
                 format_func=lambda x: available_metrics_map[x]
             )
             
+            # Sort controls
+            col_sort_1, col_sort_2 = st.columns(2)
+            with col_sort_1:
+                sort_options = ["Configuration", "Dataset", "Total Params", "Trainable Params", "% Trainable"] + [available_metrics_map[m] for m in selected_metrics_keys]
+                default_sort_val = available_metrics_map["image_cls_f1"] if "image_cls_f1" in selected_metrics_keys else sort_options[0]
+                default_sort_idx = sort_options.index(default_sort_val) if default_sort_val in sort_options else 0
+                sort_by_col = st.selectbox(
+                    "Sort Leaderboard By",
+                    options=sort_options,
+                    index=default_sort_idx
+                )
+            with col_sort_2:
+                sort_direction = st.radio(
+                    "Sort Order",
+                    options=["Descending", "Ascending"],
+                    index=0,
+                    horizontal=True
+                )
+            
+            # Map clean name back to raw key for proper numerical sorting
+            reverse_rename_map = {
+                "Configuration": "short_cfg_name",
+                "Dataset": "dataset",
+                "Total Params": "total_params",
+                "Trainable Params": "trainable_params",
+                "% Trainable": "pct_trainable"
+            }
+            reverse_metrics_map = {v: k for k, v in available_metrics_map.items()}
+            
+            raw_sort_key = None
+            if sort_by_col in reverse_rename_map:
+                raw_sort_key = reverse_rename_map[sort_by_col]
+            elif sort_by_col in reverse_metrics_map:
+                raw_sort_key = reverse_metrics_map[sort_by_col]
+                
+            if raw_sort_key and raw_sort_key in display_df.columns:
+                display_df = display_df.sort_values(by=raw_sort_key, ascending=(sort_direction == "Ascending"))
+                
             # Parameter formatting
-            display_df["Total Params"] = display_df["total_params"].map(lambda x: f"{x:,}" if pd.notna(x) else "N/A")
-            display_df["Trainable Params"] = display_df["trainable_params"].map(lambda x: f"{x:,}" if pd.notna(x) else "N/A")
-            display_df["% Trainable"] = display_df["pct_trainable"].map(lambda x: f"{x:.4f}%" if pd.notna(x) else "N/A")
+            display_df["Total Params Formatted"] = display_df["total_params"].map(lambda x: f"{x:,}" if pd.notna(x) else "N/A")
+            display_df["Trainable Params Formatted"] = display_df["trainable_params"].map(lambda x: f"{x:,}" if pd.notna(x) else "N/A")
+            display_df["% Trainable Formatted"] = display_df["pct_trainable"].map(lambda x: f"{x:.4f}%" if pd.notna(x) else "N/A")
             display_df["LR"] = display_df["lr"].map(lambda x: f"{x:.5f}")
             
             # Base columns (always present)
             leaderboard_cols = [
                 "short_cfg_name", "task", "dataset", "model", "peft_type", "peft_detail", 
-                "imbalance_strategy", "LR", "Total Params", "Trainable Params", "% Trainable"
+                "imbalance_strategy", "LR", "Total Params Formatted", "Trainable Params Formatted", "% Trainable Formatted"
             ]
             
             rename_map = {
@@ -784,6 +822,9 @@ def main():
                 "peft_type": "PEFT Type",
                 "peft_detail": "PEFT Hyperparams",
                 "imbalance_strategy": "Imbalance Strategy",
+                "Total Params Formatted": "Total Params",
+                "Trainable Params Formatted": "Trainable Params",
+                "% Trainable Formatted": "% Trainable",
                 "status": "Status"
             }
             
