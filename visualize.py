@@ -365,12 +365,29 @@ def update_best_metrics_inplace(df: pd.DataFrame, benchmark_metric: str, mode: s
         history = row["history"]
         is_det = row["task"] == "Detection"
         
+        # Resolve labels available in this run's history
+        run_labels = []
+        for entry in history:
+            for key in entry.keys():
+                if key.startswith("eval_custom_cls_f1/"):
+                    lbl = key.split("/")[-1]
+                    if lbl not in run_labels:
+                        run_labels.append(lbl)
+                        
+        actual_label = selected_label
+        if is_det:
+            if run_labels:
+                if selected_label not in run_labels:
+                    actual_label = run_labels[0]
+            else:
+                actual_label = "abnormal"
+        
         # Resolve dynamic benchmark key
         target_metric = benchmark_metric
         target_mode = mode
         
         if benchmark_metric == "default":
-            target_metric = f"eval_custom_cls_f1/{selected_label}" if is_det else "eval_f1"
+            target_metric = f"eval_custom_cls_f1/{actual_label}" if is_det else "eval_f1"
             target_mode = "max"
             
         best_step = get_best_epoch_metrics(history, target_metric, target_mode)
@@ -378,14 +395,14 @@ def update_best_metrics_inplace(df: pd.DataFrame, benchmark_metric: str, mode: s
         # Write updated metrics to the row
         df.at[idx, "best_metrics"] = best_step
         if best_step:
-            df.at[idx, "best_eval_f1"] = best_step.get("eval_f1", 0.0) if not is_det else best_step.get(f"eval_custom_cls_f1/{selected_label}", 0.0)
+            df.at[idx, "best_eval_f1"] = best_step.get("eval_f1", 0.0) if not is_det else best_step.get(f"eval_custom_cls_f1/{actual_label}", 0.0)
             
             # Handle float conversions safely
             val_loss = best_step.get("eval_loss", None)
             df.at[idx, "best_eval_loss"] = float(val_loss) if val_loss is not None else None
             
-            df.at[idx, "img_abnormal_f1"] = best_step.get(f"eval_custom_cls_f1/{selected_label}", 0.0) if is_det else best_step.get("eval_f1", 0.0)
-            df.at[idx, "img_abnormal_auroc"] = best_step.get(f"eval_custom_cls_auroc/{selected_label}", 0.5) if is_det else best_step.get("eval_auroc", 0.5)
+            df.at[idx, "img_abnormal_f1"] = best_step.get(f"eval_custom_cls_f1/{actual_label}", 0.0) if is_det else best_step.get("eval_f1", 0.0)
+            df.at[idx, "img_abnormal_auroc"] = best_step.get(f"eval_custom_cls_auroc/{actual_label}", 0.5) if is_det else best_step.get("eval_auroc", 0.5)
             
             # Extract individual columns for leaderboard selection
             df.at[idx, "eval_f1"] = best_step.get("eval_f1", None)
@@ -399,10 +416,10 @@ def update_best_metrics_inplace(df: pd.DataFrame, benchmark_metric: str, mode: s
             df.at[idx, "eval_custom_mean_bbox_IoU"] = best_step.get("eval_custom_mean_bbox_IoU", None)
             df.at[idx, "eval_custom_mean_bbox_Dice"] = best_step.get("eval_custom_mean_bbox_Dice", None)
             
-            df.at[idx, "image_cls_f1"] = best_step.get(f"eval_custom_cls_f1/{selected_label}", None) if is_det else best_step.get("eval_f1", None)
-            df.at[idx, "image_cls_auroc"] = best_step.get(f"eval_custom_cls_auroc/{selected_label}", None) if is_det else best_step.get("eval_auroc", None)
-            df.at[idx, "image_cls_precision"] = best_step.get(f"eval_custom_cls_precision/{selected_label}", None) if is_det else best_step.get("eval_precision", None)
-            df.at[idx, "image_cls_recall"] = best_step.get(f"eval_custom_cls_recall/{selected_label}", None) if is_det else best_step.get("eval_recall", None)
+            df.at[idx, "image_cls_f1"] = best_step.get(f"eval_custom_cls_f1/{actual_label}", None) if is_det else best_step.get("eval_f1", None)
+            df.at[idx, "image_cls_auroc"] = best_step.get(f"eval_custom_cls_auroc/{actual_label}", None) if is_det else best_step.get("eval_auroc", None)
+            df.at[idx, "image_cls_precision"] = best_step.get(f"eval_custom_cls_precision/{actual_label}", None) if is_det else best_step.get("eval_precision", None)
+            df.at[idx, "image_cls_recall"] = best_step.get(f"eval_custom_cls_recall/{actual_label}", None) if is_det else best_step.get("eval_recall", None)
         else:
             df.at[idx, "best_eval_f1"] = 0.0
             df.at[idx, "best_eval_loss"] = None
@@ -519,7 +536,7 @@ def main():
 
     unique_classes = get_unique_classes(df_results)
     if not unique_classes:
-        unique_classes = ["abnormal", "abnormal", "cell", "text"]
+        unique_classes = ["abnormal", "cell", "text"]
 
     st.sidebar.markdown("---")
     st.sidebar.markdown("### 🏷️ Target Label Monitoring")
