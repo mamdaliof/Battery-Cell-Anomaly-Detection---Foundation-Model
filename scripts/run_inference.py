@@ -27,6 +27,41 @@ def draw_text_with_bg(draw, text, position, color, bg_color=(0, 0, 0)):
         draw.rectangle([x - 2, y - 2, x + 250, y + 18], fill=bg_color)
     draw.text((x, y), text, fill=color)
 
+def calculate_iou(box1, box2):
+    x1 = max(box1[0], box2[0])
+    y1 = max(box1[1], box2[1])
+    x2 = min(box1[2], box2[2])
+    y2 = min(box1[3], box2[3])
+    
+    intersection = max(0, x2 - x1) * max(0, y2 - y1)
+    area1 = (box1[2] - box1[0]) * (box1[3] - box1[1])
+    area2 = (box2[2] - box2[0]) * (box2[3] - box2[1])
+    union = area1 + area2 - intersection
+    
+    if union == 0:
+        return 0.0
+    return intersection / union
+
+def is_detection_correct(gt_boxes, pred_boxes, iou_threshold=0.5):
+    if len(gt_boxes) != len(pred_boxes):
+        return False
+        
+    matched_preds = set()
+    for gt in gt_boxes:
+        found_match = False
+        for i, pred in enumerate(pred_boxes):
+            if i in matched_preds:
+                continue
+            if gt["cls"] == pred["cls"]:
+                iou = calculate_iou(gt["bbox"], pred["bbox"])
+                if iou >= iou_threshold:
+                    matched_preds.add(i)
+                    found_match = True
+                    break
+        if not found_match:
+            return False
+    return True
+
 def find_classification_weights(run_dir: Path) -> Path:
     # Check direct weights in run_dir
     for name in ["best_f1.pt", "best_loss.pt", "model.safetensors", "pytorch_model.bin"]:
@@ -59,6 +94,7 @@ def main():
     parser = argparse.ArgumentParser(description="Perform validation set inference and save outputs")
     parser.add_argument("--model", type=str, required=True, help="Path to model directory or weights file")
     parser.add_argument("--output_dir", type=str, default="visual_inference", help="Path to save side-by-side images")
+    parser.add_argument("--only_false", action="store_true", help="Only save side-by-side images where the prediction is incorrect")
     args = parser.parse_args()
 
     model_path = Path(args.model).resolve()
@@ -134,6 +170,8 @@ def main():
             
         print(f"🖼️ Found {len(val_images)} validation images for detection.")
         
+        saved_count = 0
+        skipped_count = 0
         for img_path in val_images:
             # Predict
             results = model(str(img_path))
@@ -148,6 +186,8 @@ def main():
             draw_text_with_bg(draw_gt, "GT", (10, 10), color=(255, 255, 255), bg_color=(0, 0, 0))
             label_path = val_labels_dir / f"{img_path.stem}.txt"
             
+            gt_boxes = []
+            img_w, img_h = img_gt.size
             if label_path.exists():
                 with open(label_path, "r") as lf:
                     lines = lf.readlines()
@@ -157,11 +197,12 @@ def main():
                         cls_id = int(parts[0])
                         x_c, y_c, w, h = map(float, parts[1:5])
                         
-                        img_w, img_h = img_gt.size
                         x1 = (x_c - w / 2) * img_w
                         y1 = (y_c - h / 2) * img_h
                         x2 = (x_c + w / 2) * img_w
                         y2 = (y_c + h / 2) * img_h
+                        
+                        gt_boxes.append({"cls": cls_id, "bbox": [x1, y1, x2, y2]})
                         
                         colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
                         color = colors[cls_id % len(colors)]
@@ -170,6 +211,18 @@ def main():
                         cls_name = class_names.get(cls_id, f"Class {cls_id}")
                         draw_text_with_bg(draw_gt, cls_name, (x1 + 5, y1 + 5), color=color, bg_color=(0, 0, 0))
             
+            # Extract predicted boxes
+            pred_boxes = []
+            if len(results) > 0 and results[0].boxes is not None:
+                for box in results[0].boxes:
+                    cls_id = int(box.cls[0].item())
+                    xyxy = box.xyxy[0].cpu().tolist() # [x1, y1, x2, y2]
+                    pred_boxes.append({"cls": cls_id, "bbox": xyxy})
+            
+            if args.only_false and is_detection_correct(gt_boxes, pred_boxes):
+                skipped_count += 1
+                continue
+            
             # Combine side by side
             w_gt, h_gt = img_gt.size
             w_pred, h_pred = img_pred.size
@@ -177,6 +230,9 @@ def main():
             combined.paste(img_gt, (0, 0))
             combined.paste(img_pred, (w_gt, 0))
             combined.save(output_dir / f"{img_path.stem}.jpg")
+            saved_count += 1
+            
+        print(f"✅ Saved {saved_count} images (skipped {skipped_count} correct predictions).")
 
     else:
         print("🔍 Detected Task: DINOv3 + PEFT Image Classification")
@@ -220,6 +276,8 @@ def main():
         
         print(f"🖼️ Found {len(val_dataset)} validation images for classification.")
         
+        saved_count = 0
+        skipped_count = 0
         for idx in range(len(val_dataset)):
             sample = val_dataset.samples[idx]
             img_path = sample.image_path
@@ -237,6 +295,10 @@ def main():
                 confidence = probs[0, pred_idx].item()
                 
             pred_class_name = val_dataset.id2label[pred_idx]
+            
+            if args.only_false and pred_class_name == gt_class_name:
+                skipped_count += 1
+                continue
             
             # Draw Prediction
             img_pred = Image.open(img_path).convert("RGB")
@@ -257,6 +319,9 @@ def main():
             combined.paste(img_gt, (0, 0))
             combined.paste(img_pred, (w_gt, 0))
             combined.save(output_dir / f"{img_path.stem}.jpg")
+            saved_count += 1
+            
+        print(f"✅ Saved {saved_count} images (skipped {skipped_count} correct predictions).")
 
     print("✅ Validation Inference and saving completed successfully!")
 
