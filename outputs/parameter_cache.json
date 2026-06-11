@@ -1,0 +1,1218 @@
+{
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__03_lora_vits16_r8_all_lr0.0003/20260610_190339": {
+    "total": 21744770,
+    "trainable": 148226
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__04_lora_vits16_r8_all_lr0.0005/20260610_190339": {
+    "total": 21744770,
+    "trainable": 148226
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__02_baseline_vitb16/20260610_190339": {
+    "total": 85661954,
+    "trainable": 1538
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__06_lora_vits16_r8_last4_lr0.0005/20260610_190339": {
+    "total": 21744770,
+    "trainable": 148226
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__05_lora_vits16_r8_last4_lr0.0003/20260610_190339": {
+    "total": 21744770,
+    "trainable": 148226
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__01_baseline_vits16/20260610_190339": {
+    "total": 21597314,
+    "trainable": 770
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__07_lora_vits16_r8_last2_lr0.0003/20260610_190339": {
+    "total": 21744770,
+    "trainable": 148226
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__08_lora_vits16_r8_last2_lr0.0005/20260610_190631": {
+    "total": 21744770,
+    "trainable": 148226
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__09_lora_vits16_r16_all_lr0.0003/20260610_190908": {
+    "total": 21892226,
+    "trainable": 295682
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__10_lora_vits16_r16_all_lr0.0005/20260610_190917": {
+    "total": 21892226,
+    "trainable": 295682
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__11_lora_vits16_r16_last4_lr0.0003/20260610_190942": {
+    "total": 21892226,
+    "trainable": 295682
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__12_lora_vits16_r16_last4_lr0.0005/20260610_190942": {
+    "total": 21892226,
+    "trainable": 295682
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__13_lora_vits16_r16_last2_lr0.0003/20260610_190957": {
+    "total": 21892226,
+    "trainable": 295682
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__14_lora_vits16_r16_last2_lr0.0005/20260610_191015": {
+    "total": 21892226,
+    "trainable": 295682
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__15_lora_vitb16_r8_all_lr0.0003/20260610_191218": {
+    "total": 85956866,
+    "trainable": 296450
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__16_lora_vitb16_r8_all_lr0.0005/20260610_191503": {
+    "total": 85956866,
+    "trainable": 296450
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__17_lora_vitb16_r8_last4_lr0.0003/20260610_191505": {
+    "total": 85956866,
+    "trainable": 296450
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__18_lora_vitb16_r8_last4_lr0.0005/20260610_191530": {
+    "total": 85956866,
+    "trainable": 296450
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__19_lora_vitb16_r8_last2_lr0.0003/20260610_191544": {
+    "total": 85956866,
+    "trainable": 296450
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__20_lora_vitb16_r8_last2_lr0.0005/20260610_191555": {
+    "total": 85956866,
+    "trainable": 296450
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__21_lora_vitb16_r16_all_lr0.0003/20260610_191605": {
+    "total": 86251778,
+    "trainable": 591362
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__22_lora_vitb16_r16_all_lr0.0005/20260610_192047": {
+    "total": 86251778,
+    "trainable": 591362
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__23_lora_vitb16_r16_last4_lr0.0003/20260610_192331": {
+    "total": 86251778,
+    "trainable": 591362
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__24_lora_vitb16_r16_last4_lr0.0005/20260610_192333": {
+    "total": 86251778,
+    "trainable": 591362
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__25_lora_vitb16_r16_last2_lr0.0003/20260610_192346": {
+    "total": 86251778,
+    "trainable": 591362
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__26_lora_vitb16_r16_last2_lr0.0005/20260610_192422": {
+    "total": 86251778,
+    "trainable": 591362
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__27_adapter_vits16_d32_last4_lr0.0003/20260610_192448": {
+    "total": 21697282,
+    "trainable": 100738
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__28_adapter_vits16_d32_last4_lr0.0005/20260610_192519": {
+    "total": 21697282,
+    "trainable": 100738
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__29_adapter_vits16_d32_last2_lr0.0003/20260610_192915": {
+    "total": 21647298,
+    "trainable": 50754
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__30_adapter_vits16_d32_last2_lr0.0005/20260610_192939": {
+    "total": 21647298,
+    "trainable": 50754
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__31_adapter_vits16_d64_last4_lr0.0003/20260610_193140": {
+    "total": 21795714,
+    "trainable": 199170
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__32_adapter_vits16_d64_last4_lr0.0005/20260610_193141": {
+    "total": 21795714,
+    "trainable": 199170
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__33_adapter_vits16_d64_last2_lr0.0003/20260610_193159": {
+    "total": 21696514,
+    "trainable": 99970
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__34_adapter_vits16_d64_last2_lr0.0005/20260610_193216": {
+    "total": 21696514,
+    "trainable": 99970
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__35_adapter_vitb16_d32_last4_lr0.0003/20260610_193220": {
+    "total": 85861762,
+    "trainable": 201346
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__36_adapter_vitb16_d32_last4_lr0.0005/20260610_193406": {
+    "total": 85861762,
+    "trainable": 201346
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__37_adapter_vitb16_d32_last2_lr0.0003/20260610_193601": {
+    "total": 85761858,
+    "trainable": 101442
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__38_adapter_vitb16_d32_last2_lr0.0005/20260610_193623": {
+    "total": 85761858,
+    "trainable": 101442
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__39_adapter_vitb16_d64_last4_lr0.0003/20260610_193643": {
+    "total": 86058498,
+    "trainable": 398082
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__40_adapter_vitb16_d64_last4_lr0.0005/20260610_193719": {
+    "total": 86058498,
+    "trainable": 398082
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__41_adapter_vitb16_d64_last2_lr0.0003/20260610_193727": {
+    "total": 85860226,
+    "trainable": 199810
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__42_adapter_vitb16_d64_last2_lr0.0005/20260610_194038": {
+    "total": 85860226,
+    "trainable": 199810
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__43_vpt_vits16_shallow_t10_lr0.0005/20260610_194344": {
+    "total": 21601154,
+    "trainable": 4610
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__44_vpt_vits16_shallow_t10_lr0.001/20260610_194347": {
+    "total": 21601154,
+    "trainable": 4610
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__45_vpt_vits16_shallow_t20_lr0.0005/20260610_194415": {
+    "total": 21604994,
+    "trainable": 8450
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__46_vpt_vits16_shallow_t20_lr0.001/20260610_194445": {
+    "total": 21604994,
+    "trainable": 8450
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__47_vpt_vits16_deep_last4_t10_lr0.0005/20260610_194453": {
+    "total": 21616514,
+    "trainable": 19970
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__48_vpt_vits16_deep_last4_t10_lr0.001/20260610_194801": {
+    "total": 21616514,
+    "trainable": 19970
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__49_vpt_vits16_deep_last4_t20_lr0.0005/20260610_194851": {
+    "total": 21635714,
+    "trainable": 39170
+  },
+  "cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__50_vpt_vits16_deep_last4_t20_lr0.001/20260610_194923": {
+    "total": 21635714,
+    "trainable": 39170
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__51_vpt_vitb16_shallow_t10_lr0.0005/20260610_195040": {
+    "total": 85669634,
+    "trainable": 9218
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__52_vpt_vitb16_shallow_t10_lr0.001/20260610_195107": {
+    "total": 85669634,
+    "trainable": 9218
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__53_vpt_vitb16_shallow_t20_lr0.0005/20260610_195116": {
+    "total": 85677314,
+    "trainable": 16898
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__54_vpt_vitb16_shallow_t20_lr0.001/20260610_195116": {
+    "total": 85677314,
+    "trainable": 16898
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__55_vpt_vitb16_deep_last4_t10_lr0.0005/20260610_195214": {
+    "total": 85700354,
+    "trainable": 39938
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__56_vpt_vitb16_deep_last4_t10_lr0.001/20260610_195224": {
+    "total": 85700354,
+    "trainable": 39938
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__57_vpt_vitb16_deep_last4_t20_lr0.0005/20260610_195244": {
+    "total": 85738754,
+    "trainable": 78338
+  },
+  "cls_all/facebook-dinov3-vitb16-pretrain-lvd1689m__58_vpt_vitb16_deep_last4_t20_lr0.001/20260610_195448": {
+    "total": 85738754,
+    "trainable": 78338
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__02_baseline_vitb16/20260610_200301": {
+    "total": 88460416,
+    "trainable": 2800000
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__02_baseline_vitb16/20260610_230607": {
+    "total": 88460416,
+    "trainable": 2800000
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__02_baseline_vitb16/20260611_023004": {
+    "total": 88460416,
+    "trainable": 2800000
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__01_baseline_vits16/20260610_200302": {
+    "total": 24396544,
+    "trainable": 2800000
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__01_baseline_vits16/20260610_230602": {
+    "total": 24396544,
+    "trainable": 2800000
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__01_baseline_vits16/20260611_023004": {
+    "total": 24396544,
+    "trainable": 2800000
+  },
+  "det_all/yolov8s__04_baseline_standard_yolov8s/20260610_200302": {
+    "total": 11200000,
+    "trainable": 11200000
+  },
+  "det_all/yolov8s__yolov8s_train/20260610_222251": {
+    "total": 11200000,
+    "trainable": 11200000
+  },
+  "det_no_cell/yolov8s__04_baseline_standard_yolov8s/20260610_230607": {
+    "total": 11200000,
+    "trainable": 11200000
+  },
+  "det_no_cell/yolov8s__yolov8s_train/20260611_013446": {
+    "total": 11200000,
+    "trainable": 11200000
+  },
+  "det_abnormal/yolov8s__04_baseline_standard_yolov8s/20260611_023004": {
+    "total": 11200000,
+    "trainable": 11200000
+  },
+  "det_abnormal/yolov8s__yolov8s_train/20260611_042250": {
+    "total": 11200000,
+    "trainable": 11200000
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__06_lora_vits16_r8_all_lr0.0003/20260610_200302": {
+    "total": 24544000,
+    "trainable": 2947456
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__07_lora_vits16_r8_all_lr0.0005/20260610_200302": {
+    "total": 24544000,
+    "trainable": 2947456
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__06_lora_vits16_r8_all_lr0.0003/20260610_230607": {
+    "total": 24544000,
+    "trainable": 2947456
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__07_lora_vits16_r8_all_lr0.0005/20260610_230607": {
+    "total": 24544000,
+    "trainable": 2947456
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__07_lora_vits16_r8_all_lr0.0005/20260611_023004": {
+    "total": 24544000,
+    "trainable": 2947456
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__06_lora_vits16_r8_all_lr0.0003/20260611_023009": {
+    "total": 24544000,
+    "trainable": 2947456
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__08_lora_vits16_r8_last4_lr0.0003/20260610_200302": {
+    "total": 24544000,
+    "trainable": 2849152
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__09_lora_vits16_r8_last4_lr0.0005/20260610_200830": {
+    "total": 24544000,
+    "trainable": 2849152
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__08_lora_vits16_r8_last4_lr0.0003/20260610_230602": {
+    "total": 24544000,
+    "trainable": 2849152
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__09_lora_vits16_r8_last4_lr0.0005/20260610_231043": {
+    "total": 24544000,
+    "trainable": 2849152
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__08_lora_vits16_r8_last4_lr0.0003/20260611_023011": {
+    "total": 24544000,
+    "trainable": 2849152
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__09_lora_vits16_r8_last4_lr0.0005/20260611_023438": {
+    "total": 24544000,
+    "trainable": 2849152
+  },
+  "det_all/yolo26n__05_baseline_standard_yolo26n/20260610_200302": {
+    "total": 5500000,
+    "trainable": 5500000
+  },
+  "det_all/yolo26n__yolo26n_pretrained_train/20260610_221243": {
+    "total": 5500000,
+    "trainable": 5500000
+  },
+  "det_no_cell/yolo26n__05_baseline_standard_yolo26n/20260610_230607": {
+    "total": 5500000,
+    "trainable": 5500000
+  },
+  "det_no_cell/yolo26n__yolo26n_pretrained_train/20260611_011905": {
+    "total": 5500000,
+    "trainable": 5500000
+  },
+  "det_abnormal/yolo26n__05_baseline_standard_yolo26n/20260611_023004": {
+    "total": 5500000,
+    "trainable": 5500000
+  },
+  "det_abnormal/yolo26n__yolo26n_pretrained_train/20260611_040858": {
+    "total": 5500000,
+    "trainable": 5500000
+  },
+  "det_all/yolov8n__03_baseline_standard_yolov8n/20260610_200302": {
+    "total": 3200000,
+    "trainable": 3200000
+  },
+  "det_all/yolov8n__yolov8n_train/20260610_222222": {
+    "total": 3200000,
+    "trainable": 3200000
+  },
+  "det_no_cell/yolov8n__03_baseline_standard_yolov8n/20260610_230607": {
+    "total": 3200000,
+    "trainable": 3200000
+  },
+  "det_no_cell/yolov8n__yolov8n_train/20260611_013020": {
+    "total": 3200000,
+    "trainable": 3200000
+  },
+  "det_abnormal/yolov8n__03_baseline_standard_yolov8n/20260611_023009": {
+    "total": 3200000,
+    "trainable": 3200000
+  },
+  "det_abnormal/yolov8n__yolov8n_train/20260611_041958": {
+    "total": 3200000,
+    "trainable": 3200000
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__10_lora_vits16_r8_last2_lr0.0003/20260610_200931": {
+    "total": 24544000,
+    "trainable": 2824576
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__11_lora_vits16_r8_last2_lr0.0005/20260610_201043": {
+    "total": 24544000,
+    "trainable": 2824576
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__10_lora_vits16_r8_last2_lr0.0003/20260610_231321": {
+    "total": 24544000,
+    "trainable": 2824576
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__11_lora_vits16_r8_last2_lr0.0005/20260610_231406": {
+    "total": 24544000,
+    "trainable": 2824576
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__10_lora_vits16_r8_last2_lr0.0003/20260611_023550": {
+    "total": 24544000,
+    "trainable": 2824576
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__11_lora_vits16_r8_last2_lr0.0005/20260611_023644": {
+    "total": 24544000,
+    "trainable": 2824576
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__12_lora_vits16_r16_all_lr0.0003/20260610_201117": {
+    "total": 24691456,
+    "trainable": 3094912
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__13_lora_vits16_r16_all_lr0.0005/20260610_201400": {
+    "total": 24691456,
+    "trainable": 3094912
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__12_lora_vits16_r16_all_lr0.0003/20260610_231451": {
+    "total": 24691456,
+    "trainable": 3094912
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__13_lora_vits16_r16_all_lr0.0005/20260610_231514": {
+    "total": 24691456,
+    "trainable": 3094912
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__12_lora_vits16_r16_all_lr0.0003/20260611_023652": {
+    "total": 24691456,
+    "trainable": 3094912
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__13_lora_vits16_r16_all_lr0.0005/20260611_023707": {
+    "total": 24691456,
+    "trainable": 3094912
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__14_lora_vits16_r16_last4_lr0.0003/20260610_202203": {
+    "total": 24691456,
+    "trainable": 2898304
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__15_lora_vits16_r16_last4_lr0.0005/20260610_202251": {
+    "total": 24691456,
+    "trainable": 2898304
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__14_lora_vits16_r16_last4_lr0.0003/20260610_231537": {
+    "total": 24691456,
+    "trainable": 2898304
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__15_lora_vits16_r16_last4_lr0.0005/20260610_232527": {
+    "total": 24691456,
+    "trainable": 2898304
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__14_lora_vits16_r16_last4_lr0.0003/20260611_024130": {
+    "total": 24691456,
+    "trainable": 2898304
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__15_lora_vits16_r16_last4_lr0.0005/20260611_024227": {
+    "total": 24691456,
+    "trainable": 2898304
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__16_lora_vits16_r16_last2_lr0.0003/20260610_202316": {
+    "total": 24691456,
+    "trainable": 2849152
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__17_lora_vits16_r16_last2_lr0.0005/20260610_202531": {
+    "total": 24691456,
+    "trainable": 2849152
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__16_lora_vits16_r16_last2_lr0.0003/20260610_232605": {
+    "total": 24691456,
+    "trainable": 2849152
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__17_lora_vits16_r16_last2_lr0.0005/20260610_232609": {
+    "total": 24691456,
+    "trainable": 2849152
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__16_lora_vits16_r16_last2_lr0.0003/20260611_024408": {
+    "total": 24691456,
+    "trainable": 2849152
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__17_lora_vits16_r16_last2_lr0.0005/20260611_024530": {
+    "total": 24691456,
+    "trainable": 2849152
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__18_lora_vitb16_r8_all_lr0.0003/20260610_202625": {
+    "total": 88755328,
+    "trainable": 3094912
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__19_lora_vitb16_r8_all_lr0.0005/20260610_202708": {
+    "total": 88755328,
+    "trainable": 3094912
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__18_lora_vitb16_r8_all_lr0.0003/20260610_232716": {
+    "total": 88755328,
+    "trainable": 3094912
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__19_lora_vitb16_r8_all_lr0.0005/20260610_232732": {
+    "total": 88755328,
+    "trainable": 3094912
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__18_lora_vitb16_r8_all_lr0.0003/20260611_024532": {
+    "total": 88755328,
+    "trainable": 3094912
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__19_lora_vitb16_r8_all_lr0.0005/20260611_024845": {
+    "total": 88755328,
+    "trainable": 3094912
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__20_lora_vitb16_r8_last4_lr0.0003/20260610_203018": {
+    "total": 88755328,
+    "trainable": 2898304
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__21_lora_vitb16_r8_last4_lr0.0005/20260610_203513": {
+    "total": 88755328,
+    "trainable": 2898304
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__20_lora_vitb16_r8_last4_lr0.0003/20260610_232809": {
+    "total": 88755328,
+    "trainable": 2898304
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__21_lora_vitb16_r8_last4_lr0.0005/20260610_233402": {
+    "total": 88755328,
+    "trainable": 2898304
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__20_lora_vitb16_r8_last4_lr0.0003/20260611_025117": {
+    "total": 88755328,
+    "trainable": 2898304
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__21_lora_vitb16_r8_last4_lr0.0005/20260611_025155": {
+    "total": 88755328,
+    "trainable": 2898304
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__22_lora_vitb16_r8_last2_lr0.0003/20260610_203940": {
+    "total": 88755328,
+    "trainable": 2849152
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__23_lora_vitb16_r8_last2_lr0.0005/20260610_203952": {
+    "total": 88755328,
+    "trainable": 2849152
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__22_lora_vitb16_r8_last2_lr0.0003/20260610_233726": {
+    "total": 88755328,
+    "trainable": 2849152
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__23_lora_vitb16_r8_last2_lr0.0005/20260610_233927": {
+    "total": 88755328,
+    "trainable": 2849152
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__22_lora_vitb16_r8_last2_lr0.0003/20260611_025530": {
+    "total": 88755328,
+    "trainable": 2849152
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__23_lora_vitb16_r8_last2_lr0.0005/20260611_025537": {
+    "total": 88755328,
+    "trainable": 2849152
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__24_lora_vitb16_r16_all_lr0.0003/20260610_204031": {
+    "total": 89050240,
+    "trainable": 3389824
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__25_lora_vitb16_r16_all_lr0.0005/20260610_204124": {
+    "total": 89050240,
+    "trainable": 3389824
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__24_lora_vitb16_r16_all_lr0.0003/20260610_234137": {
+    "total": 89050240,
+    "trainable": 3389824
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__25_lora_vitb16_r16_all_lr0.0005/20260610_234145": {
+    "total": 89050240,
+    "trainable": 3389824
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__24_lora_vitb16_r16_all_lr0.0003/20260611_025722": {
+    "total": 89050240,
+    "trainable": 3389824
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__25_lora_vitb16_r16_all_lr0.0005/20260611_025733": {
+    "total": 89050240,
+    "trainable": 3389824
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__26_lora_vitb16_r16_last4_lr0.0003/20260610_204229": {
+    "total": 89050240,
+    "trainable": 2996608
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__27_lora_vitb16_r16_last4_lr0.0005/20260610_204641": {
+    "total": 89050240,
+    "trainable": 2996608
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__26_lora_vitb16_r16_last4_lr0.0003/20260610_234408": {
+    "total": 89050240,
+    "trainable": 2996608
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__27_lora_vitb16_r16_last4_lr0.0005/20260610_234526": {
+    "total": 89050240,
+    "trainable": 2996608
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__26_lora_vitb16_r16_last4_lr0.0003/20260611_025833": {
+    "total": 89050240,
+    "trainable": 2996608
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__27_lora_vitb16_r16_last4_lr0.0005/20260611_030203": {
+    "total": 89050240,
+    "trainable": 2996608
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__28_lora_vitb16_r16_last2_lr0.0003/20260610_205001": {
+    "total": 89050240,
+    "trainable": 2898304
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__29_lora_vitb16_r16_last2_lr0.0005/20260610_205122": {
+    "total": 89050240,
+    "trainable": 2898304
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__28_lora_vitb16_r16_last2_lr0.0003/20260610_234601": {
+    "total": 89050240,
+    "trainable": 2898304
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__29_lora_vitb16_r16_last2_lr0.0005/20260610_234756": {
+    "total": 89050240,
+    "trainable": 2898304
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__28_lora_vitb16_r16_last2_lr0.0003/20260611_030708": {
+    "total": 89050240,
+    "trainable": 2898304
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__29_lora_vitb16_r16_last2_lr0.0005/20260611_030714": {
+    "total": 89050240,
+    "trainable": 2898304
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__30_adapter_vits16_d32_last4_lr0.0003/20260610_205359": {
+    "total": 24496512,
+    "trainable": 2899968
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__31_adapter_vits16_d32_last4_lr0.0005/20260610_205447": {
+    "total": 24496512,
+    "trainable": 2899968
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__30_adapter_vits16_d32_last4_lr0.0003/20260610_234832": {
+    "total": 24496512,
+    "trainable": 2899968
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__31_adapter_vits16_d32_last4_lr0.0005/20260610_235208": {
+    "total": 24496512,
+    "trainable": 2899968
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__30_adapter_vits16_d32_last4_lr0.0003/20260611_030730": {
+    "total": 24496512,
+    "trainable": 2899968
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__31_adapter_vits16_d32_last4_lr0.0005/20260611_030746": {
+    "total": 24496512,
+    "trainable": 2899968
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__32_adapter_vits16_d32_last2_lr0.0003/20260610_205814": {
+    "total": 24446528,
+    "trainable": 2849984
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__33_adapter_vits16_d32_last2_lr0.0005/20260610_205855": {
+    "total": 24446528,
+    "trainable": 2849984
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__32_adapter_vits16_d32_last2_lr0.0003/20260611_000051": {
+    "total": 24446528,
+    "trainable": 2849984
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__33_adapter_vits16_d32_last2_lr0.0005/20260611_000148": {
+    "total": 24446528,
+    "trainable": 2849984
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__32_adapter_vits16_d32_last2_lr0.0003/20260611_031104": {
+    "total": 24446528,
+    "trainable": 2849984
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__33_adapter_vits16_d32_last2_lr0.0005/20260611_031127": {
+    "total": 24446528,
+    "trainable": 2849984
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__34_adapter_vits16_d64_last4_lr0.0003/20260610_210531": {
+    "total": 24594944,
+    "trainable": 2998400
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__35_adapter_vits16_d64_last4_lr0.0005/20260610_210936": {
+    "total": 24594944,
+    "trainable": 2998400
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__34_adapter_vits16_d64_last4_lr0.0003/20260611_000339": {
+    "total": 24594944,
+    "trainable": 2998400
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__35_adapter_vits16_d64_last4_lr0.0005/20260611_000453": {
+    "total": 24594944,
+    "trainable": 2998400
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__35_adapter_vits16_d64_last4_lr0.0005/20260611_031446": {
+    "total": 24594944,
+    "trainable": 2998400
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__34_adapter_vits16_d64_last4_lr0.0003/20260611_031447": {
+    "total": 24594944,
+    "trainable": 2998400
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__36_adapter_vits16_d64_last2_lr0.0003/20260610_211113": {
+    "total": 24495744,
+    "trainable": 2899200
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__37_adapter_vits16_d64_last2_lr0.0005/20260610_211148": {
+    "total": 24495744,
+    "trainable": 2899200
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__36_adapter_vits16_d64_last2_lr0.0003/20260611_000456": {
+    "total": 24495744,
+    "trainable": 2899200
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__37_adapter_vits16_d64_last2_lr0.0005/20260611_000924": {
+    "total": 24495744,
+    "trainable": 2899200
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__36_adapter_vits16_d64_last2_lr0.0003/20260611_031452": {
+    "total": 24495744,
+    "trainable": 2899200
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__37_adapter_vits16_d64_last2_lr0.0005/20260611_031519": {
+    "total": 24495744,
+    "trainable": 2899200
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__38_adapter_vitb16_d32_last4_lr0.0003/20260610_211318": {
+    "total": 88660224,
+    "trainable": 2999808
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__39_adapter_vitb16_d32_last4_lr0.0005/20260610_211321": {
+    "total": 88660224,
+    "trainable": 2999808
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__38_adapter_vitb16_d32_last4_lr0.0003/20260611_001109": {
+    "total": 88660224,
+    "trainable": 2999808
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__39_adapter_vitb16_d32_last4_lr0.0005/20260611_001206": {
+    "total": 88660224,
+    "trainable": 2999808
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__38_adapter_vitb16_d32_last4_lr0.0003/20260611_031826": {
+    "total": 88660224,
+    "trainable": 2999808
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__39_adapter_vitb16_d32_last4_lr0.0005/20260611_031903": {
+    "total": 88660224,
+    "trainable": 2999808
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__40_adapter_vitb16_d32_last2_lr0.0003/20260610_211334": {
+    "total": 88560320,
+    "trainable": 2899904
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__41_adapter_vitb16_d32_last2_lr0.0005/20260610_211431": {
+    "total": 88560320,
+    "trainable": 2899904
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__40_adapter_vitb16_d32_last2_lr0.0003/20260611_001428": {
+    "total": 88560320,
+    "trainable": 2899904
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__41_adapter_vitb16_d32_last2_lr0.0005/20260611_001806": {
+    "total": 88560320,
+    "trainable": 2899904
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__40_adapter_vitb16_d32_last2_lr0.0003/20260611_032225": {
+    "total": 88560320,
+    "trainable": 2899904
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__41_adapter_vitb16_d32_last2_lr0.0005/20260611_032439": {
+    "total": 88560320,
+    "trainable": 2899904
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__42_adapter_vitb16_d64_last4_lr0.0003/20260610_211650": {
+    "total": 88856960,
+    "trainable": 3196544
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__43_adapter_vitb16_d64_last4_lr0.0005/20260610_212400": {
+    "total": 88856960,
+    "trainable": 3196544
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__42_adapter_vitb16_d64_last4_lr0.0003/20260611_001817": {
+    "total": 88856960,
+    "trainable": 3196544
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__43_adapter_vitb16_d64_last4_lr0.0005/20260611_001830": {
+    "total": 88856960,
+    "trainable": 3196544
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__42_adapter_vitb16_d64_last4_lr0.0003/20260611_032454": {
+    "total": 88856960,
+    "trainable": 3196544
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__43_adapter_vitb16_d64_last4_lr0.0005/20260611_032517": {
+    "total": 88856960,
+    "trainable": 3196544
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__44_adapter_vitb16_d64_last2_lr0.0003/20260610_212513": {
+    "total": 88658688,
+    "trainable": 2998272
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__45_adapter_vitb16_d64_last2_lr0.0005/20260610_212700": {
+    "total": 88658688,
+    "trainable": 2998272
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__44_adapter_vitb16_d64_last2_lr0.0003/20260611_002400": {
+    "total": 88658688,
+    "trainable": 2998272
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__45_adapter_vitb16_d64_last2_lr0.0005/20260611_002458": {
+    "total": 88658688,
+    "trainable": 2998272
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__44_adapter_vitb16_d64_last2_lr0.0003/20260611_032834": {
+    "total": 88658688,
+    "trainable": 2998272
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__45_adapter_vitb16_d64_last2_lr0.0005/20260611_032835": {
+    "total": 88658688,
+    "trainable": 2998272
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__46_vpt_vits16_shallow_t10_lr0.0005/20260610_212852": {
+    "total": 24400384,
+    "trainable": 2803840
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__47_vpt_vits16_shallow_t10_lr0.001/20260610_213033": {
+    "total": 24400384,
+    "trainable": 2803840
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__46_vpt_vits16_shallow_t10_lr0.0005/20260611_003014": {
+    "total": 24400384,
+    "trainable": 2803840
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__47_vpt_vits16_shallow_t10_lr0.001/20260611_003122": {
+    "total": 24400384,
+    "trainable": 2803840
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__46_vpt_vits16_shallow_t10_lr0.0005/20260611_033346": {
+    "total": 24400384,
+    "trainable": 2803840
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__47_vpt_vits16_shallow_t10_lr0.001/20260611_033641": {
+    "total": 24400384,
+    "trainable": 2803840
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__48_vpt_vits16_shallow_t20_lr0.0005/20260610_213038": {
+    "total": 24404224,
+    "trainable": 2807680
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__49_vpt_vits16_shallow_t20_lr0.001/20260610_213205": {
+    "total": 24404224,
+    "trainable": 2807680
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__49_vpt_vits16_shallow_t20_lr0.001/20260611_003448": {
+    "total": 24404224,
+    "trainable": 2807680
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__48_vpt_vits16_shallow_t20_lr0.0005/20260611_003448": {
+    "total": 24404224,
+    "trainable": 2807680
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__48_vpt_vits16_shallow_t20_lr0.0005/20260611_033743": {
+    "total": 24404224,
+    "trainable": 2807680
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__49_vpt_vits16_shallow_t20_lr0.001/20260611_033824": {
+    "total": 24404224,
+    "trainable": 2807680
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__50_vpt_vits16_deep_last4_t10_lr0.0005/20260610_213205": {
+    "total": 24415744,
+    "trainable": 2819200
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__51_vpt_vits16_deep_last4_t10_lr0.001/20260610_213753": {
+    "total": 24415744,
+    "trainable": 2819200
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__50_vpt_vits16_deep_last4_t10_lr0.0005/20260611_003600": {
+    "total": 24415744,
+    "trainable": 2819200
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__51_vpt_vits16_deep_last4_t10_lr0.001/20260611_003807": {
+    "total": 24415744,
+    "trainable": 2819200
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__50_vpt_vits16_deep_last4_t10_lr0.0005/20260611_033824": {
+    "total": 24415744,
+    "trainable": 2819200
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__51_vpt_vits16_deep_last4_t10_lr0.001/20260611_033843": {
+    "total": 24415744,
+    "trainable": 2819200
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__52_vpt_vits16_deep_last4_t20_lr0.0005/20260610_214054": {
+    "total": 24434944,
+    "trainable": 2838400
+  },
+  "det_all/facebook-dinov3-vits16-pretrain-lvd1689m__53_vpt_vits16_deep_last4_t20_lr0.001/20260610_214313": {
+    "total": 24434944,
+    "trainable": 2838400
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__52_vpt_vits16_deep_last4_t20_lr0.0005/20260611_004234": {
+    "total": 24434944,
+    "trainable": 2838400
+  },
+  "det_no_cell/facebook-dinov3-vits16-pretrain-lvd1689m__53_vpt_vits16_deep_last4_t20_lr0.001/20260611_004800": {
+    "total": 24434944,
+    "trainable": 2838400
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__52_vpt_vits16_deep_last4_t20_lr0.0005/20260611_034428": {
+    "total": 24434944,
+    "trainable": 2838400
+  },
+  "det_abnormal/facebook-dinov3-vits16-pretrain-lvd1689m__53_vpt_vits16_deep_last4_t20_lr0.001/20260611_034458": {
+    "total": 24434944,
+    "trainable": 2838400
+  },
+  "det_all/yolo11l__yolo11l_train/20260610_215525": {
+    "total": 25300000,
+    "trainable": 25300000
+  },
+  "det_no_cell/yolo11l__yolo11l_train/20260611_010049": {
+    "total": 25300000,
+    "trainable": 25300000
+  },
+  "det_abnormal/yolo11l__yolo11l_train/20260611_035655": {
+    "total": 25300000,
+    "trainable": 25300000
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__54_vpt_vitb16_shallow_t10_lr0.0005/20260610_214413": {
+    "total": 88468096,
+    "trainable": 2807680
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__55_vpt_vitb16_shallow_t10_lr0.001/20260610_214444": {
+    "total": 88468096,
+    "trainable": 2807680
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__54_vpt_vitb16_shallow_t10_lr0.0005/20260611_004812": {
+    "total": 88468096,
+    "trainable": 2807680
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__55_vpt_vitb16_shallow_t10_lr0.001/20260611_004839": {
+    "total": 88468096,
+    "trainable": 2807680
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__54_vpt_vitb16_shallow_t10_lr0.0005/20260611_034544": {
+    "total": 88468096,
+    "trainable": 2807680
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__55_vpt_vitb16_shallow_t10_lr0.001/20260611_034808": {
+    "total": 88468096,
+    "trainable": 2807680
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__56_vpt_vitb16_shallow_t20_lr0.0005/20260610_214532": {
+    "total": 88475776,
+    "trainable": 2815360
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__57_vpt_vitb16_shallow_t20_lr0.001/20260610_214656": {
+    "total": 88475776,
+    "trainable": 2815360
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__56_vpt_vitb16_shallow_t20_lr0.0005/20260611_004937": {
+    "total": 88475776,
+    "trainable": 2815360
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__57_vpt_vitb16_shallow_t20_lr0.001/20260611_005219": {
+    "total": 88475776,
+    "trainable": 2815360
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__56_vpt_vitb16_shallow_t20_lr0.0005/20260611_034910": {
+    "total": 88475776,
+    "trainable": 2815360
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__57_vpt_vitb16_shallow_t20_lr0.001/20260611_035022": {
+    "total": 88475776,
+    "trainable": 2815360
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__58_vpt_vitb16_deep_last4_t10_lr0.0005/20260610_214923": {
+    "total": 88498816,
+    "trainable": 2838400
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__59_vpt_vitb16_deep_last4_t10_lr0.001/20260610_215129": {
+    "total": 88498816,
+    "trainable": 2838400
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__58_vpt_vitb16_deep_last4_t10_lr0.0005/20260611_005246": {
+    "total": 88498816,
+    "trainable": 2838400
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__59_vpt_vitb16_deep_last4_t10_lr0.001/20260611_005302": {
+    "total": 88498816,
+    "trainable": 2838400
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__58_vpt_vitb16_deep_last4_t10_lr0.0005/20260611_035318": {
+    "total": 88498816,
+    "trainable": 2838400
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__59_vpt_vitb16_deep_last4_t10_lr0.001/20260611_101814": {
+    "total": 88498816,
+    "trainable": 2838400
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__60_vpt_vitb16_deep_last4_t20_lr0.0005/20260610_215346": {
+    "total": 88537216,
+    "trainable": 2876800
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__61_vpt_vitb16_deep_last4_t20_lr0.001/20260610_215353": {
+    "total": 88537216,
+    "trainable": 2876800
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__60_vpt_vitb16_deep_last4_t20_lr0.0005/20260611_005710": {
+    "total": 88537216,
+    "trainable": 2876800
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__61_vpt_vitb16_deep_last4_t20_lr0.001/20260611_005858": {
+    "total": 88537216,
+    "trainable": 2876800
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__60_vpt_vitb16_deep_last4_t20_lr0.0005/20260611_035359": {
+    "total": 88537216,
+    "trainable": 2876800
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__61_vpt_vitb16_deep_last4_t20_lr0.001/20260611_035553": {
+    "total": 88537216,
+    "trainable": 2876800
+  },
+  "det_all/yolo11m__yolo11m_train/20260611_112658": {
+    "total": 20100000,
+    "trainable": 20100000
+  },
+  "det_no_cell/yolo11m__yolo11m_train/20260611_115202": {
+    "total": 20100000,
+    "trainable": 20100000
+  },
+  "det_abnormal/yolo11m__yolo11m_train/20260611_110225": {
+    "total": 20100000,
+    "trainable": 20100000
+  },
+  "det_all/yolo11n__yolo11n_train/20260610_215657": {
+    "total": 2600000,
+    "trainable": 2600000
+  },
+  "det_no_cell/yolo11n__yolo11n_train/20260611_010130": {
+    "total": 2600000,
+    "trainable": 2600000
+  },
+  "det_abnormal/yolo11n__yolo11n_train/20260611_040119": {
+    "total": 2600000,
+    "trainable": 2600000
+  },
+  "det_all/yolo11s__yolo11s_train/20260610_220003": {
+    "total": 9400000,
+    "trainable": 9400000
+  },
+  "det_no_cell/yolo11s__yolo11s_train/20260611_010412": {
+    "total": 9400000,
+    "trainable": 9400000
+  },
+  "det_abnormal/yolo11s__yolo11s_train/20260611_040133": {
+    "total": 9400000,
+    "trainable": 9400000
+  },
+  "det_all/yolo11x__yolo11x_train/20260610_220432": {
+    "total": 56900000,
+    "trainable": 56900000
+  },
+  "det_no_cell/yolo11x__yolo11x_train/20260611_010604": {
+    "total": 56900000,
+    "trainable": 56900000
+  },
+  "det_abnormal/yolo11x__yolo11x_train/20260611_040339": {
+    "total": 56900000,
+    "trainable": 56900000
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26l_dino_train/20260610_220558": {
+    "total": 88460416,
+    "trainable": 2800000
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26l_dino_train/20260611_010615": {
+    "total": 88460416,
+    "trainable": 2800000
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26l_dino_train/20260611_040409": {
+    "total": 88460416,
+    "trainable": 2800000
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26l_train/20260610_220637": {
+    "total": 87800000,
+    "trainable": 87800000
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26l_train/20260611_010625": {
+    "total": 87800000,
+    "trainable": 87800000
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26l_train/20260611_040453": {
+    "total": 87800000,
+    "trainable": 87800000
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26m_dino_train/20260610_220758": {
+    "total": 88460416,
+    "trainable": 2800000
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26m_dino_train/20260611_010900": {
+    "total": 88460416,
+    "trainable": 2800000
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26m_dino_train/20260611_040532": {
+    "total": 88460416,
+    "trainable": 2800000
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26m_train/20260610_220800": {
+    "total": 40700000,
+    "trainable": 40700000
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26m_train/20260611_011542": {
+    "total": 40700000,
+    "trainable": 40700000
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26m_train/20260611_040704": {
+    "total": 40700000,
+    "trainable": 40700000
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26n_dino_train/20260610_221200": {
+    "total": 88460416,
+    "trainable": 2800000
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26n_dino_train/20260611_011905": {
+    "total": 88460416,
+    "trainable": 2800000
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26n_dino_train/20260611_040747": {
+    "total": 88460416,
+    "trainable": 2800000
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26n_train/20260610_221254": {
+    "total": 5500000,
+    "trainable": 5500000
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26n_train/20260611_012203": {
+    "total": 5500000,
+    "trainable": 5500000
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26n_train/20260611_041251": {
+    "total": 5500000,
+    "trainable": 5500000
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26s_dino_train/20260610_221708": {
+    "total": 88460416,
+    "trainable": 2800000
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26s_dino_train/20260611_012323": {
+    "total": 88460416,
+    "trainable": 2800000
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26s_dino_train/20260611_041329": {
+    "total": 88460416,
+    "trainable": 2800000
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26s_train/20260610_221743": {
+    "total": 19300000,
+    "trainable": 19300000
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26s_train/20260611_012347": {
+    "total": 19300000,
+    "trainable": 19300000
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26s_train/20260611_041423": {
+    "total": 19300000,
+    "trainable": 19300000
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26x_dino_train/20260610_221841": {
+    "total": 88460416,
+    "trainable": 2800000
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26x_dino_train/20260611_012455": {
+    "total": 88460416,
+    "trainable": 2800000
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26x_dino_train/20260611_041436": {
+    "total": 88460416,
+    "trainable": 2800000
+  },
+  "det_all/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26x_train/20260610_222004": {
+    "total": 136900000,
+    "trainable": 136900000
+  },
+  "det_no_cell/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26x_train/20260611_012752": {
+    "total": 136900000,
+    "trainable": 136900000
+  },
+  "det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__yolo26x_train/20260611_041706": {
+    "total": 136900000,
+    "trainable": 136900000
+  },
+  "det_all/yolov8l__yolov8l_train/20260610_222012": {
+    "total": 43700000,
+    "trainable": 43700000
+  },
+  "det_no_cell/yolov8l__yolov8l_train/20260611_012828": {
+    "total": 43700000,
+    "trainable": 43700000
+  },
+  "det_abnormal/yolov8l__yolov8l_train/20260611_041751": {
+    "total": 43700000,
+    "trainable": 43700000
+  },
+  "det_all/yolov8m__yolov8m_train/20260610_222208": {
+    "total": 25900000,
+    "trainable": 25900000
+  },
+  "det_no_cell/yolov8m__yolov8m_train/20260611_013012": {
+    "total": 25900000,
+    "trainable": 25900000
+  },
+  "det_abnormal/yolov8m__yolov8m_train/20260611_041842": {
+    "total": 25900000,
+    "trainable": 25900000
+  },
+  "det_all/yolov8x__yolov8x_train/20260610_222707": {
+    "total": 68200000,
+    "trainable": 68200000
+  },
+  "det_no_cell/yolov8x__yolov8x_train/20260611_013504": {
+    "total": 68200000,
+    "trainable": 68200000
+  },
+  "det_abnormal/yolov8x__yolov8x_train/20260611_042301": {
+    "total": 68200000,
+    "trainable": 68200000
+  }
+}

@@ -34,6 +34,87 @@ def find_latest_checkpoint_state(run_dir):
             return state_path
     return None
 
+def estimate_model_params(model_name, task, peft_type, peft_config, is_yolo_dino=False, yolo_variant=None):
+    vit_s_params = 22050816
+    vit_b_params = 85955328
+    
+    yolo_params = {
+        "yolo11n": 2600000, "yolo11s": 9400000, "yolo11m": 20100000, "yolo11l": 25300000, "yolo11x": 56900000,
+        "yolo26n": 5500000, "yolo26s": 19300000, "yolo26m": 40700000, "yolo26l": 87800000, "yolo26x": 136900000,
+        "yolov8n": 3200000, "yolov8s": 11200000, "yolov8m": 25900000, "yolov8l": 43700000, "yolov8x": 68200000
+    }
+    
+    is_vit_b = "vitb16" in model_name.lower() or "vit-base" in model_name.lower()
+    d = 768 if is_vit_b else 384
+    num_layers = 12
+    backbone_params = vit_b_params if is_vit_b else vit_s_params
+    
+    if task == "Classification":
+        head_params = 1538 if is_vit_b else 770
+        if peft_type == "none" or not peft_type:
+            return {"total": backbone_params + head_params, "trainable": head_params}
+            
+        peft_params = 0
+        target_blocks = peft_config.get("lora_target_blocks") or peft_config.get("adapter_target_blocks") or peft_config.get("vpt_target_blocks")
+        targeted_layers = len(target_blocks) if target_blocks else num_layers
+        
+        if peft_type == "lora":
+            r = peft_config.get("lora_r", 8)
+            peft_params = targeted_layers * (4 * r * d)
+        elif peft_type == "adapter":
+            bottleneck_dim = peft_config.get("adapter_bottleneck_dim", 64)
+            peft_params = targeted_layers * (2 * d * bottleneck_dim + d + bottleneck_dim)
+        elif peft_type == "visual_prompt":
+            num_tokens = peft_config.get("vpt_num_tokens", 10)
+            deep = peft_config.get("vpt_deep", False)
+            if deep:
+                peft_params = targeted_layers * num_tokens * d
+            else:
+                peft_params = num_tokens * d
+                
+        return {
+            "total": backbone_params + head_params + peft_params,
+            "trainable": head_params + peft_params
+        }
+    else:
+        if not is_yolo_dino:
+            name_key = Path(yolo_variant or model_name).stem.replace(".pt", "").lower()
+            tot = yolo_params.get(name_key, 5500000)
+            return {"total": tot, "trainable": tot}
+        else:
+            yolo_head_params = {
+                "yolo26n": 2800000, "yolo26s": 9900000, "yolo26m": 20700000, "yolo26l": 44800000, "yolo26x": 69900000,
+                "yolo11n": 1400000, "yolo11s": 4800000, "yolo11m": 10100000, "yolo11l": 21800000, "yolo11x": 34100000
+            }
+            variant = Path(yolo_variant).stem.lower()
+            head_params = yolo_head_params.get(variant, 2800000)
+            
+            if peft_type == "none" or not peft_type:
+                return {"total": backbone_params + head_params, "trainable": head_params}
+                
+            peft_params = 0
+            target_blocks = peft_config.get("lora_target_blocks") or peft_config.get("adapter_target_blocks") or peft_config.get("vpt_target_blocks")
+            targeted_layers = len(target_blocks) if target_blocks else num_layers
+            
+            if peft_type == "lora":
+                r = peft_config.get("lora_r", 8)
+                peft_params = targeted_layers * (4 * r * d)
+            elif peft_type == "adapter":
+                bottleneck_dim = peft_config.get("adapter_bottleneck_dim", 64)
+                peft_params = targeted_layers * (2 * d * bottleneck_dim + d + bottleneck_dim)
+            elif peft_type == "visual_prompt":
+                num_tokens = peft_config.get("vpt_num_tokens", 10)
+                deep = peft_config.get("vpt_deep", False)
+                if deep:
+                    peft_params = targeted_layers * num_tokens * d
+                else:
+                    peft_params = num_tokens * d
+                    
+            return {
+                "total": backbone_params + head_params + peft_params,
+                "trainable": head_params + peft_params
+            }
+
 def load_results(base_path="outputs"):
     """
     Recursively scans base_path to load config.yaml and trainer_state.json files.
@@ -43,6 +124,16 @@ def load_results(base_path="outputs"):
     
     if not base_path_obj.exists():
         return pd.DataFrame()
+
+    # Load parameter cache if available
+    param_cache = {}
+    cache_path = base_path_obj / "parameter_cache.json"
+    if cache_path.exists():
+        try:
+            with open(cache_path, "r") as f:
+                param_cache = json.load(f)
+        except Exception:
+            pass
 
     # Locate directories containing config.yaml
     for root, dirs, files in os.walk(base_path):
@@ -88,6 +179,35 @@ def load_results(base_path="outputs"):
             task = "Detection" if is_det else "Classification"
             custom_param = "default"
             abnormal_class_name = cfg.get("data", {}).get("abnormal_class_name", "abnormal")
+
+            # Resolve dataset
+            if is_det:
+                yolo_yaml = cfg.get("yolo_data_yaml", "")
+                dataset = Path(yolo_yaml).stem if yolo_yaml else "unknown"
+            else:
+                data_dir = cfg.get("data", {}).get("data_dir", "") or cfg.get("data_dir", "")
+                dataset = Path(data_dir).name if data_dir else "cls_v1.0"
+
+            # Resolve parameter counts
+            rel_run_path = str(run_dir.relative_to(base_path_obj))
+            if rel_run_path in param_cache:
+                total_params = param_cache[rel_run_path]["total"]
+                trainable_params = param_cache[rel_run_path]["trainable"]
+            else:
+                yolo_variant = cfg.get("yolo_model_config", "")
+                is_yolo_dino = is_det and ("dino" in yolo_variant.lower() or "dino" in model_name.lower())
+                est = estimate_model_params(
+                    model_name=model_name,
+                    task=task,
+                    peft_type=peft_type,
+                    peft_config=peft_cfg,
+                    is_yolo_dino=is_yolo_dino,
+                    yolo_variant=yolo_variant
+                )
+                total_params = est["total"]
+                trainable_params = est["trainable"]
+            
+            pct_trainable = (trainable_params / total_params * 100.0) if total_params > 0 else 0.0
             
             # 2. Parse trainer_state.json (look in root, fallback to latest checkpoint)
             state_path = run_dir / "trainer_state.json"
@@ -112,7 +232,7 @@ def load_results(base_path="outputs"):
                     
                     # Extract metrics from evaluation steps in history
                     if is_det:
-                        eval_steps = [item for item in history if "eval_mAP50" in item or "eval_custom_cls_f1/abnormality" in item]
+                        eval_steps = [item for item in history if "eval_mAP50" in item or "eval_custom_cls_f1/abnormality" in item or "eval_custom_cls_f1/abnormal" in item]
                     else:
                         eval_steps = [item for item in history if "eval_f1" in item]
                         
@@ -124,11 +244,11 @@ def load_results(base_path="outputs"):
                             best_step = max(
                                 eval_steps,
                                 key=lambda x: (
-                                    x.get("eval_custom_cls_f1/abnormality", 0.0) or x.get("eval_mAP50", 0.0),
+                                    x.get("eval_custom_cls_f1/abnormality", 0.0) or x.get("eval_custom_cls_f1/abnormal", 0.0) or x.get("eval_mAP50", 0.0),
                                     -x.get("eval_loss", float('inf'))
                                 )
-                            )
-                            best_eval_f1 = best_step.get("eval_custom_cls_f1/abnormality", 0.0)
+                             )
+                            best_eval_f1 = best_step.get("eval_custom_cls_f1/abnormality", 0.0) or best_step.get("eval_custom_cls_f1/abnormal", 0.0)
                         else:
                             # Find step with max eval_f1. If tie, select lowest eval_loss
                             best_step = max(eval_steps, key=lambda x: (x.get("eval_f1", 0.0), -x.get("eval_loss", float('inf'))))
@@ -148,8 +268,8 @@ def load_results(base_path="outputs"):
             img_auroc = 0.5
             if best_epoch_metrics:
                 if is_det:
-                    img_f1 = best_epoch_metrics.get("eval_custom_cls_f1/abnormality", 0.0)
-                    img_auroc = best_epoch_metrics.get("eval_custom_cls_auroc/abnormality", 0.5)
+                    img_f1 = best_epoch_metrics.get("eval_custom_cls_f1/abnormality", 0.0) or best_epoch_metrics.get("eval_custom_cls_f1/abnormal", 0.0)
+                    img_auroc = best_epoch_metrics.get("eval_custom_cls_auroc/abnormality", 0.5) or best_epoch_metrics.get("eval_custom_cls_auroc/abnormal", 0.5)
                 else:
                     img_f1 = best_epoch_metrics.get("eval_f1", 0.0)
                     img_auroc = best_epoch_metrics.get("eval_auroc", 0.5)
@@ -181,7 +301,11 @@ def load_results(base_path="outputs"):
                 "history": history,
                 "img_abnormality_f1": img_f1,
                 "img_abnormality_auroc": img_auroc,
-                "abnormal_class_name": abnormal_class_name
+                "abnormal_class_name": abnormal_class_name,
+                "dataset": dataset,
+                "total_params": total_params,
+                "trainable_params": trainable_params,
+                "pct_trainable": pct_trainable
             })
             
     return pd.DataFrame(runs_data)
@@ -232,7 +356,7 @@ def get_best_epoch_metrics(history: list, benchmark_metric: str, mode: str = "ma
         # Fail-safe fallback: return the last eval step
         return valid_steps[-1]
 
-def update_best_metrics_inplace(df: pd.DataFrame, benchmark_metric: str, mode: str):
+def update_best_metrics_inplace(df: pd.DataFrame, benchmark_metric: str, mode: str, selected_label: str = "abnormality"):
     if df.empty:
         return
     
@@ -246,7 +370,7 @@ def update_best_metrics_inplace(df: pd.DataFrame, benchmark_metric: str, mode: s
         target_mode = mode
         
         if benchmark_metric == "default":
-            target_metric = "eval_custom_cls_f1/abnormality" if is_det else "eval_f1"
+            target_metric = f"eval_custom_cls_f1/{selected_label}" if is_det else "eval_f1"
             target_mode = "max"
             
         best_step = get_best_epoch_metrics(history, target_metric, target_mode)
@@ -254,14 +378,14 @@ def update_best_metrics_inplace(df: pd.DataFrame, benchmark_metric: str, mode: s
         # Write updated metrics to the row
         df.at[idx, "best_metrics"] = best_step
         if best_step:
-            df.at[idx, "best_eval_f1"] = best_step.get("eval_f1", 0.0) if not is_det else best_step.get("eval_custom_cls_f1/abnormality", 0.0)
+            df.at[idx, "best_eval_f1"] = best_step.get("eval_f1", 0.0) if not is_det else best_step.get(f"eval_custom_cls_f1/{selected_label}", 0.0)
             
             # Handle float conversions safely
             val_loss = best_step.get("eval_loss", None)
             df.at[idx, "best_eval_loss"] = float(val_loss) if val_loss is not None else None
             
-            df.at[idx, "img_abnormality_f1"] = best_step.get("eval_custom_cls_f1/abnormality", 0.0) if is_det else best_step.get("eval_f1", 0.0)
-            df.at[idx, "img_abnormality_auroc"] = best_step.get("eval_custom_cls_auroc/abnormality", 0.5) if is_det else best_step.get("eval_auroc", 0.5)
+            df.at[idx, "img_abnormality_f1"] = best_step.get(f"eval_custom_cls_f1/{selected_label}", 0.0) if is_det else best_step.get("eval_f1", 0.0)
+            df.at[idx, "img_abnormality_auroc"] = best_step.get(f"eval_custom_cls_auroc/{selected_label}", 0.5) if is_det else best_step.get("eval_auroc", 0.5)
         else:
             df.at[idx, "best_eval_f1"] = 0.0
             df.at[idx, "best_eval_loss"] = None
@@ -360,13 +484,36 @@ def main():
         st.sidebar.multiselect("PEFT Methods", ["LoRA", "Bottleneck Adapters", "VPT", "Prefix Tuning (Future)"], default=["LoRA", "Bottleneck Adapters", "VPT"])
         return
 
+    # Extract unique classes/labels for monitoring
+    def get_unique_classes(df):
+        classes = set()
+        for history in df["history"]:
+            for entry in history:
+                for key in entry.keys():
+                    if key.startswith("eval_custom_cls_f1/"):
+                        cls_name = key.split("/")[-1]
+                        classes.add(cls_name)
+        return sorted(list(classes))
+
+    unique_classes = get_unique_classes(df_results)
+    if not unique_classes:
+        unique_classes = ["abnormality", "abnormal", "cell", "text"]
+
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 🏷️ Target Label Monitoring")
+    selected_label = st.sidebar.selectbox(
+        "Class Label for Custom Metrics",
+        options=unique_classes,
+        index=unique_classes.index("abnormality") if "abnormality" in unique_classes else 0
+    )
+
     # Benchmark Metric selector
     st.sidebar.markdown("---")
     st.sidebar.markdown("### 🎯 Best Epoch Benchmark Selection")
     benchmark_option = st.sidebar.selectbox(
         "Benchmark Metric",
         options=[
-            "F1 Score / Converted Abnormality F1 (Max)",
+            f"F1 Score / Converted {selected_label.capitalize()} F1 (Max)",
             "Validation Loss (Min)",
             "Validation mAP50 (Max)",
             "Validation Mean Bbox IoU (Max)",
@@ -393,7 +540,7 @@ def main():
         benchmark_mode = "min"
         
     # Recalculate metrics in-place for df_results
-    update_best_metrics_inplace(df_results, benchmark_metric, benchmark_mode)
+    update_best_metrics_inplace(df_results, benchmark_metric, benchmark_mode, selected_label=selected_label)
 
     # Task Profile filter
     st.sidebar.markdown("---")
@@ -407,8 +554,15 @@ def main():
     unique_pefts = df_results["peft_type"].unique().tolist() if not df_results.empty else []
     unique_lrs = sorted(df_results["lr"].unique().tolist()) if not df_results.empty else []
     unique_imbs = df_results["imbalance_strategy"].unique().tolist() if not df_results.empty else []
+    unique_datasets = sorted(df_results["dataset"].unique().tolist()) if not df_results.empty else []
 
     # Sidebar Filter Controls (with placeholder options)
+    dataset_filter = st.sidebar.multiselect(
+        "Datasets",
+        options=unique_datasets,
+        default=unique_datasets
+    )
+
     model_filter = st.sidebar.multiselect(
         "Backbone Models", 
         options=unique_models + ["facebook/dinov3-vitl16-pretrain (Future)"],
@@ -444,6 +598,10 @@ def main():
 
     # Apply filters to DataFrame
     df_filtered = df_results.copy()
+    
+    # Filter by dataset
+    if dataset_filter:
+        df_filtered = df_filtered[df_filtered["dataset"].isin(dataset_filter)]
     
     # Filter by task
     if selected_task == "Classification":
@@ -556,21 +714,32 @@ def main():
                 else f"{r['best_eval_f1']:.5f} (F1)",
                 axis=1
             )
-            display_df["Image Abnormality F1"] = display_df["img_abnormality_f1"].map(lambda x: f"{x:.5f}")
-            display_df["Image Abnormality AUROC"] = display_df["img_abnormality_auroc"].map(lambda x: f"{x:.5f}")
+            
+            f1_col_name = f"Image {selected_label.capitalize()} F1"
+            auroc_col_name = f"Image {selected_label.capitalize()} AUROC"
+            display_df[f1_col_name] = display_df["img_abnormality_f1"].map(lambda x: f"{x:.5f}")
+            display_df[auroc_col_name] = display_df["img_abnormality_auroc"].map(lambda x: f"{x:.5f}")
+            
             display_df["Best Val Loss"] = display_df["best_eval_loss"].map(lambda x: f"{x:.5f}" if pd.notna(x) else "N/A")
             display_df["Final Train Loss"] = display_df["final_train_loss"].map(lambda x: f"{x:.5f}" if pd.notna(x) else "N/A")
             display_df["LR"] = display_df["lr"].map(lambda x: f"{x:.5f}")
             
+            # Parameter formatting
+            display_df["Total Params"] = display_df["total_params"].map(lambda x: f"{x:,}" if pd.notna(x) else "N/A")
+            display_df["Trainable Params"] = display_df["trainable_params"].map(lambda x: f"{x:,}" if pd.notna(x) else "N/A")
+            display_df["% Trainable"] = display_df["pct_trainable"].map(lambda x: f"{x:.4f}%" if pd.notna(x) else "N/A")
+            
             leaderboard_cols = [
-                "short_cfg_name", "task", "model", "peft_type", "peft_detail", 
-                "imbalance_strategy", "LR", "Task Metric (F1/mAP50)", "Image Abnormality F1", "Image Abnormality AUROC", "Best Val Loss", "Final Train Loss", "status"
+                "short_cfg_name", "task", "dataset", "model", "peft_type", "peft_detail", 
+                "imbalance_strategy", "LR", "Total Params", "Trainable Params", "% Trainable",
+                "Task Metric (F1/mAP50)", f1_col_name, auroc_col_name, "Best Val Loss", "Final Train Loss", "status"
             ]
             
             # Rename columns for presentation
             renamed_df = display_df[leaderboard_cols].rename(columns={
                 "short_cfg_name": "Configuration",
                 "task": "Task",
+                "dataset": "Dataset",
                 "model": "Backbone",
                 "peft_type": "PEFT Type",
                 "peft_detail": "PEFT Hyperparams",
@@ -580,11 +749,11 @@ def main():
             
             # Highlight max F1 score row
             def highlight_max_f1(s):
-                is_max = s == s.max() if s.name == "Image Abnormality F1" else [False] * len(s)
+                is_max = s == s.max() if s.name == f1_col_name else [False] * len(s)
                 return ['background-color: rgba(79, 172, 254, 0.25)' if v else '' for v in is_max]
             
             st.dataframe(
-                renamed_df.style.apply(highlight_max_f1, subset=["Image Abnormality F1"]),
+                renamed_df.style.apply(highlight_max_f1, subset=[f1_col_name]),
                 use_container_width=True
             )
 
@@ -620,27 +789,34 @@ def main():
                                 
                 metric_options = sorted(list(available_metrics))
                 # Put common metrics first if they exist
-                preferred_order = ["eval_f1", "eval_custom_cls_f1/abnormality", "eval_mAP50", "eval_loss", "loss", "eval_custom_mean_bbox_IoU"]
+                preferred_order = ["eval_f1", f"eval_custom_cls_f1/{selected_label}", "eval_mAP50", "eval_loss", "loss", "eval_custom_mean_bbox_IoU"]
                 metric_options = [m for m in preferred_order if m in metric_options] + [m for m in metric_options if m not in preferred_order]
                 
+                # Dynamic format dictionary
+                format_dict = {
+                    "eval_f1": "Validation F1 Score (Cls)",
+                    "eval_mAP50": "Validation mAP50 (Det Box)",
+                    "eval_mAP50-95": "Validation mAP50-95 (Det Box)",
+                    "eval_custom_mean_bbox_IoU": "Mean Bbox IoU (Det Box)",
+                    "eval_custom_mean_bbox_Dice": "Mean Bbox Dice (Det Box)",
+                    "eval_loss": "Validation Loss",
+                    "loss": "Training Loss",
+                    "eval_accuracy": "Validation Accuracy (Cls)",
+                    "eval_auroc": "Validation AUROC (Cls)",
+                    "eval_precision": "Validation Precision (Cls)",
+                    "eval_recall": "Validation Recall (Cls)"
+                }
+                # Add label specific metrics dynamically
+                for l in unique_classes:
+                    format_dict[f"eval_custom_cls_f1/{l}"] = f"Converted Image-Level {l.capitalize()} F1 (Det)"
+                    format_dict[f"eval_custom_cls_auroc/{l}"] = f"Converted Image-Level {l.capitalize()} AUROC (Det)"
+                    format_dict[f"eval_custom_cls_precision/{l}"] = f"Converted Image-Level {l.capitalize()} Precision (Det)"
+                    format_dict[f"eval_custom_cls_recall/{l}"] = f"Converted Image-Level {l.capitalize()} Recall (Det)"
+
                 plot_metric = st.selectbox(
                     "Select Metric to Compare",
                     options=metric_options,
-                    format_func=lambda x: {
-                        "eval_f1": "Validation F1 Score (Cls)",
-                        "eval_custom_cls_f1/abnormality": "Converted Image-Level Abnormality F1 (Det)",
-                        "eval_custom_cls_auroc/abnormality": "Converted Image-Level Abnormality AUROC (Det)",
-                        "eval_mAP50": "Validation mAP50 (Det Box)",
-                        "eval_mAP50-95": "Validation mAP50-95 (Det Box)",
-                        "eval_custom_mean_bbox_IoU": "Mean Bbox IoU (Det Box)",
-                        "eval_custom_mean_bbox_Dice": "Mean Bbox Dice (Det Box)",
-                        "eval_loss": "Validation Loss",
-                        "loss": "Training Loss",
-                        "eval_accuracy": "Validation Accuracy (Cls)",
-                        "eval_auroc": "Validation AUROC (Cls)",
-                        "eval_precision": "Validation Precision (Cls)",
-                        "eval_recall": "Validation Recall (Cls)"
-                    }.get(x, x)
+                    format_func=lambda x: format_dict.get(x, x)
                 )
                 
                 # Checkbox to isolate metric up to the best epoch
@@ -680,7 +856,7 @@ def main():
                             epochs = np.array(epochs)[sort_idx]
                             values = np.array(values)[sort_idx]
                             
-                            label = f"{run['peft_type']} ({run['peft_detail']}) | lr={run['lr']} | {run['short_cfg_name']}"
+                            label = f"{run['peft_type']} ({run['peft_detail']}) | ds={run['dataset']} | lr={run['lr']} | {run['short_cfg_name']}"
                             fig.add_trace(go.Scatter(
                                 x=epochs,
                                 y=values,
@@ -729,17 +905,22 @@ def main():
                 # Show config parameters in a clean table
                 st.table(pd.DataFrame({
                     "Parameter": [
-                        "Backbone Model", "PEFT Method", "PEFT Details", 
-                        "Learning Rate", "Imbalance Strategy", "Loss Type", "Epochs Configured"
+                        "Dataset", "Backbone Model", "PEFT Method", "PEFT Details", 
+                        "Learning Rate", "Imbalance Strategy", "Loss Type", "Epochs Configured",
+                        "Total Parameters", "Trainable Parameters", "% Trainable"
                     ],
                     "Value": [
+                        run_data["dataset"],
                         run_data["model"],
                         run_data["peft_type"],
                         run_data["peft_detail"],
                         f"{run_data['lr']:.5f}",
                         run_data["imbalance_strategy"],
                         run_data["loss_type"],
-                        str(run_data["epochs_configured"])
+                        str(run_data["epochs_configured"]),
+                        f"{run_data['total_params']:,}" if pd.notna(run_data['total_params']) else "N/A",
+                        f"{run_data['trainable_params']:,}" if pd.notna(run_data['trainable_params']) else "N/A",
+                        f"{run_data['pct_trainable']:.4f}%" if pd.notna(run_data['pct_trainable']) else "N/A"
                     ]
                 }))
                 
@@ -902,7 +1083,7 @@ def main():
         if df_results.empty:
             st.info("No runs available for aggregated comparisons.")
         else:
-            col_peft, col_lr = st.columns(2)
+            col_peft, col_lr, col_ds = st.columns(3)
             
             with col_peft:
                 st.markdown("#### ⚙️ Best F1 Score by PEFT Type")
@@ -938,12 +1119,28 @@ def main():
                 )
                 fig_lr.update_layout(template="plotly_dark", showlegend=False)
                 st.plotly_chart(fig_lr, use_container_width=True)
+
+            with col_ds:
+                st.markdown("#### 📁 Best F1 Score by Dataset")
+                dataset_summary = df_filtered.groupby("dataset")["best_eval_f1"].max().reset_index()
+                
+                fig_dataset = px.bar(
+                    dataset_summary,
+                    x="dataset",
+                    y="best_eval_f1",
+                    color="dataset",
+                    color_discrete_sequence=px.colors.qualitative.Pastel1,
+                    labels={"dataset": "Dataset", "best_eval_f1": "Max F1 Score"},
+                    title="Dataset Performance Comparison"
+                )
+                fig_dataset.update_layout(template="plotly_dark", showlegend=False)
+                st.plotly_chart(fig_dataset, use_container_width=True)
                 
             st.divider()
             
             # Parallel Coordinates Plot for Numerical Hyperparameters
             st.markdown("#### 🕸️ Parallel Hyperparameter Trajectory")
-            st.write("Visualize how combinations of numerical parameters (learning rate, rank/bottleneck size, validation F1) stack together.")
+            st.write("Visualize how combinations of numerical parameters (learning rate, rank/bottleneck size, parameter counts, validation F1) stack together.")
             
             # Map PEFT sizes into numerical column
             coord_df = df_filtered.copy()
@@ -967,9 +1164,9 @@ def main():
             coord_df["peft_hyperparam_size"] = coord_df.apply(get_peft_size_num, axis=1)
             
             # Numeric column filter
-            numeric_cols = ["lr", "peft_hyperparam_size", "best_eval_f1"]
+            numeric_cols = ["lr", "peft_hyperparam_size", "total_params", "trainable_params", "best_eval_f1"]
             if "epochs_configured" in coord_df.columns:
-                numeric_cols.append("epochs_configured")
+                numeric_cols.insert(-1, "epochs_configured")
                 
             fig_par = px.parallel_coordinates(
                 coord_df,
@@ -979,12 +1176,37 @@ def main():
                 labels={
                     "lr": "Learning Rate",
                     "peft_hyperparam_size": "PEFT Size (Rank/Dim/Token)",
+                    "total_params": "Total Params",
+                    "trainable_params": "Trainable Params",
                     "best_eval_f1": "Best F1 Score",
                     "epochs_configured": "Epochs"
                 }
             )
             fig_par.update_layout(template="plotly_dark")
             st.plotly_chart(fig_par, use_container_width=True)
+
+            st.divider()
+            st.markdown("#### ⚖️ Parameter-Performance Trade-off Analysis")
+            st.write("Examine how model parameter counts affect final validation performance. Efficient models should achieve high F1 scores with fewer trainable parameters.")
+            
+            fig_scatter = px.scatter(
+                df_filtered,
+                x="trainable_params",
+                y="best_eval_f1",
+                color="peft_type",
+                size="total_params",
+                hover_name="short_cfg_name",
+                hover_data=["model", "lr", "dataset"],
+                labels={
+                    "trainable_params": "Trainable Parameters",
+                    "best_eval_f1": "Best F1 Score",
+                    "peft_type": "PEFT Type",
+                    "total_params": "Total Parameters"
+                },
+                title="Performance vs. Trainable Parameters Trade-off (Size corresponds to Total Parameters)"
+            )
+            fig_scatter.update_layout(template="plotly_dark", xaxis_type="log")
+            st.plotly_chart(fig_scatter, use_container_width=True)
 
     # ── Tab 5: Classification vs. Detection Comparison ──────────────────────────
     with tab_comparison:

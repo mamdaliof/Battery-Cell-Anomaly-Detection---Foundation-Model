@@ -47,6 +47,7 @@ def test_load_results():
         det_config = {
             "model_name": "yolo26_dino",
             "yolo_model_config": "yolo26_dino.yaml",
+            "yolo_data_yaml": "data/det_v1.0/battery_detection_abnormal_only.yaml",
             "num_epochs": 2,
             "learning_rate": 0.0001,
             "peft": {
@@ -79,12 +80,18 @@ def test_load_results():
         assert cls_row["peft_type"] == "lora"
         assert cls_row["loss_type"] == "focal"
         assert cls_row["lr"] == 0.0003
+        assert cls_row["dataset"] == "cls_v1.0"
+        assert "total_params" in cls_row
+        assert "trainable_params" in cls_row
         
         # Check detection run parsing
         det_row = df[df["task"] == "Detection"].iloc[0]
         assert det_row["model"] == "yolo26_dino"
         assert det_row["peft_type"] == "adapter"
         assert det_row["lr"] == 0.0001
+        assert det_row["dataset"] == "battery_detection_abnormal_only"
+        assert "total_params" in det_row
+        assert "trainable_params" in det_row
         
         # Validate that history list is present (to be added in refactoring)
         assert "history" in cls_row, "history should be preserved in df rows"
