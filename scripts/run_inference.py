@@ -14,6 +14,19 @@ from bcadfm.models.dinov3_classifier import DinoV3Classifier, HeadConfig
 from bcadfm.data.config import DataConfig
 from bcadfm.data.dataset import BatteryCellDataset
 
+def draw_text_with_bg(draw, text, position, color, bg_color=(0, 0, 0)):
+    x, y = position
+    try:
+        # Pillow >= 8.0.0
+        bbox = draw.textbbox((x, y), text)
+        pad = 2
+        bbox = (bbox[0] - pad, bbox[1] - pad, bbox[2] + pad, bbox[3] + pad)
+        draw.rectangle(bbox, fill=bg_color)
+    except AttributeError:
+        # Fallback for older Pillow versions
+        draw.rectangle([x - 2, y - 2, x + 250, y + 18], fill=bg_color)
+    draw.text((x, y), text, fill=color)
+
 def find_classification_weights(run_dir: Path) -> Path:
     # Check direct weights in run_dir
     for name in ["best_f1.pt", "best_loss.pt", "model.safetensors", "pytorch_model.bin"]:
@@ -45,7 +58,7 @@ def find_yolo_weights(run_dir: Path) -> Path:
 def main():
     parser = argparse.ArgumentParser(description="Perform validation set inference and save outputs")
     parser.add_argument("--model", type=str, required=True, help="Path to model directory or weights file")
-    parser.add_argument("--output_dir", type=str, default="visual_inference", help="Path to save predictions and ground truths")
+    parser.add_argument("--output_dir", type=str, default="visual_inference", help="Path to save side-by-side images")
     args = parser.parse_args()
 
     model_path = Path(args.model).resolve()
@@ -64,12 +77,18 @@ def main():
     # Try to locate config.yaml
     config_path = run_dir / "config.yaml"
     if not config_path.exists():
-        # Fallback to parents
-        for parent in model_path.parents:
-            config_path = parent / "config.yaml"
-            if config_path.exists():
-                run_dir = parent
-                break
+        # Search recursively inside run_dir
+        configs = list(run_dir.rglob("config.yaml"))
+        if configs:
+            config_path = configs[0]
+            run_dir = config_path.parent
+        else:
+            # Fallback to parents
+            for parent in model_path.parents:
+                config_path = parent / "config.yaml"
+                if config_path.exists():
+                    run_dir = parent
+                    break
                 
     if not config_path.exists():
         raise FileNotFoundError(f"Could not locate config.yaml for model {args.model}")
@@ -80,13 +99,8 @@ def main():
     # 2. Determine Task Type
     is_det = "yolo_model_config" in cfg
     
-    # Create directories
-    pred_dir = output_dir / "predictions"
-    gt_dir = output_dir / "ground_truth"
-    pred_dir.mkdir(parents=True, exist_ok=True)
-    gt_dir.mkdir(parents=True, exist_ok=True)
-
-    print(f"📂 Output Directories:\n   Predictions:  {pred_dir}\n   Ground Truth: {gt_dir}")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    print(f"📂 Output Directory: {output_dir}")
 
     if is_det:
         print("🔍 Detected Task: YOLO Object Detection")
@@ -124,13 +138,14 @@ def main():
             # Predict
             results = model(str(img_path))
             plotted = results[0].plot() # Returns BGR numpy array
-            
-            # Save Prediction
-            cv2.imwrite(str(pred_dir / f"{img_path.stem}_pred.jpg"), plotted)
+            img_pred = Image.fromarray(cv2.cvtColor(plotted, cv2.COLOR_BGR2RGB))
+            draw_pred = ImageDraw.Draw(img_pred)
+            draw_text_with_bg(draw_pred, "PRED", (10, 10), color=(255, 255, 255), bg_color=(0, 0, 0))
             
             # Draw Ground Truth
-            img = Image.open(img_path).convert("RGB")
-            draw = ImageDraw.Draw(img)
+            img_gt = Image.open(img_path).convert("RGB")
+            draw_gt = ImageDraw.Draw(img_gt)
+            draw_text_with_bg(draw_gt, "GT", (10, 10), color=(255, 255, 255), bg_color=(0, 0, 0))
             label_path = val_labels_dir / f"{img_path.stem}.txt"
             
             if label_path.exists():
@@ -142,7 +157,7 @@ def main():
                         cls_id = int(parts[0])
                         x_c, y_c, w, h = map(float, parts[1:5])
                         
-                        img_w, img_h = img.size
+                        img_w, img_h = img_gt.size
                         x1 = (x_c - w / 2) * img_w
                         y1 = (y_c - h / 2) * img_h
                         x2 = (x_c + w / 2) * img_w
@@ -151,12 +166,17 @@ def main():
                         colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
                         color = colors[cls_id % len(colors)]
                         
-                        draw.rectangle([x1, y1, x2, y2], outline=color, width=3)
+                        draw_gt.rectangle([x1, y1, x2, y2], outline=color, width=3)
                         cls_name = class_names.get(cls_id, f"Class {cls_id}")
-                        draw.text((x1 + 5, y1 + 5), cls_name, fill=color)
+                        draw_text_with_bg(draw_gt, cls_name, (x1 + 5, y1 + 5), color=color, bg_color=(0, 0, 0))
             
-            # Save Ground Truth
-            img.save(gt_dir / f"{img_path.stem}_gt.jpg")
+            # Combine side by side
+            w_gt, h_gt = img_gt.size
+            w_pred, h_pred = img_pred.size
+            combined = Image.new("RGB", (w_gt + w_pred, max(h_gt, h_pred)))
+            combined.paste(img_gt, (0, 0))
+            combined.paste(img_pred, (w_gt, 0))
+            combined.save(output_dir / f"{img_path.stem}.jpg")
 
     else:
         print("🔍 Detected Task: DINOv3 + PEFT Image Classification")
@@ -219,18 +239,24 @@ def main():
             pred_class_name = val_dataset.id2label[pred_idx]
             
             # Draw Prediction
-            img = Image.open(img_path).convert("RGB")
-            draw = ImageDraw.Draw(img)
+            img_pred = Image.open(img_path).convert("RGB")
+            draw_pred = ImageDraw.Draw(img_pred)
             pred_color = (0, 255, 0) if pred_class_name == "normal" else (255, 0, 0)
-            draw.text((10, 10), f"Pred: {pred_class_name} ({confidence*100:.1f}%)", fill=pred_color)
-            img.save(pred_dir / f"{img_path.stem}_pred.jpg")
+            draw_text_with_bg(draw_pred, f"PRED: {pred_class_name} ({confidence*100:.1f}%)", (10, 10), color=pred_color, bg_color=(0, 0, 0))
             
             # Draw Ground Truth
             img_gt = Image.open(img_path).convert("RGB")
             draw_gt = ImageDraw.Draw(img_gt)
             gt_color = (0, 255, 0) if gt_class_name == "normal" else (255, 0, 0)
-            draw_gt.text((10, 10), f"GT: {gt_class_name}", fill=gt_color)
-            img_gt.save(gt_dir / f"{img_path.stem}_gt.jpg")
+            draw_text_with_bg(draw_gt, f"GT: {gt_class_name}", (10, 10), color=gt_color, bg_color=(0, 0, 0))
+            
+            # Combine side by side
+            w_gt, h_gt = img_gt.size
+            w_pred, h_pred = img_pred.size
+            combined = Image.new("RGB", (w_gt + w_pred, max(h_gt, h_pred)))
+            combined.paste(img_gt, (0, 0))
+            combined.paste(img_pred, (w_gt, 0))
+            combined.save(output_dir / f"{img_path.stem}.jpg")
 
     print("✅ Validation Inference and saving completed successfully!")
 
