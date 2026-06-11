@@ -1,0 +1,647 @@
+Ablation Config Validation Report
+Generated: 2026-06-11T12:51:32.709462
+Total: 58  |  PASS: 0  |  FAIL: 58
+======================================================================
+
+── PASSED ──────────────────────────────────────────────────────────
+
+── FAILED ──────────────────────────────────────────────────────────
+
+[FAIL] 01_baseline_vits16
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/01_baseline_vits16.yaml
+
+[FAIL] 02_baseline_vitb16
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/02_baseline_vitb16.yaml
+
+[FAIL] 03_lora_vits16_r8_all_lr0.0003
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/03_lora_vits16_r8_all_lr0.0003.yaml
+
+[FAIL] 04_lora_vits16_r8_all_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/04_lora_vits16_r8_all_lr0.0005.yaml
+
+[FAIL] 05_lora_vits16_r8_last4_lr0.0003
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/05_lora_vits16_r8_last4_lr0.0003.yaml
+
+[FAIL] 06_lora_vits16_r8_last4_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/06_lora_vits16_r8_last4_lr0.0005.yaml
+
+[FAIL] 07_lora_vits16_r8_last2_lr0.0003
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/07_lora_vits16_r8_last2_lr0.0003.yaml
+
+[FAIL] 08_lora_vits16_r8_last2_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/08_lora_vits16_r8_last2_lr0.0005.yaml
+
+[FAIL] 09_lora_vits16_r16_all_lr0.0003
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/09_lora_vits16_r16_all_lr0.0003.yaml
+
+[FAIL] 10_lora_vits16_r16_all_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/10_lora_vits16_r16_all_lr0.0005.yaml
+
+[FAIL] 11_lora_vits16_r16_last4_lr0.0003
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/11_lora_vits16_r16_last4_lr0.0003.yaml
+
+[FAIL] 12_lora_vits16_r16_last4_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/12_lora_vits16_r16_last4_lr0.0005.yaml
+
+[FAIL] 13_lora_vits16_r16_last2_lr0.0003
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/13_lora_vits16_r16_last2_lr0.0003.yaml
+
+[FAIL] 14_lora_vits16_r16_last2_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/14_lora_vits16_r16_last2_lr0.0005.yaml
+
+[FAIL] 15_lora_vitb16_r8_all_lr0.0003
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/15_lora_vitb16_r8_all_lr0.0003.yaml
+
+[FAIL] 16_lora_vitb16_r8_all_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/16_lora_vitb16_r8_all_lr0.0005.yaml
+
+[FAIL] 17_lora_vitb16_r8_last4_lr0.0003
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/17_lora_vitb16_r8_last4_lr0.0003.yaml
+
+[FAIL] 18_lora_vitb16_r8_last4_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/18_lora_vitb16_r8_last4_lr0.0005.yaml
+
+[FAIL] 19_lora_vitb16_r8_last2_lr0.0003
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/19_lora_vitb16_r8_last2_lr0.0003.yaml
+
+[FAIL] 20_lora_vitb16_r8_last2_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/20_lora_vitb16_r8_last2_lr0.0005.yaml
+
+[FAIL] 21_lora_vitb16_r16_all_lr0.0003
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/21_lora_vitb16_r16_all_lr0.0003.yaml
+
+[FAIL] 22_lora_vitb16_r16_all_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/22_lora_vitb16_r16_all_lr0.0005.yaml
+
+[FAIL] 23_lora_vitb16_r16_last4_lr0.0003
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/23_lora_vitb16_r16_last4_lr0.0003.yaml
+
+[FAIL] 24_lora_vitb16_r16_last4_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/24_lora_vitb16_r16_last4_lr0.0005.yaml
+
+[FAIL] 25_lora_vitb16_r16_last2_lr0.0003
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/25_lora_vitb16_r16_last2_lr0.0003.yaml
+
+[FAIL] 26_lora_vitb16_r16_last2_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/26_lora_vitb16_r16_last2_lr0.0005.yaml
+
+[FAIL] 27_adapter_vits16_d32_last4_lr0.0003
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/27_adapter_vits16_d32_last4_lr0.0003.yaml
+
+[FAIL] 28_adapter_vits16_d32_last4_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/28_adapter_vits16_d32_last4_lr0.0005.yaml
+
+[FAIL] 29_adapter_vits16_d32_last2_lr0.0003
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/29_adapter_vits16_d32_last2_lr0.0003.yaml
+
+[FAIL] 30_adapter_vits16_d32_last2_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/30_adapter_vits16_d32_last2_lr0.0005.yaml
+
+[FAIL] 31_adapter_vits16_d64_last4_lr0.0003
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/31_adapter_vits16_d64_last4_lr0.0003.yaml
+
+[FAIL] 32_adapter_vits16_d64_last4_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/32_adapter_vits16_d64_last4_lr0.0005.yaml
+
+[FAIL] 33_adapter_vits16_d64_last2_lr0.0003
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/33_adapter_vits16_d64_last2_lr0.0003.yaml
+
+[FAIL] 34_adapter_vits16_d64_last2_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/34_adapter_vits16_d64_last2_lr0.0005.yaml
+
+[FAIL] 35_adapter_vitb16_d32_last4_lr0.0003
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/35_adapter_vitb16_d32_last4_lr0.0003.yaml
+
+[FAIL] 36_adapter_vitb16_d32_last4_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/36_adapter_vitb16_d32_last4_lr0.0005.yaml
+
+[FAIL] 37_adapter_vitb16_d32_last2_lr0.0003
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/37_adapter_vitb16_d32_last2_lr0.0003.yaml
+
+[FAIL] 38_adapter_vitb16_d32_last2_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/38_adapter_vitb16_d32_last2_lr0.0005.yaml
+
+[FAIL] 39_adapter_vitb16_d64_last4_lr0.0003
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/39_adapter_vitb16_d64_last4_lr0.0003.yaml
+
+[FAIL] 40_adapter_vitb16_d64_last4_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/40_adapter_vitb16_d64_last4_lr0.0005.yaml
+
+[FAIL] 41_adapter_vitb16_d64_last2_lr0.0003
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/41_adapter_vitb16_d64_last2_lr0.0003.yaml
+
+[FAIL] 42_adapter_vitb16_d64_last2_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/42_adapter_vitb16_d64_last2_lr0.0005.yaml
+
+[FAIL] 43_vpt_vits16_shallow_t10_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/43_vpt_vits16_shallow_t10_lr0.0005.yaml
+
+[FAIL] 44_vpt_vits16_shallow_t10_lr0.001
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/44_vpt_vits16_shallow_t10_lr0.001.yaml
+
+[FAIL] 45_vpt_vits16_shallow_t20_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/45_vpt_vits16_shallow_t20_lr0.0005.yaml
+
+[FAIL] 46_vpt_vits16_shallow_t20_lr0.001
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/46_vpt_vits16_shallow_t20_lr0.001.yaml
+
+[FAIL] 47_vpt_vits16_deep_last4_t10_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/47_vpt_vits16_deep_last4_t10_lr0.0005.yaml
+
+[FAIL] 48_vpt_vits16_deep_last4_t10_lr0.001
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/48_vpt_vits16_deep_last4_t10_lr0.001.yaml
+
+[FAIL] 49_vpt_vits16_deep_last4_t20_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/49_vpt_vits16_deep_last4_t20_lr0.0005.yaml
+
+[FAIL] 50_vpt_vits16_deep_last4_t20_lr0.001
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/50_vpt_vits16_deep_last4_t20_lr0.001.yaml
+
+[FAIL] 51_vpt_vitb16_shallow_t10_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/51_vpt_vitb16_shallow_t10_lr0.0005.yaml
+
+[FAIL] 52_vpt_vitb16_shallow_t10_lr0.001
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/52_vpt_vitb16_shallow_t10_lr0.001.yaml
+
+[FAIL] 53_vpt_vitb16_shallow_t20_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/53_vpt_vitb16_shallow_t20_lr0.0005.yaml
+
+[FAIL] 54_vpt_vitb16_shallow_t20_lr0.001
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/54_vpt_vitb16_shallow_t20_lr0.001.yaml
+
+[FAIL] 55_vpt_vitb16_deep_last4_t10_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/55_vpt_vitb16_deep_last4_t10_lr0.0005.yaml
+
+[FAIL] 56_vpt_vitb16_deep_last4_t10_lr0.001
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/56_vpt_vitb16_deep_last4_t10_lr0.001.yaml
+
+[FAIL] 57_vpt_vitb16_deep_last4_t20_lr0.0005
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/57_vpt_vitb16_deep_last4_t20_lr0.0005.yaml
+
+[FAIL] 58_vpt_vitb16_deep_last4_t20_lr0.001
+       Traceback (most recent call last):
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/scripts/check_model_init.py", line 50, in main
+           from bcadfm.utils.config import load_yaml_config
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/utils/config.py", line 7, in <module>
+           from bcadfm.models.dinov3_classifier import HeadConfig
+         File "/home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/models/dinov3_classifier.py", line 6, in <module>
+           import torch
+       ModuleNotFoundError: No module named 'torch'
+       FAIL | configs/cls/ablations/58_vpt_vitb16_deep_last4_t20_lr0.001.yaml
+

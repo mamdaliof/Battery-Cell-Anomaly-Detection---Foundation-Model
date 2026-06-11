@@ -1,0 +1,67 @@
+{
+  "status": "completed",
+  "project_type": "brownfield",
+  "completed_sections": [
+    "product",
+    "guidelines",
+    "tech_stack",
+    "workflow"
+  ],
+  "answers": {
+    "product": {
+      "project_name": "Battery Cell Anomaly Detection - Foundation Model",
+      "project_description": "A computer vision project utilizing frozen DINOv3 backbones and parameter-efficient fine-tuning (PEFT) for detection and classification and perform ablation study",
+      "problem_statement": "Identifying anomalous battery cells from images under severe class imbalance (normal vs abnormal) to ensure quality control, while maximizing f1-score or map metric. it also provide a basis for scale the project to other tasks and other datasets that might not facing imblance problem. also it compare the hyperparameter effects",
+      "target_users": "Machine learning researchers and engineers studying or building parameter-efficient fine-tuning (PEFT) pipelines for using foundation models and ViT based models like DINO-vit to train models for detection and multi-label classification",
+      "key_goals": [
+        "Implement parameter-efficient training using foundation models like DINOv3 for multi-label classification and object detection.",
+        "Analyze the impact of different hyperparameter choices (such as ranks, bottleneck dimensions, and loss functions) on performance.",
+        "Establish an ablation study framework to compare PEFT methods (LoRA, Adapters, VPT) vs frozen baselines.",
+        "Design a modular codebase structure that scales to other vision tasks, models, and datasets.",
+        "Maximize F1-score on classification and mAP on detection tasks for the anomalous class under high class imbalance."
+      ]
+    },
+    "guidelines": {
+      "voice_tone": "Concise and direct",
+      "design_principles": [
+        "Modular and extensible architecture (for scaling to other tasks and datasets)",
+        "Strict reproducibility (fixed seeds, configuration-driven experiments)",
+        "Performance and resource efficiency (via PEFT and frozen backbones)",
+        "Comprehensive metric reporting (f1-score, mAP, confusion matrices)",
+        "adding unit test and validation codes for each module is necessary"
+      ]
+    },
+    "tech_stack": {
+      "language": "Python",
+      "frameworks": [
+        "PyTorch (torch==2.4.0, torchvision==0.19.0)",
+        "Hugging Face Transformers (>=5.10.0)",
+        "Hugging Face PEFT (>=0.11.0)",
+        "Hugging Face Accelerate (>=0.30.0)",
+        "Ultralytics YOLO"
+      ],
+      "utilities": [
+        "scikit-learn",
+        "Pillow",
+        "matplotlib",
+        "plotly",
+        "streamlit"
+      ]
+    },
+    "workflow": {
+      "development_workflow": "Spec-driven development with checklist checkpoints, accompanied by a permanent and growing unit test suite.",
+      "git_strategy": "Feature branches (one branch per track/feature), with verification steps run on the branch, then merged into the main branch once complete.",
+      "verification_steps": "Run pytest tests/ for unit testing and launch smoke training configurations (e.g., configs/test_smoke.yaml) to verify end-to-end training runs. Critical Note: On Farhad's local PC, use 'conda activate pytorch' and do not run heavy training. On the server, use conda environment '/home/jovyan/pytorch_env' where heavy training/ablations are allowed."
+    }
+  },
+  "files_created": [
+    "conductor/setup_state.json",
+    "conductor/product.md",
+    "conductor/product-guidelines.md",
+    "conductor/tech-stack.md",
+    "conductor/workflow.md",
+    "conductor/tracks.md"
+  ],
+  "started_at": "2026-06-11T12:14:34Z",
+  "last_updated": "2026-06-11T12:31:15Z"
+}

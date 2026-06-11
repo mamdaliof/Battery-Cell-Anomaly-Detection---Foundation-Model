@@ -2,9 +2,9 @@
 """
 validate_ablation_configs.py
 
-Runs check_model_init.py for every config in configs/cls/ablations/ in parallel
-(one GPU per job, up to 8 concurrent), collects PASS/FAIL results, and writes
-a consolidated report to outputs/cls/validation_report.txt.
+Runs check_model_init.py for every config in configs/cls/ablations/ in parallel.
+Uses available free GPUs if found (>= 12GB free VRAM). Otherwise, falls back to
+parallel CPU execution to avoid deadlocks.
 
 Usage:
     python3 scripts/validate_ablation_configs.py
@@ -15,6 +15,7 @@ import sys
 import threading
 import time
 import yaml
+import multiprocessing
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -60,13 +61,13 @@ BOLD  = "\033[1m"
 _print_lock = threading.Lock()
 
 
-def gpu_color(gpu_idx: int) -> str:
-    return GPU_COLORS[gpu_idx % len(GPU_COLORS)]
+def slot_color(slot_idx: int) -> str:
+    return GPU_COLORS[slot_idx % len(GPU_COLORS)]
 
 
-def tprint(gpu_idx: int, cfg_stem: str, line: str) -> None:
-    color = gpu_color(gpu_idx)
-    tag   = f"{color}{BOLD}[GPU{gpu_idx}|{cfg_stem}]{RESET} "
+def tprint(slot_idx: int, label: str, cfg_stem: str, line: str) -> None:
+    color = slot_color(slot_idx)
+    tag   = f"{color}{BOLD}[{label}{slot_idx}|{cfg_stem}]{RESET} "
     with _print_lock:
         sys.stdout.write(tag + line + "\n")
         sys.stdout.flush()
@@ -84,15 +85,14 @@ def get_free_gpus() -> List[int]:
             if int(mem_str.strip()) >= MIN_FREE_VRAM_MIB:
                 gpus.append(int(idx_str.strip()))
         return gpus
-    except Exception as e:
-        with _print_lock:
-            print(f"⚠️  nvidia-smi failed ({e}) — assuming GPU 0 is free.")
-        return [0]
+    except Exception:
+        return []
 
 
 def stream_and_capture(
     proc:      subprocess.Popen,
-    gpu_idx:   int,
+    slot_idx:  int,
+    label:     str,
     cfg_stem:  str,
     lines_out: List[str],
 ) -> None:
@@ -100,22 +100,26 @@ def stream_and_capture(
     for line in proc.stdout:
         line = line.rstrip("\n\r")
         if line:
-            tprint(gpu_idx, cfg_stem, line)
+            tprint(slot_idx, label, cfg_stem, line)
             lines_out.append(line)
 
 
-def run_check(gpu_idx: int, cfg_path: Path) -> Tuple[bool, str]:
+def run_check(slot_idx: int, cfg_path: Path, use_gpu: bool, gpu_id: int = 0) -> Tuple[bool, str]:
     """
-    Spawn check_model_init.py for one config on a specific GPU.
+    Spawn check_model_init.py for one config on a specific slot (GPU or CPU).
     Returns (passed: bool, full_output: str).
     """
     cfg_stem = cfg_path.stem
+    label = "GPU" if use_gpu else "CPU"
     env = os.environ.copy()
-    env["CUDA_VISIBLE_DEVICES"] = str(gpu_idx)
+    if use_gpu:
+        env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+    else:
+        env["CUDA_VISIBLE_DEVICES"] = ""
     env["PYTHONPATH"]           = f"{os.getcwd()}/src:" + env.get("PYTHONPATH", "")
 
     proc = subprocess.Popen(
-        ["python3", "scripts/check_model_init.py", "--config", str(cfg_path)],
+        [sys.executable, "scripts/check_model_init.py", "--config", str(cfg_path)],
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -126,7 +130,7 @@ def run_check(gpu_idx: int, cfg_path: Path) -> Tuple[bool, str]:
     captured: List[str] = []
     reader = threading.Thread(
         target=stream_and_capture,
-        args=(proc, gpu_idx, cfg_stem, captured),
+        args=(proc, slot_idx, label, cfg_stem, captured),
         daemon=True,
     )
     reader.start()
@@ -151,23 +155,41 @@ def main():
     print(f"🔍 Found {len(config_files)} configs to validate.\n")
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
+    # ── Detect environment capability ─────────────────────────────────────────
+    free_gpus = get_free_gpus()
+    if free_gpus:
+        use_gpu = True
+        slots = free_gpus
+        label = "GPU"
+        concurrency = len(free_gpus)
+        print(f"✅ Found free GPUs: {free_gpus}")
+    else:
+        use_gpu = False
+        # Limit CPU concurrency to avoid overloading the system
+        cpu_count = multiprocessing.cpu_count() or 2
+        concurrency = min(MAX_PARALLEL_JOBS, max(1, cpu_count // 2))
+        slots = list(range(concurrency))
+        label = "CPU"
+        print(f"⚠️  No free GPUs >= {MIN_FREE_VRAM_MIB} MiB found. Falling back to CPU validation.")
+
     # Results: list of (cfg_stem, passed, output_text)
     results: List[Tuple[str, bool, str]] = []
     results_lock = threading.Lock()
 
-    # pending queue and job map
-    pending      = list(config_files)
+    # pending queue and slot allocation
+    pending = list(config_files)
+    # Maps slot_idx -> (thread, config_path)
     running_jobs: Dict[int, Tuple[threading.Thread, Path]] = {}
 
     print(f"{'='*70}")
-    print(f"🧪 Validating all configs in parallel  |  Max {MAX_PARALLEL_JOBS} GPUs")
+    print(f"🧪 Validating configs in parallel  |  Mode: {label}  |  Concurrency: {concurrency}")
     print(f"{'='*70}\n")
 
-    def job_worker(gpu_idx: int, cfg_path: Path):
-        passed, output = run_check(gpu_idx, cfg_path)
+    def job_worker(slot_idx: int, gpu_id: int, cfg_path: Path):
+        passed, output = run_check(slot_idx, cfg_path, use_gpu, gpu_id)
         symbol = f"{GREEN}✅ PASS{RESET}" if passed else f"{RED}❌ FAIL{RESET}"
         with _print_lock:
-            print(f"\n{gpu_color(gpu_idx)}{BOLD}[GPU{gpu_idx}]{RESET} "
+            print(f"\n{slot_color(slot_idx)}{BOLD}[{label}{slot_idx}]{RESET} "
                   f"{symbol} → {cfg_path.name}\n")
         with results_lock:
             results.append((cfg_path.stem, passed, output))
@@ -175,30 +197,30 @@ def main():
     try:
         while pending or running_jobs:
             # Reap finished threads
-            done = [g for g, (t, _) in running_jobs.items() if not t.is_alive()]
-            for g in done:
-                running_jobs.pop(g)
+            done_slots = [s for s, (t, _) in running_jobs.items() if not t.is_alive()]
+            for s in done_slots:
+                running_jobs.pop(s)
 
-            # Find free GPUs not already occupied
-            free_gpus  = get_free_gpus()
-            available  = [g for g in free_gpus if g not in running_jobs]
-            available  = available[:MAX_PARALLEL_JOBS - len(running_jobs)]
+            # Find empty slots
+            empty_slots = [s for s in slots if s not in running_jobs]
 
-            # Spawn new jobs
-            while pending and available:
+            # Spawn new jobs in empty slots
+            while pending and empty_slots:
                 cfg_path = pending.pop(0)
-                gpu_idx  = available.pop(0)
-                tprint(gpu_idx, cfg_path.stem, f"🔬 Validating model init…")
+                slot_idx = empty_slots.pop(0)
+                
+                gpu_id = slot_idx if use_gpu else 0
+                tprint(slot_idx, label, cfg_path.stem, f"🔬 Validating model init…")
                 t = threading.Thread(
                     target=job_worker,
-                    args=(gpu_idx, cfg_path),
+                    args=(slot_idx, gpu_id, cfg_path),
                     daemon=True,
                 )
                 t.start()
-                running_jobs[gpu_idx] = (t, cfg_path)
+                running_jobs[slot_idx] = (t, cfg_path)
 
             if pending or running_jobs:
-                time.sleep(3)
+                time.sleep(1)
 
     except KeyboardInterrupt:
         print("\n🛑 Interrupted.")

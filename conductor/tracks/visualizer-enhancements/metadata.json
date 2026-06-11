@@ -1,0 +1,7 @@
+{
+  "id": "visualizer-enhancements",
+  "description": "Enhancements to the Streamlit visualizer dashboard for anomaly metrics and inferences",
+  "status": "completed",
+  "created_at": "2026-06-11T12:52:38Z",
+  "updated_at": "2026-06-11T12:59:33Z"
+}

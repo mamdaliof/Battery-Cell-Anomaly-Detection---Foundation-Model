@@ -184,6 +184,88 @@ def load_results(base_path="outputs"):
             
     return pd.DataFrame(runs_data)
 
+def get_best_epoch_metrics(history: list, benchmark_metric: str, mode: str = "max") -> dict:
+    if not history:
+        return {}
+    
+    # Filter history to items containing the target metric
+    valid_steps = [item for item in history if benchmark_metric in item and "epoch" in item]
+    if not valid_steps:
+        # Fallback to any eval steps if the selected benchmark metric isn't present
+        valid_steps = [item for item in history if any(k.startswith("eval_") for k in item.keys()) and "epoch" in item]
+        if not valid_steps:
+            return {}
+        # Try to find a fallback metric that exists in the step
+        for fallback in ["eval_f1", "eval_custom_cls_f1/abnormality", "eval_loss", "loss"]:
+            if any(fallback in item for item in valid_steps):
+                benchmark_metric = fallback
+                mode = "min" if "loss" in fallback else "max"
+                valid_steps = [item for item in valid_steps if benchmark_metric in item]
+                break
+
+    if not valid_steps:
+        return {}
+
+    # Find the step matching the benchmark objective
+    try:
+        if mode == "max":
+            # Sort key prioritizes higher value, then lower eval_loss if present as a tie-breaker
+            best_step = max(
+                valid_steps,
+                key=lambda x: (
+                    float(x.get(benchmark_metric, 0.0) or 0.0),
+                    -float(x.get("eval_loss", float('inf')) or float('inf'))
+                )
+            )
+        else:
+            # Sort key prioritizes lower value
+            best_step = min(
+                valid_steps,
+                key=lambda x: (
+                    float(x.get(benchmark_metric, float('inf')) or float('inf'))
+                )
+            )
+        return best_step
+    except Exception:
+        # Fail-safe fallback: return the last eval step
+        return valid_steps[-1]
+
+def update_best_metrics_inplace(df: pd.DataFrame, benchmark_metric: str, mode: str):
+    if df.empty:
+        return
+    
+    # We will update: best_eval_f1, best_eval_loss, best_metrics, img_abnormality_f1, img_abnormality_auroc
+    for idx, row in df.iterrows():
+        history = row["history"]
+        is_det = row["task"] == "Detection"
+        
+        # Resolve dynamic benchmark key
+        target_metric = benchmark_metric
+        target_mode = mode
+        
+        if benchmark_metric == "default":
+            target_metric = "eval_custom_cls_f1/abnormality" if is_det else "eval_f1"
+            target_mode = "max"
+            
+        best_step = get_best_epoch_metrics(history, target_metric, target_mode)
+        
+        # Write updated metrics to the row
+        df.at[idx, "best_metrics"] = best_step
+        if best_step:
+            df.at[idx, "best_eval_f1"] = best_step.get("eval_f1", 0.0) if not is_det else best_step.get("eval_custom_cls_f1/abnormality", 0.0)
+            
+            # Handle float conversions safely
+            val_loss = best_step.get("eval_loss", None)
+            df.at[idx, "best_eval_loss"] = float(val_loss) if val_loss is not None else None
+            
+            df.at[idx, "img_abnormality_f1"] = best_step.get("eval_custom_cls_f1/abnormality", 0.0) if is_det else best_step.get("eval_f1", 0.0)
+            df.at[idx, "img_abnormality_auroc"] = best_step.get("eval_custom_cls_auroc/abnormality", 0.5) if is_det else best_step.get("eval_auroc", 0.5)
+        else:
+            df.at[idx, "best_eval_f1"] = 0.0
+            df.at[idx, "best_eval_loss"] = None
+            df.at[idx, "img_abnormality_f1"] = 0.0
+            df.at[idx, "img_abnormality_auroc"] = 0.5
+
 def main():
     st.set_page_config(
         page_title="🔋 Anomaly Detection - Ablation Results Visualizer",
@@ -275,6 +357,41 @@ def main():
         st.sidebar.multiselect("Backbone Models", ["DINOv3-ViT-S/16", "DINOv3-ViT-B/16", "ViT-L/16 (Future)"], default=["DINOv3-ViT-S/16", "DINOv3-ViT-B/16"])
         st.sidebar.multiselect("PEFT Methods", ["LoRA", "Bottleneck Adapters", "VPT", "Prefix Tuning (Future)"], default=["LoRA", "Bottleneck Adapters", "VPT"])
         return
+
+    # Benchmark Metric selector
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 🎯 Best Epoch Benchmark Selection")
+    benchmark_option = st.sidebar.selectbox(
+        "Benchmark Metric",
+        options=[
+            "F1 Score / Converted Abnormality F1 (Max)",
+            "Validation Loss (Min)",
+            "Validation mAP50 (Max)",
+            "Validation Mean Bbox IoU (Max)",
+            "Training Loss (Min)"
+        ],
+        index=0
+    )
+    
+    # Map selection to key and mode
+    if benchmark_option.startswith("F1 Score"):
+        benchmark_metric = "default"
+        benchmark_mode = "max"
+    elif benchmark_option.startswith("Validation Loss"):
+        benchmark_metric = "eval_loss"
+        benchmark_mode = "min"
+    elif benchmark_option.startswith("Validation mAP50"):
+        benchmark_metric = "eval_mAP50"
+        benchmark_mode = "max"
+    elif benchmark_option.startswith("Validation Mean Bbox IoU"):
+        benchmark_metric = "eval_custom_mean_bbox_IoU"
+        benchmark_mode = "max"
+    elif benchmark_option.startswith("Training Loss"):
+        benchmark_metric = "loss"
+        benchmark_mode = "min"
+        
+    # Recalculate metrics in-place for df_results
+    update_best_metrics_inplace(df_results, benchmark_metric, benchmark_mode)
 
     # Task Profile filter
     st.sidebar.markdown("---")
