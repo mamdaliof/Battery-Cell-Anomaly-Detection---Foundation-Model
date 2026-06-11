@@ -10,10 +10,10 @@ imgsz: 256
 save: true
 save_period: -1
 cache: false
-device: '1'
+device: '0'
 workers: 8
 project: /home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/outputs/det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__59_vpt_vitb16_deep_last4_t10_lr0.001
-name: '20260611_035327'
+name: '20260611_101814'
 exist_ok: true
 pretrained: true
 optimizer: auto
@@ -106,4 +106,4 @@ auto_augment: randaugment
 erasing: 0.0
 cfg: null
 tracker: botsort.yaml
-save_dir: /home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/outputs/det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__59_vpt_vitb16_deep_last4_t10_lr0.001/20260611_035327
+save_dir: /home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/outputs/det_abnormal/facebook-dinov3-vitb16-pretrain-lvd1689m__59_vpt_vitb16_deep_last4_t10_lr0.001/20260611_101814
