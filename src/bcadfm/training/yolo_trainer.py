@@ -161,6 +161,16 @@ class CustomDetectionValidator(DetectionValidator):
 
     def get_stats(self) -> Dict[str, Any]:
         """Calculates and returns custom stats injected alongside YOLO stats."""
+        # 1. Copy metrics stats BEFORE super().get_stats() clears them!
+        concatenated_stats = {}
+        try:
+            if hasattr(self.metrics, "stats") and self.metrics.stats:
+                for k, v in self.metrics.stats.items():
+                    if v and len(v) > 0:
+                        concatenated_stats[k] = np.concatenate(v, 0)
+        except Exception as e:
+            print(f"⚠️ [WARN] Error copying self.metrics.stats: {e}")
+
         stats = {}
         try:
             stats = super().get_stats()
@@ -186,38 +196,32 @@ class CustomDetectionValidator(DetectionValidator):
         
         custom_iou_dice_stats = ddp_gather_list(self.custom_iou_dice_stats)
 
-        # 1. Bbox class-specific TP, FP, FN, Precision, Recall, F1, maps
+        # 2. Bbox class-specific TP, FP, FN, Precision, Recall, F1, maps
         try:
-            if hasattr(self.metrics, "stats") and self.metrics.stats:
-                concatenated_stats = {}
-                for k, v in self.metrics.stats.items():
-                    if v and len(v) > 0:
-                        concatenated_stats[k] = np.concatenate(v, 0)
-                
-                if concatenated_stats and "tp" in concatenated_stats and concatenated_stats["tp"].size > 0:
-                    tp_iou_05 = concatenated_stats["tp"][:, 0]
-                    pred_cls = concatenated_stats["pred_cls"]
-                    target_cls = concatenated_stats["target_cls"]
+            if concatenated_stats and "tp" in concatenated_stats and concatenated_stats["tp"].size > 0:
+                tp_iou_05 = concatenated_stats["tp"][:, 0]
+                pred_cls = concatenated_stats["pred_cls"]
+                target_cls = concatenated_stats["target_cls"]
 
-                    for idx in names_list:
-                        name = self.names[idx]
-                        tp_c = int(np.sum(tp_iou_05 & (pred_cls == idx)))
-                        fp_c = int(np.sum((~tp_iou_05) & (pred_cls == idx)))
-                        fn_c = int(np.sum(target_cls == idx)) - tp_c
+                for idx in names_list:
+                    name = self.names[idx]
+                    tp_c = int(np.sum(tp_iou_05 & (pred_cls == idx)))
+                    fp_c = int(np.sum((~tp_iou_05) & (pred_cls == idx)))
+                    fn_c = int(np.sum(target_cls == idx)) - tp_c
 
-                        stats[f"metrics/custom_TP/{name}"] = tp_c
-                        stats[f"metrics/custom_FP/{name}"] = fp_c
-                        stats[f"metrics/custom_FN/{name}"] = fn_c
+                    stats[f"metrics/custom_TP/{name}"] = tp_c
+                    stats[f"metrics/custom_FP/{name}"] = fp_c
+                    stats[f"metrics/custom_FN/{name}"] = fn_c
 
-                        # Map metrics from ap_class_index mapping
-                        results_idx = np.where(self.metrics.ap_class_index == idx)[0]
-                        if len(results_idx) > 0:
-                            r_idx = results_idx[0]
-                            stats[f"metrics/custom_P/{name}"] = float(self.metrics.box.p[r_idx])
-                            stats[f"metrics/custom_R/{name}"] = float(self.metrics.box.r[r_idx])
-                            stats[f"metrics/custom_F1/{name}"] = float(self.metrics.box.f1[r_idx])
-                            stats[f"metrics/custom_mAP50/{name}"] = float(self.metrics.box.all_ap[r_idx, 0])
-                            stats[f"metrics/custom_mAP50-95/{name}"] = float(self.metrics.box.all_ap[r_idx].mean())
+                    # Map metrics from ap_class_index mapping
+                    results_idx = np.where(self.metrics.ap_class_index == idx)[0]
+                    if len(results_idx) > 0:
+                        r_idx = results_idx[0]
+                        stats[f"metrics/custom_P/{name}"] = float(self.metrics.box.p[r_idx])
+                        stats[f"metrics/custom_R/{name}"] = float(self.metrics.box.r[r_idx])
+                        stats[f"metrics/custom_F1/{name}"] = float(self.metrics.box.f1[r_idx])
+                        stats[f"metrics/custom_mAP50/{name}"] = float(self.metrics.box.all_ap[r_idx, 0])
+                        stats[f"metrics/custom_mAP50-95/{name}"] = float(self.metrics.box.all_ap[r_idx].mean())
         except Exception as e:
             print(f"⚠️ [WARN] Error calculating per-class stats: {e}")
 
