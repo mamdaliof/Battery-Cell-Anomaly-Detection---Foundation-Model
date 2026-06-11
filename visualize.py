@@ -1274,55 +1274,87 @@ def main():
         if df_results.empty:
             st.info("No runs available for aggregated comparisons.")
         else:
+            # Metric selector for hyperparameter sweeps
+            available_sweep_metrics = {
+                "image_cls_f1": f"Image {selected_label.capitalize()} F1 (Custom)" if metric_source_is_custom else "Image F1 (Standard)",
+                "image_cls_auroc": f"Image {selected_label.capitalize()} AUROC (Custom)" if metric_source_is_custom else "Image AUROC (Standard)",
+                "eval_loss": "Validation Loss",
+                "eval_mAP50": "Bbox mAP50 (Detection)",
+                "eval_custom_mean_bbox_IoU": "Bbox Mean IoU (Detection)",
+                "eval_custom_mean_bbox_Dice": "Bbox Mean Dice (Detection)",
+                "eval_accuracy": "Validation Accuracy (Classification)",
+                "eval_precision": "Bbox/Cls Precision",
+                "eval_recall": "Bbox/Cls Recall"
+            }
+            
+            # Filter options to only include columns that exist and have non-null values
+            valid_sweep_metrics = {}
+            for k, name in available_sweep_metrics.items():
+                if k in df_filtered.columns and df_filtered[k].notna().any():
+                    valid_sweep_metrics[k] = name
+                    
+            if not valid_sweep_metrics:
+                valid_sweep_metrics = {"image_cls_f1": "Image F1"}
+                
+            selected_sweep_metric_key = st.selectbox(
+                "Select Metric for Hyperparameter Sweep Analysis",
+                options=list(valid_sweep_metrics.keys()),
+                format_func=lambda x: valid_sweep_metrics[x],
+                index=0,
+                key="sweep_metric_selector"
+            )
+            
+            sweep_metric_name = valid_sweep_metrics[selected_sweep_metric_key]
+            is_loss = "loss" in selected_sweep_metric_key.lower()
+            agg_fn = "min" if is_loss else "max"
+            
             col_peft, col_lr, col_ds = st.columns(3)
             
             with col_peft:
-                st.markdown("#### ⚙️ Best F1 Score by PEFT Type")
-                # Group by PEFT type to get max F1
-                peft_summary = df_filtered.groupby("peft_type")["best_eval_f1"].max().reset_index()
+                st.markdown(f"#### ⚙️ {agg_fn.capitalize()} {sweep_metric_name} by PEFT Type")
+                peft_summary = df_filtered.groupby("peft_type")[selected_sweep_metric_key].agg(agg_fn).reset_index()
                 
                 fig_peft = px.bar(
                     peft_summary, 
                     x="peft_type", 
-                    y="best_eval_f1",
+                    y=selected_sweep_metric_key,
                     color="peft_type",
                     color_discrete_sequence=px.colors.qualitative.Pastel,
-                    labels={"peft_type": "PEFT Method", "best_eval_f1": "Max F1 Score"},
-                    title="PEFT Performance Comparison"
+                    labels={"peft_type": "PEFT Method", selected_sweep_metric_key: sweep_metric_name},
+                    title=f"PEFT Performance ({sweep_metric_name})"
                 )
                 fig_peft.update_layout(template="plotly_dark", showlegend=False)
                 st.plotly_chart(fig_peft, use_container_width=True)
                 
             with col_lr:
-                st.markdown("#### 📈 Max F1 Score by Learning Rate")
-                # Group by LR to get max F1
-                lr_summary = df_filtered.groupby("lr")["best_eval_f1"].max().reset_index()
-                lr_summary["lr"] = lr_summary["lr"].astype(str) # category format
+                st.markdown(f"#### 📈 {agg_fn.capitalize()} {sweep_metric_name} by Learning Rate")
+                lr_summary = df_filtered.groupby("lr")[selected_sweep_metric_key].agg(agg_fn).reset_index()
+                lr_summary["lr"] = lr_summary["lr"].astype(str)
                 
                 fig_lr = px.bar(
                     lr_summary, 
                     x="lr", 
-                    y="best_eval_f1",
+                    y=selected_sweep_metric_key,
                     color="lr",
                     color_discrete_sequence=px.colors.qualitative.Safe,
-                    labels={"lr": "Learning Rate", "best_eval_f1": "Max F1 Score"},
-                    title="Learning Rate Performance Comparison"
+                    labels={"lr": "Learning Rate", selected_sweep_metric_key: sweep_metric_name},
+                    title=f"Learning Rate Performance ({sweep_metric_name})"
                 )
                 fig_lr.update_layout(template="plotly_dark", showlegend=False)
                 st.plotly_chart(fig_lr, use_container_width=True)
 
             with col_ds:
-                st.markdown("#### 📁 Best F1 Score by Dataset")
-                dataset_summary = df_filtered.groupby("dataset")["best_eval_f1"].max().reset_index()
+                st.markdown(f"#### 📁 {agg_fn.capitalize()} {sweep_metric_name} by Dataset")
+                dataset_summary = df_filtered.groupby("dataset")[selected_sweep_metric_key].agg(agg_fn).reset_index()
                 
                 fig_dataset = px.bar(
                     dataset_summary,
                     x="dataset",
-                    y="best_eval_f1",
+                    y=selected_sweep_metric_key,
                     color="dataset",
                     color_discrete_sequence=px.colors.qualitative.Pastel1,
-                    labels={"dataset": "Dataset", "best_eval_f1": "Max F1 Score"},
-                    title="Dataset Performance Comparison"
+                    labels={"dataset": "Dataset", selected_sweep_metric_key: sweep_metric_name},
+                    title=f"Dataset Performance ({sweep_metric_name})"
                 )
                 fig_dataset.update_layout(template="plotly_dark", showlegend=False)
                 st.plotly_chart(fig_dataset, use_container_width=True)
@@ -1331,23 +1363,21 @@ def main():
             
             # Parallel Coordinates Plot for Numerical Hyperparameters
             st.markdown("#### 🕸️ Parallel Hyperparameter Trajectory")
-            st.write("Visualize how combinations of numerical parameters (learning rate, rank/bottleneck size, parameter counts, validation F1) stack together.")
+            st.write(f"Visualize how combinations of numerical parameters (learning rate, rank/bottleneck size, parameter counts, validation {sweep_metric_name}) stack together.")
             
             # Map PEFT sizes into numerical column
             coord_df = df_filtered.copy()
+            coord_df = coord_df.dropna(subset=[selected_sweep_metric_key])
             
             def get_peft_size_num(row):
                 detail = row["peft_detail"]
                 if row["peft_type"] == "lora":
-                    # extract rank
                     try: return float(detail.split("r=")[-1])
                     except: return 0.0
                 elif row["peft_type"] == "adapter":
-                    # extract dim
                     try: return float(detail.split("d=")[-1])
                     except: return 0.0
                 elif row["peft_type"] == "visual_prompt":
-                    # extract token count
                     try: return float(detail.split("t=")[-1])
                     except: return 0.0
                 return 0.0
@@ -1355,21 +1385,21 @@ def main():
             coord_df["peft_hyperparam_size"] = coord_df.apply(get_peft_size_num, axis=1)
             
             # Numeric column filter
-            numeric_cols = ["lr", "peft_hyperparam_size", "total_params", "trainable_params", "best_eval_f1"]
+            numeric_cols = ["lr", "peft_hyperparam_size", "total_params", "trainable_params", selected_sweep_metric_key]
             if "epochs_configured" in coord_df.columns:
                 numeric_cols.insert(-1, "epochs_configured")
                 
             fig_par = px.parallel_coordinates(
                 coord_df,
                 dimensions=numeric_cols,
-                color="best_eval_f1",
+                color=selected_sweep_metric_key,
                 color_continuous_scale=px.colors.diverging.Tealrose,
                 labels={
                     "lr": "Learning Rate",
                     "peft_hyperparam_size": "PEFT Size (Rank/Dim/Token)",
                     "total_params": "Total Params",
                     "trainable_params": "Trainable Params",
-                    "best_eval_f1": "Best F1 Score",
+                    selected_sweep_metric_key: sweep_metric_name,
                     "epochs_configured": "Epochs"
                 }
             )
@@ -1378,23 +1408,23 @@ def main():
 
             st.divider()
             st.markdown("#### ⚖️ Parameter-Performance Trade-off Analysis")
-            st.write("Examine how model parameter counts affect final validation performance. Efficient models should achieve high F1 scores with fewer trainable parameters.")
+            st.write(f"Examine how model parameter counts affect final validation performance. Efficient models should achieve high {sweep_metric_name} with fewer trainable parameters.")
             
             fig_scatter = px.scatter(
                 df_filtered,
                 x="trainable_params",
-                y="best_eval_f1",
+                y=selected_sweep_metric_key,
                 color="peft_type",
                 size="total_params",
                 hover_name="short_cfg_name",
                 hover_data=["model", "lr", "dataset"],
                 labels={
                     "trainable_params": "Trainable Parameters",
-                    "best_eval_f1": "Best F1 Score",
+                    selected_sweep_metric_key: sweep_metric_name,
                     "peft_type": "PEFT Type",
                     "total_params": "Total Parameters"
                 },
-                title="Performance vs. Trainable Parameters Trade-off (Size corresponds to Total Parameters)"
+                title=f"{sweep_metric_name} vs. Trainable Parameters Trade-off (Size corresponds to Total Parameters)"
             )
             fig_scatter.update_layout(template="plotly_dark", xaxis_type="log")
             st.plotly_chart(fig_scatter, use_container_width=True)
