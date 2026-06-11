@@ -60,8 +60,8 @@ def test_load_results():
             
         det_state = {
             "log_history": [
-                {"epoch": 1.0, "step": 5, "loss": 1.2, "eval_loss": 0.9, "eval_mAP50": 0.5, "eval_custom_cls_f1/abnormality": 0.45},
-                {"epoch": 2.0, "step": 10, "loss": 0.7, "eval_loss": 0.6, "eval_mAP50": 0.8, "eval_custom_cls_f1/abnormality": 0.75}
+                {"epoch": 1.0, "step": 5, "loss": 1.2, "eval_loss": 0.9, "eval_mAP50": 0.5, "eval_custom_cls_f1/abnormal": 0.45},
+                {"epoch": 2.0, "step": 10, "loss": 0.7, "eval_loss": 0.6, "eval_mAP50": 0.8, "eval_custom_cls_f1/abnormal": 0.75}
             ]
         }
         with open(det_run_dir / "trainer_state.json", "w") as f:

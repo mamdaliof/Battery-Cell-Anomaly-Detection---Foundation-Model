@@ -19,12 +19,12 @@ This log documents the implementation of the dataset cleaning and conversion pip
 
 ## 2. 🧹 Annotation Variants
 
-- **Problem**: The raw annotations contain three distinct object classes: `cell`, `text`, and `abnormality`. The user requires different dataset variants to study model behavior across subsets of classes.
+- **Problem**: The raw annotations contain three distinct object classes: `cell`, `text`, and `abnormal`. The user requires different dataset variants to study model behavior across subsets of classes.
 - **Solution**: The conversion script automatically outputs three distinct dataset layouts and configuration YAML files in a single run:
 
 ### Variant 1: `all`
-- **Goal**: Localize all annotated objects in the dataset (`abnormality`, `cell`, and `text`).
-- **Classes**: `abnormality` (idx 0), `cell` (idx 1), `text` (idx 2).
+- **Goal**: Localize all annotated objects in the dataset (`abnormal`, `cell`, and `text`).
+- **Classes**: `abnormal` (idx 0), `cell` (idx 1), `text` (idx 2).
 - **Target Dir**: `data/battery_detection_all/`
 - **Target YAML**: `data/battery_detection_all.yaml`
 - **Statistics**:
@@ -32,8 +32,8 @@ This log documents the implementation of the dataset cleaning and conversion pip
   - Val split: 79 images with targets, 169 bounding boxes total.
 
 ### Variant 2: `no_cell`
-- **Goal**: Localize abnormality and text, dropping cell boxes.
-- **Classes**: `abnormality` (idx 0), `text` (idx 1).
+- **Goal**: Localize abnormal and text, dropping cell boxes.
+- **Classes**: `abnormal` (idx 0), `text` (idx 1).
 - **Target Dir**: `data/battery_detection_no_cell/`
 - **Target YAML**: `data/battery_detection_no_cell.yaml`
 - **Statistics**:
@@ -41,7 +41,7 @@ This log documents the implementation of the dataset cleaning and conversion pip
   - Val split: 70 images with targets, 90 bounding boxes total.
 
 ### Variant 3: `only_cell`
-- **Goal**: Localize only cell boundaries, dropping abnormality and text boxes.
+- **Goal**: Localize only cell boundaries, dropping abnormal and text boxes.
 - **Classes**: `cell` (idx 0).
 - **Target Dir**: `data/battery_detection_only_cell/`
 - **Target YAML**: `data/battery_detection_only_cell.yaml`

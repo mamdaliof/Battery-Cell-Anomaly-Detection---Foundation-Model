@@ -28,8 +28,8 @@ Each XML file is parsed to extract target bounding boxes depending on the select
 variant, and converted to the normalized YOLO format: `class_idx x_center y_center width height`.
 
 Variants:
-1. 'all': keeps cell, text, abnormality -> class indices: abnormality=0, cell=1, text=2
-2. 'no_cell': drops cell, keeps text and abnormality -> class indices: abnormality=0, text=1
+1. 'all': keeps cell, text, abnormal -> class indices: abnormal=0, cell=1, text=2
+2. 'no_cell': drops cell, keeps text and abnormal -> class indices: abnormal=0, text=1
 3. 'only_cell': keeps only cell -> class indices: cell=0
 
 By default, image files are COPIED. You can optionally use symlinks instead.
@@ -48,16 +48,16 @@ from typing import Dict, List, Set
 # Define target labels and mapping indices for each variant
 VARIANTS = {
     "all": {
-        "labels": {"abnormality", "cell", "text"},
-        "mapping": {"abnormality": 0, "cell": 1, "text": 2}
+        "labels": {"abnormal", "cell", "text"},
+        "mapping": {"abnormal": 0, "cell": 1, "text": 2}
     },
     "no_cell": {
-        "labels": {"abnormality", "text"},
-        "mapping": {"abnormality": 0, "text": 1}
+        "labels": {"abnormal", "text"},
+        "mapping": {"abnormal": 0, "text": 1}
     },
     "abnormal_only": {
-        "labels": {"abnormality"},
-        "mapping": {"abnormality": 0}
+        "labels": {"abnormal"},
+        "mapping": {"abnormal": 0}
     }
 }
 

@@ -55,10 +55,10 @@ class CustomDetectionValidator(DetectionValidator):
         # Bbox IoU and Dice collectors
         self.custom_iou_dice_stats: List[tuple[float, float]] = []
         
-        # Image-level abnormality classification collectors
-        self.cls_gt_abnormality: List[int] = []
-        self.cls_pred_abnormality: List[int] = []
-        self.cls_prob_abnormality: List[float] = []
+        # Image-level abnormal classification collectors
+        self.cls_gt_abnormal: List[int] = []
+        self.cls_pred_abnormal: List[int] = []
+        self.cls_prob_abnormal: List[float] = []
 
         # Image-level text classification collectors
         self.cls_gt_text: List[int] = []
@@ -69,9 +69,9 @@ class CustomDetectionValidator(DetectionValidator):
         """Initializes/resets metric collectors at the start of each validation epoch."""
         super().init_metrics(model)
         self.custom_iou_dice_stats = []
-        self.cls_gt_abnormality = []
-        self.cls_pred_abnormality = []
-        self.cls_prob_abnormality = []
+        self.cls_gt_abnormal = []
+        self.cls_pred_abnormal = []
+        self.cls_prob_abnormal = []
         self.cls_gt_text = []
         self.cls_pred_text = []
         self.cls_prob_text = []
@@ -82,12 +82,12 @@ class CustomDetectionValidator(DetectionValidator):
         super().update_metrics(preds, batch)
 
         # Class names to indices map
-        abnormality_idx = None
+        abnormal_idx = None
         text_idx = None
         cfg_abnormal = getattr(self, "abnormal_class_name", "abnormal")
         for idx, name in self.names.items():
-            if name in (cfg_abnormal, "abnormality", "abnormal"):
-                abnormality_idx = idx
+            if name in (cfg_abnormal, "abnormal", "abnormal"):
+                abnormal_idx = idx
             elif name == "text":
                 text_idx = idx
 
@@ -101,7 +101,7 @@ class CustomDetectionValidator(DetectionValidator):
             pred_confs = predn["conf"].cpu().numpy() if predn["cls"].shape[0] > 0 else np.zeros(0)
 
             # --- Image-level Multi-Label Classification Labels ---
-            gt_has_abn = int(abnormality_idx in gt_classes) if abnormality_idx is not None else 0
+            gt_has_abn = int(abnormal_idx in gt_classes) if abnormal_idx is not None else 0
             gt_has_txt = int(text_idx in gt_classes) if text_idx is not None else 0
 
             # Find predictions above decision threshold (standard 0.25 confidence)
@@ -111,7 +111,7 @@ class CustomDetectionValidator(DetectionValidator):
             prob_txt = 0.0
 
             for c_idx, conf in zip(pred_classes, pred_confs):
-                if abnormality_idx is not None and c_idx == abnormality_idx:
+                if abnormal_idx is not None and c_idx == abnormal_idx:
                     prob_abn = max(prob_abn, float(conf))
                     if conf >= 0.25:
                         pred_has_abn = 1
@@ -120,10 +120,10 @@ class CustomDetectionValidator(DetectionValidator):
                     if conf >= 0.25:
                         pred_has_txt = 1
 
-            if abnormality_idx is not None:
-                self.cls_gt_abnormality.append(gt_has_abn)
-                self.cls_pred_abnormality.append(pred_has_abn)
-                self.cls_prob_abnormality.append(prob_abn)
+            if abnormal_idx is not None:
+                self.cls_gt_abnormal.append(gt_has_abn)
+                self.cls_pred_abnormal.append(pred_has_abn)
+                self.cls_prob_abnormal.append(prob_abn)
 
             if text_idx is not None:
                 self.cls_gt_text.append(gt_has_txt)
@@ -176,9 +176,9 @@ class CustomDetectionValidator(DetectionValidator):
         names_list = sorted(self.names.keys())
 
         # Gather custom validator metrics across all DDP ranks
-        cls_gt_abnormality = ddp_gather_list(self.cls_gt_abnormality)
-        cls_pred_abnormality = ddp_gather_list(self.cls_pred_abnormality)
-        cls_prob_abnormality = ddp_gather_list(self.cls_prob_abnormality)
+        cls_gt_abnormal = ddp_gather_list(self.cls_gt_abnormal)
+        cls_pred_abnormal = ddp_gather_list(self.cls_pred_abnormal)
+        cls_prob_abnormal = ddp_gather_list(self.cls_prob_abnormal)
         
         cls_gt_text = ddp_gather_list(self.cls_gt_text)
         cls_pred_text = ddp_gather_list(self.cls_pred_text)
@@ -238,7 +238,7 @@ class CustomDetectionValidator(DetectionValidator):
         # 3. Image-level Multi-Label Classification Metrics
         try:
             for cls_name, gt, pred, prob in [
-                ("abnormality", cls_gt_abnormality, cls_pred_abnormality, cls_prob_abnormality),
+                ("abnormal", cls_gt_abnormal, cls_pred_abnormal, cls_prob_abnormal),
                 ("text", cls_gt_text, cls_pred_text, cls_prob_text)
             ]:
                 if gt:
@@ -255,7 +255,7 @@ class CustomDetectionValidator(DetectionValidator):
                     else:
                         stats[f"metrics/custom_cls_auroc/{cls_name}"] = 0.5
 
-                    # Abnormality and Text classification confusion matrix counts
+                    # Abnormal and Text classification confusion matrix counts
                     cm = confusion_matrix(gt_arr, pred_arr, labels=[0, 1])
                     if cm.shape == (2, 2):
                         tn, fp, fn, tp = cm.ravel()
@@ -270,11 +270,11 @@ class CustomDetectionValidator(DetectionValidator):
 
         # Duplicate abnormal metric keys for config abnormal_class_name compatibility
         cfg_abnormal = getattr(self, "abnormal_class_name", "abnormal")
-        if cfg_abnormal != "abnormality":
+        if cfg_abnormal != "abnormal":
             extra_stats = {}
             for k, v in stats.items():
-                if "/abnormality" in k:
-                    new_key = k.replace("/abnormality", f"/{cfg_abnormal}")
+                if "/abnormal" in k:
+                    new_key = k.replace("/abnormal", f"/{cfg_abnormal}")
                     extra_stats[new_key] = v
             stats.update(extra_stats)
 
@@ -317,7 +317,7 @@ class CustomDetectionValidator(DetectionValidator):
         print("-" * 80)
         cfg_abnormal = getattr(self, "abnormal_class_name", "abnormal")
         printed_classes = []
-        for cls_name in ["abnormality", cfg_abnormal, "text"]:
+        for cls_name in ["abnormal", cfg_abnormal, "text"]:
             if cls_name in printed_classes:
                 continue
             acc = stats.get(f"metrics/custom_cls_accuracy/{cls_name}")
@@ -455,8 +455,8 @@ def save_yolo_trainer_state_callback(trainer) -> None:
     state["log_history"].append(eval_entry)
     
     # 4. Update best metric and best checkpoint path
-    # Prioritize abnormality classification F1 as best metric, fallback to mAP50
-    metric_for_best = "eval_custom_cls_f1/abnormality"
+    # Prioritize abnormal classification F1 as best metric, fallback to mAP50
+    metric_for_best = "eval_custom_cls_f1/abnormal"
     current_best_val = eval_entry.get(metric_for_best, 0.0)
     if current_best_val == 0.0:
         metric_for_best = "eval_mAP50"

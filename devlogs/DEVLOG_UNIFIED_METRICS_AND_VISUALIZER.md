@@ -19,7 +19,7 @@ This devlog documents the integration of unified metric tracking across classifi
 
 - **Problem**: Detection models only output bounding boxes and standard detection metrics (precision, recall, mAP50, mAP50-95), preventing direct comparison against image-level classification models on the core anomaly detection objective. Additionally, YOLO training saved results in CSV format, whereas classification runs saved Hugging Face-compliant JSON states.
 - **Resolution**:
-  - **Image-Level Conversion**: Formulated a box-to-image conversion layer during validation. Bounding box predictions are evaluated at a decision threshold (0.25 confidence) to yield image-level abnormality and text predictions, enabling calculation of Accuracy, Precision, Recall, F1, and AUROC side-by-side with classification runs.
+  - **Image-Level Conversion**: Formulated a box-to-image conversion layer during validation. Bounding box predictions are evaluated at a decision threshold (0.25 confidence) to yield image-level abnormal and text predictions, enabling calculation of Accuracy, Precision, Recall, F1, and AUROC side-by-side with classification runs.
   - **Unified State Callback**: Implemented a custom callback `save_yolo_trainer_state_callback` registered to `on_fit_epoch_end` in `yolo_trainer.py`. The callback compiles learning rates, training losses, validation losses, standard YOLO metrics, and custom metrics (mapped under `eval_custom_...` keys) into a unified `trainer_state.json` file.
   - **DDP-Safe Validation**: Implemented `ddp_gather_list` using `torch.distributed.all_gather_object` to ensure validation collectors (lists containing prediction tuples, labels, and match overlaps) are globally synchronized across GPU ranks prior to metric computation.
   - **Collector Reset**: Updated `init_metrics()` to reset validation statistics lists at the start of each validation epoch to prevent historical metric accumulation.
@@ -34,7 +34,7 @@ This devlog documents the integration of unified metric tracking across classifi
   - Added columns to the Leaderboard showing converted image-level F1 and AUROC side-by-side.
   - Updated Trajectory Curves to plot YOLO losses, mAP50, mAP50-95, mean IoU/Dice, and image-level classification trajectories.
   - Added a detailed Single Run Inspector for detection runs, displaying standard mAP, custom box matching stats (mean IoU/Dice), per-class box metrics, and converted image-level metrics.
-  - Developed a Model Comparison Tab that extracts the best classification model and best converted detection model, rendering their metrics and abnormality confusion matrices side-by-side.
+  - Developed a Model Comparison Tab that extracts the best classification model and best converted detection model, rendering their metrics and abnormal confusion matrices side-by-side.
   - Resolved a PyArrow serialization `ArrowTypeError` by casting the `epochs_configured` value to a string in the details table.
 
 ---

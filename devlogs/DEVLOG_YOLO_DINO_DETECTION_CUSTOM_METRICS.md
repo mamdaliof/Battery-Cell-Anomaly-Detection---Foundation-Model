@@ -32,11 +32,11 @@ The custom validator implements three layers of custom metrics:
 - Computes global average IoU and Dice across all matched box pairs in the validation set.
 
 ### 2.3. Image-Level Multi-Label Classification Conversion
-- Constructs binary classification indicator vectors `[has_abnormality, has_text]` for each validation image:
+- Constructs binary classification indicator vectors `[has_abnormal, has_text]` for each validation image:
   - **Ground Truth**: Set to 1 if there is at least one ground-truth bounding box of that class, else 0.
   - **Prediction**: Set to 1 if there is at least one predicted bounding box of that class with confidence $\ge 0.25$, else 0.
   - **Probability**: Set to the maximum confidence score of all predicted boxes of that class (for ROC-AUC).
-- Uses `scikit-learn` to calculate standard classification metrics: **Accuracy**, **Precision**, **Recall**, **F1-score**, and **AUROC** independently for `abnormality` and `text`.
+- Uses `scikit-learn` to calculate standard classification metrics: **Accuracy**, **Precision**, **Recall**, **F1-score**, and **AUROC** independently for `abnormal` and `text`.
 
 ---
 

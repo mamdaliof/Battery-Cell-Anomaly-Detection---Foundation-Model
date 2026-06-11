@@ -110,4 +110,4 @@ To verify independent access to the 8 A16 GPUs, two dummy scripts were developed
 
 We resolved two integration gaps in the object detection pipeline:
 1. **YAML-driven Augmentation overrides**: Connected YAML data configurations to YOLO overrides in `train_detection.py`. Supported passing custom `yolo_augmentations` parameters, automatically mapping classification defaults (horizontal flip, rotation, color jitter, crop scale), or zeroing out augmentations when `augmentations_enabled: false`.
-2. **Class names alignment**: Synced configuration class names (normal, abnormal) with the detection validator indices, dynamically indexing target abnormality flags and duplicating metric output keys to maintain visualizer compatibility.
+2. **Class names alignment**: Synced configuration class names (normal, abnormal) with the detection validator indices, dynamically indexing target abnormal flags and duplicating metric output keys to maintain visualizer compatibility.

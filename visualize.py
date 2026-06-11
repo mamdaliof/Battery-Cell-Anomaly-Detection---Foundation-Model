@@ -232,7 +232,7 @@ def load_results(base_path="outputs"):
                     
                     # Extract metrics from evaluation steps in history
                     if is_det:
-                        eval_steps = [item for item in history if "eval_mAP50" in item or "eval_custom_cls_f1/abnormality" in item or "eval_custom_cls_f1/abnormal" in item]
+                        eval_steps = [item for item in history if "eval_mAP50" in item or "eval_custom_cls_f1/abnormal" in item or "eval_custom_cls_f1/abnormal" in item]
                     else:
                         eval_steps = [item for item in history if "eval_f1" in item]
                         
@@ -240,15 +240,15 @@ def load_results(base_path="outputs"):
                     
                     if eval_steps:
                         if is_det:
-                            # Prioritize abnormality classification conversion F1, fallback to mAP50
+                            # Prioritize abnormal classification conversion F1, fallback to mAP50
                             best_step = max(
                                 eval_steps,
                                 key=lambda x: (
-                                    x.get("eval_custom_cls_f1/abnormality", 0.0) or x.get("eval_custom_cls_f1/abnormal", 0.0) or x.get("eval_mAP50", 0.0),
+                                    x.get("eval_custom_cls_f1/abnormal", 0.0) or x.get("eval_custom_cls_f1/abnormal", 0.0) or x.get("eval_mAP50", 0.0),
                                     -x.get("eval_loss", float('inf'))
                                 )
                              )
-                            best_eval_f1 = best_step.get("eval_custom_cls_f1/abnormality", 0.0) or best_step.get("eval_custom_cls_f1/abnormal", 0.0)
+                            best_eval_f1 = best_step.get("eval_custom_cls_f1/abnormal", 0.0) or best_step.get("eval_custom_cls_f1/abnormal", 0.0)
                         else:
                             # Find step with max eval_f1. If tie, select lowest eval_loss
                             best_step = max(eval_steps, key=lambda x: (x.get("eval_f1", 0.0), -x.get("eval_loss", float('inf'))))
@@ -268,8 +268,8 @@ def load_results(base_path="outputs"):
             img_auroc = 0.5
             if best_epoch_metrics:
                 if is_det:
-                    img_f1 = best_epoch_metrics.get("eval_custom_cls_f1/abnormality", 0.0) or best_epoch_metrics.get("eval_custom_cls_f1/abnormal", 0.0)
-                    img_auroc = best_epoch_metrics.get("eval_custom_cls_auroc/abnormality", 0.5) or best_epoch_metrics.get("eval_custom_cls_auroc/abnormal", 0.5)
+                    img_f1 = best_epoch_metrics.get("eval_custom_cls_f1/abnormal", 0.0) or best_epoch_metrics.get("eval_custom_cls_f1/abnormal", 0.0)
+                    img_auroc = best_epoch_metrics.get("eval_custom_cls_auroc/abnormal", 0.5) or best_epoch_metrics.get("eval_custom_cls_auroc/abnormal", 0.5)
                 else:
                     img_f1 = best_epoch_metrics.get("eval_f1", 0.0)
                     img_auroc = best_epoch_metrics.get("eval_auroc", 0.5)
@@ -299,8 +299,8 @@ def load_results(base_path="outputs"):
                 "completed": completed,
                 "best_metrics": best_epoch_metrics,
                 "history": history,
-                "img_abnormality_f1": img_f1,
-                "img_abnormality_auroc": img_auroc,
+                "img_abnormal_f1": img_f1,
+                "img_abnormal_auroc": img_auroc,
                 "abnormal_class_name": abnormal_class_name,
                 "dataset": dataset,
                 "total_params": total_params,
@@ -322,7 +322,7 @@ def get_best_epoch_metrics(history: list, benchmark_metric: str, mode: str = "ma
         if not valid_steps:
             return {}
         # Try to find a fallback metric that exists in the step
-        for fallback in ["eval_f1", "eval_custom_cls_f1/abnormality", "eval_loss", "loss"]:
+        for fallback in ["eval_f1", "eval_custom_cls_f1/abnormal", "eval_loss", "loss"]:
             if any(fallback in item for item in valid_steps):
                 benchmark_metric = fallback
                 mode = "min" if "loss" in fallback else "max"
@@ -356,11 +356,11 @@ def get_best_epoch_metrics(history: list, benchmark_metric: str, mode: str = "ma
         # Fail-safe fallback: return the last eval step
         return valid_steps[-1]
 
-def update_best_metrics_inplace(df: pd.DataFrame, benchmark_metric: str, mode: str, selected_label: str = "abnormality"):
+def update_best_metrics_inplace(df: pd.DataFrame, benchmark_metric: str, mode: str, selected_label: str = "abnormal"):
     if df.empty:
         return
     
-    # We will update: best_eval_f1, best_eval_loss, best_metrics, img_abnormality_f1, img_abnormality_auroc
+    # We will update: best_eval_f1, best_eval_loss, best_metrics, img_abnormal_f1, img_abnormal_auroc
     for idx, row in df.iterrows():
         history = row["history"]
         is_det = row["task"] == "Detection"
@@ -384,8 +384,8 @@ def update_best_metrics_inplace(df: pd.DataFrame, benchmark_metric: str, mode: s
             val_loss = best_step.get("eval_loss", None)
             df.at[idx, "best_eval_loss"] = float(val_loss) if val_loss is not None else None
             
-            df.at[idx, "img_abnormality_f1"] = best_step.get(f"eval_custom_cls_f1/{selected_label}", 0.0) if is_det else best_step.get("eval_f1", 0.0)
-            df.at[idx, "img_abnormality_auroc"] = best_step.get(f"eval_custom_cls_auroc/{selected_label}", 0.5) if is_det else best_step.get("eval_auroc", 0.5)
+            df.at[idx, "img_abnormal_f1"] = best_step.get(f"eval_custom_cls_f1/{selected_label}", 0.0) if is_det else best_step.get("eval_f1", 0.0)
+            df.at[idx, "img_abnormal_auroc"] = best_step.get(f"eval_custom_cls_auroc/{selected_label}", 0.5) if is_det else best_step.get("eval_auroc", 0.5)
             
             # Extract individual columns for leaderboard selection
             df.at[idx, "eval_f1"] = best_step.get("eval_f1", None)
@@ -406,8 +406,8 @@ def update_best_metrics_inplace(df: pd.DataFrame, benchmark_metric: str, mode: s
         else:
             df.at[idx, "best_eval_f1"] = 0.0
             df.at[idx, "best_eval_loss"] = None
-            df.at[idx, "img_abnormality_f1"] = 0.0
-            df.at[idx, "img_abnormality_auroc"] = 0.5
+            df.at[idx, "img_abnormal_f1"] = 0.0
+            df.at[idx, "img_abnormal_auroc"] = 0.5
             
             for col in ["eval_f1", "eval_accuracy", "eval_auroc", "eval_loss", "eval_mAP50", "eval_mAP50-95", 
                         "eval_precision", "eval_recall", "eval_custom_mean_bbox_IoU", "eval_custom_mean_bbox_Dice",
@@ -519,14 +519,14 @@ def main():
 
     unique_classes = get_unique_classes(df_results)
     if not unique_classes:
-        unique_classes = ["abnormality", "abnormal", "cell", "text"]
+        unique_classes = ["abnormal", "abnormal", "cell", "text"]
 
     st.sidebar.markdown("---")
     st.sidebar.markdown("### 🏷️ Target Label Monitoring")
     selected_label = st.sidebar.selectbox(
         "Class Label for Custom Metrics",
         options=unique_classes,
-        index=unique_classes.index("abnormality") if "abnormality" in unique_classes else 0
+        index=unique_classes.index("abnormal") if "abnormal" in unique_classes else 0
     )
 
     # Benchmark Metric selector
@@ -666,7 +666,7 @@ def main():
         df_filtered = df_filtered[df_filtered["completed"] == False]
 
     # Sort filtered runs by best F1 score descending
-    df_filtered = df_filtered.sort_values(by="img_abnormality_f1", ascending=False)
+    df_filtered = df_filtered.sort_values(by="img_abnormal_f1", ascending=False)
 
     # ── Render top metrics dashboard ──────────────────────────────────────────
     total_scanned = len(df_results)
@@ -696,8 +696,8 @@ def main():
             </div>
         """, unsafe_allow_html=True)
     with col4:
-        best_f1_overall = df_results["img_abnormality_f1"].max() if not df_results.empty else 0.0
-        best_run_overall = df_results.loc[df_results["img_abnormality_f1"].idxmax()]["short_cfg_name"] if not df_results.empty and best_f1_overall > 0 else "N/A"
+        best_f1_overall = df_results["img_abnormal_f1"].max() if not df_results.empty else 0.0
+        best_run_overall = df_results.loc[df_results["img_abnormal_f1"].idxmax()]["short_cfg_name"] if not df_results.empty and best_f1_overall > 0 else "N/A"
         st.markdown(f"""
             <div class="kpi-card">
                 <div class="kpi-val" style="color: #f43f5e;">{best_f1_overall:.4f}</div>
@@ -1056,13 +1056,13 @@ def main():
                         st.markdown("#### 🖥️ Converted Image-Level Classification")
                         subcol1, subcol2, subcol3 = st.columns(3)
                         with subcol1:
-                            st.metric("Image Abnormality F1", f"{best_metrics.get('eval_custom_cls_f1/abnormality', 0.0):.4f}")
+                            st.metric("Image Abnormal F1", f"{best_metrics.get('eval_custom_cls_f1/abnormal', 0.0):.4f}")
                             st.metric("Image Text F1", f"{best_metrics.get('eval_custom_cls_f1/text', 0.0):.4f}")
                         with subcol2:
-                            st.metric("Image Abnormality AUROC", f"{best_metrics.get('eval_custom_cls_auroc/abnormality', 0.0):.4f}")
+                            st.metric("Image Abnormal AUROC", f"{best_metrics.get('eval_custom_cls_auroc/abnormal', 0.0):.4f}")
                             st.metric("Image Text AUROC", f"{best_metrics.get('eval_custom_cls_auroc/text', 0.0):.4f}")
                         with subcol3:
-                            st.metric("Image Abnormality Acc", f"{best_metrics.get('eval_custom_cls_accuracy/abnormality', 0.0):.4f}")
+                            st.metric("Image Abnormal Acc", f"{best_metrics.get('eval_custom_cls_accuracy/abnormal', 0.0):.4f}")
                             st.metric("Image Text Acc", f"{best_metrics.get('eval_custom_cls_accuracy/text', 0.0):.4f}")
 
                         # Per-class box metrics table
@@ -1070,7 +1070,7 @@ def main():
                         class_rows = []
                         abnormal_name = run_data.get("abnormal_class_name", "abnormal")
                         classes_to_check = []
-                        for c in ["abnormality", abnormal_name, "cell", "text"]:
+                        for c in ["abnormal", abnormal_name, "cell", "text"]:
                             if c not in classes_to_check:
                                 classes_to_check.append(c)
                         for c_name in classes_to_check:
@@ -1090,12 +1090,12 @@ def main():
                         if class_rows:
                             st.dataframe(pd.DataFrame(class_rows), use_container_width=True)
 
-                        # Confusion Matrix for converted image-level abnormality classification
-                        tp = best_metrics.get(f"eval_custom_cls_tp/{abnormal_name}") or best_metrics.get("eval_custom_cls_tp/abnormality")
-                        fp = best_metrics.get(f"eval_custom_cls_fp/{abnormal_name}") or best_metrics.get("eval_custom_cls_fp/abnormality")
-                        tn = best_metrics.get(f"eval_custom_cls_tn/{abnormal_name}") or best_metrics.get("eval_custom_cls_tn/abnormality")
-                        fn = best_metrics.get(f"eval_custom_cls_fn/{abnormal_name}") or best_metrics.get("eval_custom_cls_fn/abnormality")
-                        cm_title = "Converted Abnormality Confusion Matrix"
+                        # Confusion Matrix for converted image-level abnormal classification
+                        tp = best_metrics.get(f"eval_custom_cls_tp/{abnormal_name}") or best_metrics.get("eval_custom_cls_tp/abnormal")
+                        fp = best_metrics.get(f"eval_custom_cls_fp/{abnormal_name}") or best_metrics.get("eval_custom_cls_fp/abnormal")
+                        tn = best_metrics.get(f"eval_custom_cls_tn/{abnormal_name}") or best_metrics.get("eval_custom_cls_tn/abnormal")
+                        fn = best_metrics.get(f"eval_custom_cls_fn/{abnormal_name}") or best_metrics.get("eval_custom_cls_fn/abnormal")
+                        cm_title = "Converted Abnormal Confusion Matrix"
                     else:
                         st.markdown("#### 📊 Best Validation Metrics")
                         st.write(f"The following metrics were achieved at the best epoch (**Epoch {best_metrics.get('epoch', 'N/A')}**):")
@@ -1308,7 +1308,7 @@ def main():
     # ── Tab 5: Classification vs. Detection Comparison ──────────────────────────
     with tab_comparison:
         st.subheader("⚖️ Classification vs. Detection Model Comparison")
-        st.write("Compare the classification models directly with the detection models on the target task: **image-level abnormality classification**.")
+        st.write("Compare the classification models directly with the detection models on the target task: **image-level abnormal classification**.")
         
         if df_results.empty:
             st.info("No runs available for comparison.")
@@ -1320,8 +1320,8 @@ def main():
             if cls_runs.empty or det_runs.empty:
                 st.info("To see comparative charts, make sure you have at least one completed run for both Classification and Detection tasks.")
             else:
-                best_cls = cls_runs.loc[cls_runs["img_abnormality_f1"].idxmax()]
-                best_det = det_runs.loc[det_runs["img_abnormality_f1"].idxmax()]
+                best_cls = cls_runs.loc[cls_runs["img_abnormal_f1"].idxmax()]
+                best_det = det_runs.loc[det_runs["img_abnormal_f1"].idxmax()]
                 
                 col1, col2 = st.columns(2)
                 with col1:
@@ -1330,8 +1330,8 @@ def main():
                     st.write(f"**Model**: {best_cls['model']}")
                     st.write(f"**PEFT Type**: {best_cls['peft_type']} ({best_cls['peft_detail']})")
                     
-                    st.metric("Image Abnormality F1", f"{best_cls['img_abnormality_f1']:.4f}")
-                    st.metric("Image Abnormality AUROC", f"{best_cls['img_abnormality_auroc']:.4f}")
+                    st.metric("Image Abnormal F1", f"{best_cls['img_abnormal_f1']:.4f}")
+                    st.metric("Image Abnormal AUROC", f"{best_cls['img_abnormal_auroc']:.4f}")
                     
                     # Confusion Matrix
                     bm_cls = best_cls["best_metrics"]
@@ -1350,16 +1350,16 @@ def main():
                     st.write(f"**Model**: {best_det['model']}")
                     st.write(f"**PEFT Type**: {best_det['peft_type']} ({best_det['peft_detail']})")
                     
-                    st.metric("Image Abnormality F1", f"{best_det['img_abnormality_f1']:.4f}")
-                    st.metric("Image Abnormality AUROC", f"{best_det['img_abnormality_auroc']:.4f}")
+                    st.metric("Image Abnormal F1", f"{best_det['img_abnormal_f1']:.4f}")
+                    st.metric("Image Abnormal AUROC", f"{best_det['img_abnormal_auroc']:.4f}")
                     
                     # Confusion Matrix
                     bm_det = best_det["best_metrics"]
                     abnormal_name_d = best_det.get("abnormal_class_name", "abnormal")
-                    tp_d = bm_det.get(f"eval_custom_cls_tp/{abnormal_name_d}") or bm_det.get("eval_custom_cls_tp/abnormality")
-                    fp_d = bm_det.get(f"eval_custom_cls_fp/{abnormal_name_d}") or bm_det.get("eval_custom_cls_fp/abnormality")
-                    tn_d = bm_det.get(f"eval_custom_cls_tn/{abnormal_name_d}") or bm_det.get("eval_custom_cls_tn/abnormality")
-                    fn_d = bm_det.get(f"eval_custom_cls_fn/{abnormal_name_d}") or bm_det.get("eval_custom_cls_fn/abnormality")
+                    tp_d = bm_det.get(f"eval_custom_cls_tp/{abnormal_name_d}") or bm_det.get("eval_custom_cls_tp/abnormal")
+                    fp_d = bm_det.get(f"eval_custom_cls_fp/{abnormal_name_d}") or bm_det.get("eval_custom_cls_fp/abnormal")
+                    tn_d = bm_det.get(f"eval_custom_cls_tn/{abnormal_name_d}") or bm_det.get("eval_custom_cls_tn/abnormal")
+                    fn_d = bm_det.get(f"eval_custom_cls_fn/{abnormal_name_d}") or bm_det.get("eval_custom_cls_fn/abnormal")
                     if all(v is not None for v in [tp_d, fp_d, tn_d, fn_d]):
                         fig_cm_det = px.imshow(
                             [[tn_d, fp_d], [fn_d, tp_d]], x=["Predicted Normal", "Predicted Abnormal"], y=["Actual Normal", "Actual Abnormal"],
@@ -1375,15 +1375,15 @@ def main():
                     "Task": ["Classification", "Classification", "Detection", "Detection"],
                     "Metric": ["F1 Score", "AUROC", "F1 Score", "AUROC"],
                     "Value": [
-                        float(best_cls['img_abnormality_f1']), 
-                        float(best_cls['img_abnormality_auroc']), 
-                        float(best_det['img_abnormality_f1']), 
-                        float(best_det['img_abnormality_auroc'])
+                        float(best_cls['img_abnormal_f1']), 
+                        float(best_cls['img_abnormal_auroc']), 
+                        float(best_det['img_abnormal_f1']), 
+                        float(best_det['img_abnormal_auroc'])
                     ]
                 })
                 fig_comp = px.bar(
                     comp_data, x="Metric", y="Value", color="Task", barmode="group",
-                    color_discrete_sequence=["#22c55e", "#ff7f0e"], title="Classification vs. Converted Detection Abnormality Performance",
+                    color_discrete_sequence=["#22c55e", "#ff7f0e"], title="Classification vs. Converted Detection Abnormal Performance",
                     text_auto=".4f"
                 )
                 fig_comp.update_layout(template="plotly_dark", yaxis_range=[0.0, 1.05])

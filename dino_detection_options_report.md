@@ -38,7 +38,7 @@ This approach couples the self-supervised dense representations of DINOv2/DINOv3
 
 We have fully implemented, trained, and evaluated this framework:
 1.  **Model Structure**: Integrates DINOv3 backbones (ViT-S/16 and ViT-B/16) with a **Simple Feature Pyramid (SFP)** neck to feed multi-scale representation maps directly to YOLO26's detection head.
-2.  **Unified Metric Conversion**: Formulated a box-to-image conversion layer during validation. Bounding box detections are evaluated at a decision threshold (0.25 confidence) to yield image-level abnormality classification indicators. This computes Accuracy, Precision, Recall, F1, and AUROC side-by-side with classification runs.
+2.  **Unified Metric Conversion**: Formulated a box-to-image conversion layer during validation. Bounding box detections are evaluated at a decision threshold (0.25 confidence) to yield image-level abnormal classification indicators. This computes Accuracy, Precision, Recall, F1, and AUROC side-by-side with classification runs.
 3.  **Ablation Sweep (58 Runs)**: Executed a grid sweep across:
     - **Backbones**: DINOv3 ViT-S/16 and ViT-B/16.
     - **PEFT Methods**: LoRA (ranks 8/16, targeting attention projections), Bottleneck Adapters (dimensions 32/64), and Visual Prompt Tuning (VPT; shallow/deep, 10/20 tokens).

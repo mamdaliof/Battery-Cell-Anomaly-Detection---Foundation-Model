@@ -41,7 +41,7 @@ class TestCustomDetectionValidator(unittest.TestCase):
         from ultralytics.cfg import get_cfg
         args = get_cfg(overrides=dict(plots=False, save_json=False, save_txt=False, conf=0.25))
 
-        self.names = {0: "abnormality", 1: "cell", 2: "text"}
+        self.names = {0: "abnormal", 1: "cell", 2: "text"}
         self.validator = CustomDetectionValidator(args=args)
         self.validator.seen = 0
 
@@ -52,7 +52,7 @@ class TestCustomDetectionValidator(unittest.TestCase):
 
     def test_coordinate_matching_and_classification(self):
         # 1. Mock predictions [xmin, ymin, xmax, ymax, conf, class_idx]
-        # Image 1 has abnormality (index 0) and cell (index 1) predictions
+        # Image 1 has abnormal (index 0) and cell (index 1) predictions
         pred1 = torch.tensor([
             [10.0, 10.0, 50.0, 50.0, 0.90, 0.0],
             [100.0, 100.0, 200.0, 200.0, 0.85, 1.0]
@@ -69,7 +69,7 @@ class TestCustomDetectionValidator(unittest.TestCase):
         # batch['batch_idx'] is image index in batch
         batch = {
             "bboxes": torch.tensor([
-                [10.0, 10.0, 50.0, 50.0],    # Image 0 - abnormality
+                [10.0, 10.0, 50.0, 50.0],    # Image 0 - abnormal
                 [100.0, 100.0, 200.0, 200.0], # Image 0 - cell
                 [50.0, 50.0, 80.0, 80.0]      # Image 1 - text
             ]),
@@ -100,13 +100,13 @@ class TestCustomDetectionValidator(unittest.TestCase):
         self.validator.update_metrics([pred1, pred2], batch)
 
         # Assert correct classification ground truths
-        # Image 0 has abnormality (1), text (0)
-        # Image 1 has abnormality (0), text (1)
-        self.assertEqual(self.validator.cls_gt_abnormality, [1, 0])
+        # Image 0 has abnormal (1), text (0)
+        # Image 1 has abnormal (0), text (1)
+        self.assertEqual(self.validator.cls_gt_abnormal, [1, 0])
         self.assertEqual(self.validator.cls_gt_text, [0, 1])
 
         # Assert correct classification predictions
-        self.assertEqual(self.validator.cls_pred_abnormality, [1, 0])
+        self.assertEqual(self.validator.cls_pred_abnormal, [1, 0])
         self.assertEqual(self.validator.cls_pred_text, [0, 1])
 
         # Verify bbox IoUs and Dice counts (3 matched pairs)
@@ -117,9 +117,9 @@ class TestCustomDetectionValidator(unittest.TestCase):
 
     def test_get_stats_formatting(self):
         # Seed lists to ensure validation calculations can run
-        self.validator.cls_gt_abnormality = [1, 0, 1, 0]
-        self.validator.cls_pred_abnormality = [1, 0, 0, 1]
-        self.validator.cls_prob_abnormality = [0.9, 0.1, 0.2, 0.85]
+        self.validator.cls_gt_abnormal = [1, 0, 1, 0]
+        self.validator.cls_pred_abnormal = [1, 0, 0, 1]
+        self.validator.cls_prob_abnormal = [0.9, 0.1, 0.2, 0.85]
 
         self.validator.cls_gt_text = [0, 1, 0, 1]
         self.validator.cls_pred_text = [0, 1, 1, 0]
@@ -144,9 +144,9 @@ class TestCustomDetectionValidator(unittest.TestCase):
         self.assertAlmostEqual(stats["metrics/custom_mean_bbox_Dice"], 0.91)
 
         # Check for image classification metrics
-        self.assertIn("metrics/custom_cls_accuracy/abnormality", stats)
+        self.assertIn("metrics/custom_cls_accuracy/abnormal", stats)
         self.assertIn("metrics/custom_cls_f1/text", stats)
-        self.assertEqual(stats["metrics/custom_cls_accuracy/abnormality"], 0.50)
+        self.assertEqual(stats["metrics/custom_cls_accuracy/abnormal"], 0.50)
 
 
 if __name__ == "__main__":

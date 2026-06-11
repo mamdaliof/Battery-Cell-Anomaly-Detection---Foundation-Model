@@ -684,7 +684,7 @@ To format the raw `split_base/` dataset (which contains VOC XML files) for Ultra
    $$y_{center} = \frac{ymin + ymax}{2 \times \text{height}}$$
    $$w_{box} = \frac{xmax - xmin}{\text{width}}$$
    $$h_{box} = \frac{ymax - ymin}{\text{height}}$$
-2. **Class Filtering**: Since the detection pipeline focuses on anomaly defect localization (`nc: 1`), we extract only the `abnormality` labels (mapping to index `0`) and discard the `cell` and `text` labels.
+2. **Class Filtering**: Since the detection pipeline focuses on anomaly defect localization (`nc: 1`), we extract only the `abnormal` labels (mapping to index `0`) and discard the `cell` and `text` labels.
 3. **Background Image Handling**: For normal battery cell samples that contain no anomalies, the preprocessing script writes an empty `.txt` file. This allows YOLO to ingest these images as negative background samples during training.
 4. **Symlink Integration**: Image files are optionally symlinked using relative paths rather than copied, preventing duplicate disk storage overhead.
 
@@ -702,7 +702,7 @@ We perform greedy matching of bounding boxes belonging to the same class at $IoU
 $$\text{Dice} = \frac{2 \times \text{IoU}}{1 + \text{IoU}}$$
 
 #### 3. Image-Level Multi-Label Classification Metrics
-To evaluate binary indicators $\text{y} = [has\_abnormality, has\_text]$ at image level:
+To evaluate binary indicators $\text{y} = [has\_abnormal, has\_text]$ at image level:
 - **Ground Truth**: Set to 1 if the image contains at least one ground-truth bbox for that class, else 0.
 - **Prediction**: Set to 1 if there is at least one predicted bbox for that class with confidence $\ge 0.25$, else 0.
 - **Probability**: Set to the maximum confidence score of predicted bboxes for that class (passed to ROC-AUC).

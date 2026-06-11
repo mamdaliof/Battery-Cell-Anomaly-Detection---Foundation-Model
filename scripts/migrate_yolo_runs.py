@@ -113,8 +113,8 @@ def main():
                             
                     log_history.append(eval_entry)
                     
-                    # Determine best epoch (prioritize abnormality F1, fallback to mAP50)
-                    metric_for_best = "eval_custom_cls_f1/abnormality"
+                    # Determine best epoch (prioritize abnormal F1, fallback to mAP50)
+                    metric_for_best = "eval_custom_cls_f1/abnormal"
                     current_best_val = eval_entry.get(metric_for_best, 0.0)
                     if current_best_val == 0.0:
                         metric_for_best = "eval_mAP50"

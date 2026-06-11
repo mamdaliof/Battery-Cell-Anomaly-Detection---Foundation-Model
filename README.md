@@ -200,10 +200,10 @@ This section explains the core goals, directory architecture, and configuration 
 * **Task Comparison**: 
   * **Classification**: Compares how different PEFT adapters perform on a frozen DINOv3 foundation model to classify images as normal or abnormal under class imbalance.
   * **Detection**: Compares the custom YOLO26 architecture (frozen DINOv3 backbone + trainable SFP neck + YOLO detection head wrapped with PEFT) against standard fully-trained YOLO architectures (YOLOv8 and YOLO11).
-* **Dataset Strategy Ablations**: In addition to comparing architectures, we train detection models on three distinct dataset strategies to see how learning other structures affects abnormality localization:
-  1. `all_label` (classes: abnormality, cell, text)
-  2. `no_cell` (classes: abnormality, text)
-  3. `abnormal_only` (class: abnormality)
+* **Dataset Strategy Ablations**: In addition to comparing architectures, we train detection models on three distinct dataset strategies to see how learning other structures affects abnormal localization:
+  1. `all_label` (classes: abnormal, cell, text)
+  2. `no_cell` (classes: abnormal, text)
+  3. `abnormal_only` (class: abnormal)
 
 ### 2. Configuration Directories (`configs/`)
 To systematically execute the grid search of hyperparameters, we use python scripts under `scripts/` to generate configuration YAML files:
@@ -214,10 +214,10 @@ To systematically execute the grid search of hyperparameters, we use python scri
   * `ablations_abnormal_only/`: Contains the same configs trained on the `abnormal_only` split.
   * `yolo_variants/`: Holds standard model architecture YAML templates (e.g. `yolo26l.yaml`, `yolo26x.yaml`) defining the scale configuration for custom YOLO26 detection layers.
 
-### 3. Comparing Performance on Abnormality Detection
+### 3. Comparing Performance on Abnormal Detection
 * During validation, the custom validator evaluates bounding boxes **individually for each label** (computing TP, FP, FN, Precision, Recall, F1, and mAP50 for each specific class).
-* These metrics are saved in `trainer_state.json` under keys like `eval_custom_F1/abnormality` and `eval_custom_mAP50/abnormality`.
-* Because the anomaly class is consistently named `"abnormality"` across all three strategies, you can directly compare this metric across different models trained on `all_label`, `no_cell`, and `abnormal_only` to analyze the exact impact of each dataset strategy on localizing anomalies.
+* These metrics are saved in `trainer_state.json` under keys like `eval_custom_F1/abnormal` and `eval_custom_mAP50/abnormal`.
+* Because the anomaly class is consistently named `"abnormal"` across all three strategies, you can directly compare this metric across different models trained on `all_label`, `no_cell`, and `abnormal_only` to analyze the exact impact of each dataset strategy on localizing anomalies.
 
 ---
 

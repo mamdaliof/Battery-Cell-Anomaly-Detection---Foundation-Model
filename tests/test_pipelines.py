@@ -25,7 +25,7 @@ class TestPipelines(unittest.TestCase):
         # Create temp workspace directory for pipeline file reads/writes
         self.workspace_dir = Path(tempfile.mkdtemp())
         
-        # Bounding box labels indicate abnormality
+        # Bounding box labels indicate abnormal
         self.abnormal_label = "burnt"
 
     def tearDown(self):

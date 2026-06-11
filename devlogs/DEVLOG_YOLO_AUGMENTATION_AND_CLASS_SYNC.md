@@ -16,11 +16,11 @@ This log documents the implementation of config-driven YOLO data augmentations m
 ---
 
 ## 2. ⚖️ Class Names Synchronization
-- **Problem**: Mismatches between classification folder names (`normal`, `abnormal`) and detection class names (`abnormality`, `cell`, `text`) caused metric matching failures in visualizer displays and logs (which previously hardcoded `abnormality` as the target class).
+- **Problem**: Mismatches between classification folder names (`normal`, `abnormal`) and detection class names (`abnormal`, `cell`, `text`) caused metric matching failures in visualizer displays and logs (which previously hardcoded `abnormal` as the target class).
 - **Solution**:
   - Pass the configured `normal_class_name` and `abnormal_class_name` from the config YAML down to `CustomDetectionTrainer` and `CustomDetectionValidator` in [yolo_trainer.py](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/src/bcadfm/training/yolo_trainer.py).
-  - In `CustomDetectionValidator`, dynamically resolve the index of the abnormality class based on config names.
-  - In `get_stats()`, duplicate metrics logged under `/abnormality` to also be logged under `/{abnormal_class_name}`. This maintains full backwards compatibility with visualizer features expecting `/abnormality` while supporting config-driven name alignment.
+  - In `CustomDetectionValidator`, dynamically resolve the index of the abnormal class based on config names.
+  - In `get_stats()`, duplicate metrics logged under `/abnormal` to also be logged under `/{abnormal_class_name}`. This maintains full backwards compatibility with visualizer features expecting `/abnormal` while supporting config-driven name alignment.
   - Updated [visualize.py](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/visualize.py) to search for metric keys dynamically under both names.
 
 ---

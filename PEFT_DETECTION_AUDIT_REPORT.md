@@ -91,14 +91,14 @@ Detection utilizes both standard box-level evaluations and a custom image-level 
 * **Greedy Box Matching**: Matches GT boxes to predicted boxes of the same class (IoU threshold $\ge 0.50$). Computes:
   - **Matched Bbox IoU**: Mean IoU of matched bounding boxes.
   - **Matched Bbox Dice**: Mean Dice score of matched bounding boxes, calculated as $Dice = \frac{2 \cdot IoU}{1 + IoU}$.
-* **Image-Level Multi-Label Conversion**: Evaluates whether an image contains any abnormality.
-  - An image is classified as positive (`abnormal`) if a prediction box of class `abnormality` has a confidence score $\ge 0.25$.
+* **Image-Level Multi-Label Conversion**: Evaluates whether an image contains any abnormal.
+  - An image is classified as positive (`abnormal`) if a prediction box of class `abnormal` has a confidence score $\ge 0.25$.
   - Generates Accuracy, Precision, Recall, F1, AUROC, and confusion matrix counts (`tn`, `fp`, `fn`, `tp`) on the converted image-level anomaly predictions.
 
 ### 3. Visualizer Auditing
 The Streamlit dashboard in [visualize.py](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/visualize.py) was audited for bugs:
 * **Missing Run Fallbacks**: If no output runs are present, it avoids crashing by presenting warning panels and loading a clean placeholder layout.
-* **Trajectory Curve Plots**: Correctly aligns epoch indexing and resolves mismatched metric names between classification runs (`eval_f1`) and detection runs (`eval_custom_cls_f1/abnormality`).
+* **Trajectory Curve Plots**: Correctly aligns epoch indexing and resolves mismatched metric names between classification runs (`eval_f1`) and detection runs (`eval_custom_cls_f1/abnormal`).
 * **DDP Isolation Warnings**: Gracefully reads nested `trainer_state.json` logs across diverse training outputs.
 
 ---
@@ -129,4 +129,4 @@ To further reinforce the test suite, we successfully added:
 ## 🪟 Recommendations & Findings Summary
 * **No critical bugs or crashes** were found during this audit. The framework is highly cohesive, modular, and robust.
 * **Augmentation Override Clarification**: Resolved! Connected YAML config parameters to the YOLO overrides. Users can now pass native YOLO augmentations via the `yolo_augmentations` config dictionary or rely on the fallback mapping of classification variables.
-* **Class Weights Sync**: Resolved! Passed configuration class names down to `CustomDetectionTrainer` and `CustomDetectionValidator`. The validator dynamically resolves the matching abnormality index and duplicates the logged metric keys under both the default name (`abnormality`) and the custom config name (e.g. `abnormal`). `visualize.py` was updated to look up metrics dynamically under both names, maintaining backward compatibility.
+* **Class Weights Sync**: Resolved! Passed configuration class names down to `CustomDetectionTrainer` and `CustomDetectionValidator`. The validator dynamically resolves the matching abnormal index and duplicates the logged metric keys under both the default name (`abnormal`) and the custom config name (e.g. `abnormal`). `visualize.py` was updated to look up metrics dynamically under both names, maintaining backward compatibility.

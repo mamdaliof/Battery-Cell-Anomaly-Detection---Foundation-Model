@@ -10,9 +10,9 @@ This log documents the implementation of the updated training status checker, mu
 
 ### 1.1. Dataset Split Strategies
 Object detection runs across three specific dataset splits in `data/det_v1.0/`:
-* **All Labels**: `data/battery_detection_all.yaml` (classes: abnormality, cell, text)
-* **No Cell**: `data/battery_detection_no_cell.yaml` (classes: abnormality, text)
-* **Abnormal Only**: `data/battery_detection_abnormal_only.yaml` (classes: abnormality)
+* **All Labels**: `data/battery_detection_all.yaml` (classes: abnormal, cell, text)
+* **No Cell**: `data/battery_detection_no_cell.yaml` (classes: abnormal, text)
+* **Abnormal Only**: `data/battery_detection_abnormal_only.yaml` (classes: abnormal)
 
 ### 1.2. Architecture Config Restoration
 * Restored the custom architecture file [yolo26_dino.yaml](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/configs/det/yolo26_dino.yaml) which was deleted in previous cleanup commits. This layout maps the self-supervised self-attention layers of DINOv3 with transpose/pooling blocks (SFP neck) to standard YOLO26 detection heads.
