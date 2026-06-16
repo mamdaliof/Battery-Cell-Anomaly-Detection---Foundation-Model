@@ -121,6 +121,15 @@ def load_yaml_config(path: str | Path) -> TrainingConfig:
     peft_cfg = PeftConfigSchema(**peft_raw)
     imbalance_cfg = ImbalanceConfig(**imbalance_raw)
 
+    # Validate that oversampling and class weighting are not applied concurrently to prevent double-correction
+    if imbalance_cfg.oversampling_method != "none":
+        if imbalance_cfg.class_weights != "none" or imbalance_cfg.focal_alpha is not None:
+            raise ValueError(
+                f"Invalid configuration in {path}: both oversampling_method='{imbalance_cfg.oversampling_method}' and "
+                f"class_weights='{imbalance_cfg.class_weights}'/focal_alpha are enabled. "
+                "Apply only one strategy (data-level or loss-level) to avoid double-correction."
+            )
+
     return TrainingConfig(
         model_name=raw["model_name"],
         output_dir=raw["output_dir"],

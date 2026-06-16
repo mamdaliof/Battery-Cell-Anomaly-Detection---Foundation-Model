@@ -3,6 +3,21 @@ import os
 import yaml
 from pathlib import Path
 
+def save_config_with_validation(cfg: dict, path: Path) -> None:
+    """Validate and save training configuration to file, preventing concurrent imbalance strategies."""
+    imbalance = cfg.get("imbalance", {})
+    oversampling_method = imbalance.get("oversampling_method", "none")
+    class_weights = imbalance.get("class_weights", "none")
+    focal_alpha = imbalance.get("focal_alpha", None)
+    if oversampling_method != "none" and (class_weights != "none" or focal_alpha is not None):
+        raise ValueError(
+            f"Config generator constraint violation: "
+            f"cannot generate config with both oversampling_method='{oversampling_method}' and "
+            f"class_weights='{class_weights}'/focal_alpha active."
+        )
+    with open(path, "w") as f:
+        yaml.safe_dump(cfg, f, default_flow_style=False)
+
 def main():
     # 1. Paths
     configs_dir = Path("configs/det")
@@ -113,8 +128,7 @@ def main():
             cfg["data"]["image_size"] = 640  # Standard YOLOv8 size
             
             cfg_filepath = ablations_dir / f"yolov8{scale}_train.yaml"
-            with open(cfg_filepath, "w") as f:
-                yaml.safe_dump(cfg, f, default_flow_style=False)
+            save_config_with_validation(cfg, cfg_filepath)
             print(f"  ✅ YOLOv8{scale} (batch={cfg['batch_size']}) -> {cfg_filepath}")
 
         # B. YOLO11 Variants
@@ -130,8 +144,7 @@ def main():
             cfg["data"]["image_size"] = 640  # Standard YOLO11 size
             
             cfg_filepath = ablations_dir / f"yolo11{scale}_train.yaml"
-            with open(cfg_filepath, "w") as f:
-                yaml.safe_dump(cfg, f, default_flow_style=False)
+            save_config_with_validation(cfg, cfg_filepath)
             print(f"  ✅ YOLO11{scale} (batch={cfg['batch_size']}) -> {cfg_filepath}")
 
         # C. YOLO26 Variants (DINOv3 backbone + SFP + YOLO26 Head)
@@ -163,8 +176,7 @@ def main():
                 cfg_filename = f"yolo26{scale}{suffix}"
                 cfg_filepath = ablations_dir / cfg_filename
                 
-                with open(cfg_filepath, "w") as f:
-                    yaml.safe_dump(cfg, f, default_flow_style=False)
+                save_config_with_validation(cfg, cfg_filepath)
             print(f"  ✅ YOLO26{scale} (batch={cfg['batch_size']}) -> {ablations_dir}/yolo26{scale}_train.yaml")
 
         # Also generate a special config for yolo26n.pt standard baseline checkpoint if they want to load it
@@ -177,8 +189,7 @@ def main():
         cfg["data"] = base_cfg["data"].copy()
         cfg["data"]["image_size"] = 640
         cfg_filepath = ablations_dir / "yolo26n_pretrained_train.yaml"
-        with open(cfg_filepath, "w") as f:
-            yaml.safe_dump(cfg, f, default_flow_style=False)
+        save_config_with_validation(cfg, cfg_filepath)
         print(f"  ✅ Pretrained YOLO26n (batch=64) -> {cfg_filepath}")
 
 if __name__ == "__main__":

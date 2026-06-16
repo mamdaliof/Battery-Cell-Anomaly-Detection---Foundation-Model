@@ -24,7 +24,7 @@ class FocalLoss(nn.Module):
         super().__init__()
         self.gamma = gamma
         if alpha is not None:
-            self.register_buffer("alpha", alpha)
+            self.register_buffer("alpha", alpha)#TODO: is this right? where is register buffer?
         else:
             self.alpha = None
         self.reduction = reduction

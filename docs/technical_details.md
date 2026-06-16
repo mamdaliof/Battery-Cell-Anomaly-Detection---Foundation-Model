@@ -96,12 +96,11 @@ Implements the custom training loop subclassing Hugging Face's `Trainer`.
 #### `ImbalanceTrainer`
 - **Sub-methods**:
   - `__init__(self, *args, imbalance_config, **kwargs)`: Captures `imbalance_config` and triggers imbalance setup.
-  - `_prepare_imbalance_handling(self)`: Counts training class frequencies, computes loss scaling weights (if `class_weights` is enabled), and instantiates `self.loss_fn`.
+  - `_prepare_imbalance_handling(self)`: Performs validation to ensure oversampling and class weights are not both enabled (raising a `ValueError`). If valid, counts training class frequencies, computes loss scaling weights (if `class_weights` is enabled), and instantiates `self.loss_fn`.
   - `_get_train_labels(self)`: Utility to extract ground-truth labels from the training dataset by inspecting samples directly or scanning items.
   - `_init_loss_fn(self)`: Sets up loss functions. Returns `FocalLoss` with computed class weights/hyperparameters, or `nn.CrossEntropyLoss` with inverse class-weight tensors.
   - `_get_train_sampler(self, *args, **kwargs)`: Overrides Hugging Face's sampler creation. If `oversampling_method == "weighted_sampler"`, computes balanced sample weights and returns PyTorch's `WeightedRandomSampler`. Checks DDP status and issues warnings if used under multi-GPU setups.
-  - `compute_loss(self, model, inputs, return_outputs, num_items_in_batch)`: Computes loss using the model's logits and `self.loss_fn`. Times the forward pass and saves it to `self._last_forward_time`.
-  - `training_step(self, model, inputs)`: Overrides the training step to track and accumulate data preparation/loading, forward pass, and backward propagation/optimization times. Computes step percentages and logs bottleneck diagnostics to stdout every 50 steps.
+  - `compute_loss(self, model, inputs, return_outputs, num_items_in_batch)`: Computes loss using the model's logits and `self.loss_fn`. Bypasses the model's internal unweighted loss calculation by popping "labels" from the inputs beforehand.
   - `_save(self, output_dir, state_dict)`: Overrides the checkpoint saving function to intercept Safetensors parameter-sharing exceptions (common in VPT models). When Safetensors serialization fails, it falls back to saving PyTorch pickle format checkpoints (`pytorch_model.bin`).
 
 ---
@@ -142,9 +141,10 @@ Constructs custom training transforms. Builds `RandomAugmentationCombo` which im
 
 ### ⚙️ 2.5. Scheduler & Hyperparameter Config (`src/bcadfm/utils/config.py`)
 
-Handles configuration parsing and routing for learning rate schedulers and warmup:
+Handles configuration parsing, validation, and routing:
 - **`SchedulerConfig`**: Contains `lr_scheduler_type` (e.g. `"cosine"`, `"linear"`) and `warmup_ratio` (percentage of total steps for linear warmup, e.g. `0.1`).
 - **Warmup and Decay Integration**: The `warmup_ratio` is routed directly to the Hugging Face `TrainingArguments` in `scripts/train.py`. The trainer dynamically calculates the exact number of warmup steps based on epochs, batch size, and GPU count, applying a linear warmup followed by the selected decay schedule (such as cosine decay).
+- **Imbalance Config Validation**: The `load_yaml_config` function validates loaded configurations. Specifically, it enforces that oversampling (`data_level` or `weighted_sampler`) and class/loss-level weighting (`class_weights` or `focal_alpha`) are never enabled simultaneously. If they are, it raises a `ValueError` to prevent invalid double-correction configurations.
 
 ---
 
@@ -355,7 +355,8 @@ A complete ablation study infrastructure was built to systematically evaluate th
 
 ### 📋 6.1. Configuration Generation (`scripts/generate_ablation_grid.py`)
 
-Generates a combinatorial grid of **58 YAML configurations** under `configs/ablations/`.
+- **Classification**: Generates a grid of **58 YAML configurations** under `configs/cls/ablations_all_label/`.
+- **Detection**: Generates a grid of **61 YAML configurations** under `configs/det/ablations_<strategy>/` (where `<strategy>` is one of `all_label`, `no_cell`, or `abnormal_only`).
 
 #### Grid Dimensions
 
@@ -363,11 +364,29 @@ Generates a combinatorial grid of **58 YAML configurations** under `configs/abla
 |---|---|
 | **Backbone** | ViT-S/16 ($21.6\text{M}$ params), ViT-B/16 ($85.7\text{M}$ params) |
 | **PEFT Method** | None (frozen), LoRA, Bottleneck Adapters, VPT Shallow, VPT Deep |
-| **LoRA Rank** | $r \in \{8, 16\}$ |
-| **Adapter Bottleneck Dim** | $d_{\text{bottleneck}} \in \{32, 64\}$ |
-| **VPT Prompt Tokens** | $N \in \{8, 16, 32\}$ |
-| **Layer Targeting** | all, last-4, last-2 transformer blocks |
-| **Learning Rate** | $\eta \in \{3 \times 10^{-4},\ 5 \times 10^{-4}\}$ |
+| **LoRA Rank** | $r \in \{8, 16\}$ (only when PEFT is LoRA) |
+| **Adapter Bottleneck Dim** | $d_{\text{bottleneck}} \in \{32, 64\}$ (only when PEFT is Bottleneck Adapters) |
+| **VPT Prompt Tokens** | $N \in \{10, 20\}$ (only when PEFT is VPT) |
+| **Layer Targeting** | LoRA: `all`, `last4`, `last2` \| Adapters: `last4`, `last2` \| VPT Deep: `last4` |
+| **Learning Rate** | LoRA/Adapter: $\{3 \times 10^{-4},\ 5 \times 10^{-4}\}$ \| VPT: $\{5 \times 10^{-4},\ 1 \times 10^{-3}\}$ |
+
+#### Standard YOLO Detection Baselines
+
+The detection ablation grid additionally includes three standard YOLO baseline configurations:
+- **YOLOv8 Nano** (`yolov8n`)
+- **YOLOv8 Small** (`yolov8s`)
+- **YOLO26 Nano** (`yolo26n`)
+
+These baselines do not use the frozen DINOv3 backbone and are trained at their native resolution of $640 \times 640$.
+
+#### Base Configuration (Inherited by All Configs)
+
+All ablation configs inherit the following shared settings:
+- **Epochs**: 300
+- **Batch size**: 64 (reduced dynamically to 32/16/8 in detection for larger models to prevent GPU OOM)
+- **LR schedule**: Cosine decay with linear warmup
+- **Loss function**: Focal loss (classification) / YOLO native detection loss
+- **Class balancing**: Dataset-level oversampling (classification)
 
 #### Base Configuration (Inherited by All Configs)
 
@@ -384,7 +403,7 @@ All ablation configs inherit the following shared settings:
 {index}_{peft}_{backbone}_{hyperparams}.yaml
 ```
 
-Example: `007_lora_vit-b16_r16_last4_lr3e-4.yaml`
+Example: `07_lora_vit-b16_r16_last4_lr0.0003.yaml`
 
 ```mermaid
 graph TD
@@ -396,7 +415,9 @@ graph TD
         LR["Learning Rate<br/>3e-4, 5e-4"] --> Grid
     end
 
-    Grid --> |"58 configs"| Out["configs/ablations/*.yaml"]
+    Grid --> |"58 Cls configs"| OutCls["configs/cls/ablations_all_label/*.yaml"]
+    Grid --> |"61 Det configs"| OutDet["configs/det/ablations_<strategy>/*.yaml"]
+    YoloBaselines["Standard YOLO Baselines"] --> OutDet
 ```
 
 ### ✅ 6.2. Configuration Validation (`scripts/validate_ablation_configs.py`)
@@ -410,7 +431,7 @@ Loads each generated YAML config, instantiates the model and image processor, an
 Outputs a **PASS/FAIL report** with per-config parameter summaries:
 
 ```
-[PASS] 007_lora_vit-b16_r16_last4_lr3e-4.yaml
+[PASS] 07_lora_vit-b16_r16_last4_lr0.0003.yaml
        Total: 85.7M | Trainable: 0.29M (0.34%) | PEFT: LoRA r=16
 [FAIL] 042_adapter_vit-s16_d32_all_lr5e-4.yaml
        Error: Adapter dim 32 exceeds hidden_dim for ViT-S/16 block

@@ -203,10 +203,13 @@ class VptWrappedBackbone(nn.Module):
         pixel_values: torch.Tensor,
         bool_masked_pos: Optional[torch.Tensor] = None,
         head_mask: Optional[torch.Tensor] = None,
-        output_attentions: Optional[bool] = None,
+        output_attentions: Optional[bool] = None, # TODO: verify attention map/head extraction during inference for VPT
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ):
+        # Force bool_masked_pos to be always None to keep option in signature but not apply masking
+        bool_masked_pos = None
+
         # 1. Base patch embeddings (with pos encoding added)
         if hasattr(self.original_backbone, "embeddings"):
             embeddings_module = self.original_backbone.embeddings
@@ -227,6 +230,10 @@ class VptWrappedBackbone(nn.Module):
             register_tokens = self.original_backbone.register_tokens
         elif hasattr(self.original_backbone, "model") and hasattr(self.original_backbone.model, "register_tokens"):
             register_tokens = self.original_backbone.model.register_tokens
+        else:
+            import os
+            if int(os.environ.get("LOCAL_RANK", "0")) == 0:
+                print("⚠️ Warning: Register tokens not found in backbone configuration.")
 
         cls_token = x[:, :1, :]
         patch_tokens = x[:, 1:, :]
@@ -234,11 +241,7 @@ class VptWrappedBackbone(nn.Module):
 
         prompts = self.prompt.expand(batch_size, -1, -1)
         if register_tokens is not None:
-            # Layout becomes [CLS, prompts, registers, patches]
-            # Since prompts are inserted immediately after CLS, the register tokens are pushed
-            # to indices [1 + num_tokens : 1 + num_tokens + num_registers].
-            # This allows VptLayerWrapper to discard prompt tokens correctly using self.num_tokens
-            # without affecting the registers.
+            # Layout becomes [CLS, prompts, registers, patches] to keep RoPE aligned with patches
             expanded_registers = register_tokens.expand(batch_size, -1, -1)
             x = torch.cat([cls_token, prompts, expanded_registers, patch_tokens], dim=1)
         else:
@@ -251,6 +254,13 @@ class VptWrappedBackbone(nn.Module):
             position_embeddings = self.original_backbone.rope_embeddings(pixel_values)
         elif hasattr(self.original_backbone, "model") and hasattr(self.original_backbone.model, "rope_embeddings"):
             position_embeddings = self.original_backbone.model.rope_embeddings(pixel_values)
+
+        import os
+        if int(os.environ.get("LOCAL_RANK", "0")) == 0:
+            if position_embeddings is None:
+                print("⚠️ Warning: RoPE position embeddings not found. Fallback to standard positions.")
+            else:
+                print("ℹ️ Info: RoPE position embeddings successfully loaded.")
 
         encoder_kwargs = {}
         if position_embeddings is not None:
@@ -290,6 +300,7 @@ class VptWrappedBackbone(nn.Module):
             )
         else:
             # Fallback: execute layers sequentially
+            # TODO: ensure attention maps/heads are correctly extracted and matched during inference
             hidden_states = x
             all_hidden_states = () if output_hidden_states else None
             all_self_attentions = () if output_attentions else None
@@ -424,6 +435,9 @@ class DinoV3Classifier(nn.Module):
 
             if target_modules is None:
                 target_modules = ["q_proj", "v_proj"]
+                import os
+                if int(os.environ.get("LOCAL_RANK", "0")) == 0:
+                    print(f"ℹ️ Info: LoRA target modules not specified. Defaulting to {target_modules}")
 
             # Apply LoRA to ALL layers — never use layers_to_transform / layers_pattern
             # because PEFT's block-index filtering is unreliable across ViT variants.
@@ -460,6 +474,9 @@ class DinoV3Classifier(nn.Module):
                 target_blocks = peft_config.get("adapter_target_blocks", None)
 
             apply_adapters(self.backbone, bottleneck_dim, dropout, target_blocks)
+            import os
+            if int(os.environ.get("LOCAL_RANK", "0")) == 0:
+                print(f"ℹ️ Info: Using bottleneck adapter dimension: {bottleneck_dim}")
 
         elif peft_type == "visual_prompt":
             if hasattr(peft_config, "vpt_num_tokens"):
@@ -479,6 +496,8 @@ class DinoV3Classifier(nn.Module):
             )
 
         # Build classification head (remains trainable)
+        if id2label is not None:
+            head_config.num_labels = len(id2label)
         self.classifier = self._build_head(input_dim=hidden_size, cfg=head_config)
 
         # Ensure head parameters require grad (always trainable)

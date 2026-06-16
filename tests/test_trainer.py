@@ -184,7 +184,7 @@ class TestTrainerAndLosses(unittest.TestCase):
             train_dataset=base_dataset,
             imbalance_config={
                 "oversampling_method": "weighted_sampler",
-                "class_weights": "balanced"
+                "class_weights": "none"
             }
         )
         
@@ -192,6 +192,105 @@ class TestTrainerAndLosses(unittest.TestCase):
         self.assertTrue(dataset_called)
         # Oversampling method must be updated to data_level
         self.assertEqual(trainer.imbalance_config["oversampling_method"], "data_level")
+
+    def test_trainer_invalid_config_validation(self):
+        """
+        Verify that passing both oversampling and class weights raises a ValueError.
+        """
+        base_dataset = DummyDataset(num_samples=10, num_classes=2)
+        from transformers import TrainingArguments
+        training_args = TrainingArguments(output_dir="temp_out", report_to="none", use_cpu=True)
+        model = nn.Linear(10, 2)
+
+        with self.assertRaises(ValueError):
+            ImbalanceTrainer(
+                model=model,
+                args=training_args,
+                train_dataset=base_dataset,
+                imbalance_config={
+                    "oversampling_method": "data_level",
+                    "class_weights": "balanced"
+                }
+            )
+
+        with self.assertRaises(ValueError):
+            ImbalanceTrainer(
+                model=model,
+                args=training_args,
+                train_dataset=base_dataset,
+                imbalance_config={
+                    "oversampling_method": "weighted_sampler",
+                    "focal_alpha": 0.25
+                }
+            )
+
+    def test_config_loader_validation(self):
+        """
+        Verify that load_yaml_config raises ValueError if both oversampling and class weights are active.
+        """
+        from bcadfm.utils.config import load_yaml_config
+        import tempfile
+        
+        invalid_yaml = """
+model_name: "facebook/dinov3-vits16-pretrain-lvd1689m"
+output_dir: "temp_out"
+data:
+  data_dir: "data/cls_v1.0"
+  train_subdir: "train"
+  val_subdir: "val"
+  normal_class_name: "normal"
+  abnormal_class_name: "abnormal"
+  image_size: 224
+  augmentations_enabled: false
+  aug_global_prob: 0.0
+  aug_max_transforms: 0
+  horizontal_flip_prob: 0.0
+  rotation_degrees: 0.0
+  rotation_prob: 0.0
+  random_resized_crop_scale: [1.0, 1.0]
+  random_resized_crop_ratio: [1.0, 1.0]
+  random_resized_crop_prob: 0.0
+  color_jitter_brightness: 0.0
+  color_jitter_contrast: 0.0
+  color_jitter_saturation: 0.0
+  color_jitter_hue: 0.0
+  color_jitter_prob: 0.0
+  gaussian_noise_std: 0.0
+  gaussian_noise_prob: 0.0
+head:
+  num_labels: 2
+  depth: 1
+  hidden_dim: null
+  dropout: 0.0
+peft:
+  type: "none"
+num_epochs: 1
+batch_size: 4
+learning_rate: 0.0005
+early_stopping_patience: 1
+metric_for_best: "eval_f1"
+greater_is_better: true
+scheduler:
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.1
+amp:
+  fp16: false
+  bf16: false
+imbalance:
+  loss_type: "cross_entropy"
+  class_weights: "balanced"
+  oversampling_method: "data_level"
+"""
+        with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:
+            f.write(invalid_yaml)
+            temp_path = f.name
+            
+        try:
+            with self.assertRaises(ValueError):
+                load_yaml_config(temp_path)
+        finally:
+            import os
+            os.unlink(temp_path)
 
 if __name__ == "__main__":
     unittest.main()

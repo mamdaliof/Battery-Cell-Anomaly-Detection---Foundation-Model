@@ -79,7 +79,7 @@ class TestConfigAndUtilities(unittest.TestCase):
             },
             "imbalance": {
                 "oversampling_method": "data_level",
-                "class_weights": "balanced",
+                "class_weights": "none",
                 "loss_type": "focal",
                 "focal_gamma": 2.0,
                 "focal_alpha": None,

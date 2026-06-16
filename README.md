@@ -69,6 +69,7 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
   - Dynamic dataset-level minority class oversampling (fully compatible with multi-GPU DDP training).
   - Sampler-level oversampling (`WeightedRandomSampler`).
   - Configured and activated through the central `imbalance` configuration section.
+  - **⚠️ Mutual Exclusion Guard**: Oversampling methods (`data_level` or `weighted_sampler`) and loss-level/class-level weighting (`class_weights` or `focal_alpha`) are mutually exclusive. Applying both concurrently results in mathematically invalid double-correction. The training pipeline validates this constraint at both configuration loading and training initialization, raising a `ValueError` if both strategies are active.
 
 - **⚡ PEFT Integration (Implemented)**
   - Parameter-efficient fine-tuning is supported for both **classification** (MLP head) and **object detection** (YOLO26 detector).
@@ -207,7 +208,7 @@ This section explains the core goals, directory architecture, and configuration 
 
 ### 2. Configuration Directories (`configs/`)
 To systematically execute the grid search of hyperparameters, we use python scripts under `scripts/` to generate configuration YAML files:
-* `configs/cls/ablations_all_label/`: Contains 60 classification experiment configs (sweeping PEFT types, layers to transform, ranks, and learning rates).
+* `configs/cls/ablations_all_label/`: Contains 58 classification experiment configs (sweeping PEFT types, layers to transform, ranks, and learning rates).
 * `configs/det/`:
   * `ablations_all_label/`: Contains the 61 PEFT-DINOv3 and standard YOLO configs trained on the `all_label` split.
   * `ablations_no_cell/`: Contains the same configs trained on the `no_cell` split.

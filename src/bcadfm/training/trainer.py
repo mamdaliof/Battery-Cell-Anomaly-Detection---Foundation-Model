@@ -33,13 +33,25 @@ class ImbalanceTrainer(Trainer):
             self._prepare_imbalance_handling()
 
     def _prepare_imbalance_handling(self) -> None:
+        # Validate that oversampling and class weighting are not applied concurrently to prevent double-correction
+        oversampling_method = self.imbalance_config.get("oversampling_method", "none")
+        class_weights_method = self.imbalance_config.get("class_weights", "none")
+        focal_alpha = self.imbalance_config.get("focal_alpha", None)
+
+        if oversampling_method != "none":
+            if class_weights_method != "none" or focal_alpha is not None:
+                raise ValueError(
+                    f"Invalid imbalance configuration: both oversampling_method='{oversampling_method}' and "
+                    f"class_weights='{class_weights_method}'/focal_alpha are enabled. "
+                    "Apply only one strategy (data-level or loss-level) to avoid double-correction."
+                )
+
         # Get training labels
         labels = self._get_train_labels()
         if not labels:
             return
 
         # Check for DDP incompatibility with WeightedRandomSampler (C3 Fix)
-        oversampling_method = self.imbalance_config.get("oversampling_method", "none")
         if oversampling_method == "weighted_sampler" and self.args.world_size > 1:
             if int(os.environ.get("LOCAL_RANK", "0")) == 0:
                 print(

@@ -5,6 +5,21 @@ import yaml
 from pathlib import Path
 from typing import Any, Dict
 
+def save_config_with_validation(cfg: Dict[str, Any], path: Path) -> None:
+    """Validate and save training configuration to file, preventing concurrent imbalance strategies."""
+    imbalance = cfg.get("imbalance", {})
+    oversampling_method = imbalance.get("oversampling_method", "none")
+    class_weights = imbalance.get("class_weights", "none")
+    focal_alpha = imbalance.get("focal_alpha", None)
+    if oversampling_method != "none" and (class_weights != "none" or focal_alpha is not None):
+        raise ValueError(
+            f"Config generator constraint violation: "
+            f"cannot generate config with both oversampling_method='{oversampling_method}' and "
+            f"class_weights='{class_weights}'/focal_alpha active."
+        )
+    with open(path, "w") as f:
+        yaml.safe_dump(cfg, f)
+
 def main():
     # Load base configuration as template (use peft_smoke_all_label as template)
     base_config_path = Path("configs/cls/peft_smoke_all_label.yaml")
@@ -62,8 +77,7 @@ def main():
         }
         
         path = out_dir / f"{run_id:02d}_baseline_{model_key}.yaml"
-        with open(path, "w") as f:
-            yaml.safe_dump(cfg, f)
+        save_config_with_validation(cfg, path)
         generated_configs.append(path)
         run_id += 1
 
@@ -99,8 +113,7 @@ def main():
                     }
                     
                     path = out_dir / f"{run_id:02d}_lora_{model_key}_r{rank}_{block_name}_lr{lr}.yaml"
-                    with open(path, "w") as f:
-                        yaml.safe_dump(cfg, f)
+                    save_config_with_validation(cfg, path)
                     generated_configs.append(path)
                     run_id += 1
 
@@ -135,8 +148,7 @@ def main():
                     }
                     
                     path = out_dir / f"{run_id:02d}_adapter_{model_key}_d{dim}_{block_name}_lr{lr}.yaml"
-                    with open(path, "w") as f:
-                        yaml.safe_dump(cfg, f)
+                    save_config_with_validation(cfg, path)
                     generated_configs.append(path)
                     run_id += 1
 
@@ -171,8 +183,7 @@ def main():
                     }
                     
                     path = out_dir / f"{run_id:02d}_vpt_{model_key}_{type_name}_t{tokens}_lr{lr}.yaml"
-                    with open(path, "w") as f:
-                        yaml.safe_dump(cfg, f)
+                    save_config_with_validation(cfg, path)
                     generated_configs.append(path)
                     run_id += 1
 

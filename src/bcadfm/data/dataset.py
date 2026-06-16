@@ -48,7 +48,7 @@ class BatteryCellDataset(Dataset):
         oversample: bool = False,
         seed: int = 42,
     ) -> None:
-        assert split in {"train", "val"}, f"Unsupported split: {split}"
+        assert split in {"train", "val"}, f"Unsupported split: {split}" #TODO: support test split if needed
         self.split = split
         self.config = data_config
         self.seed = seed
@@ -79,7 +79,7 @@ class BatteryCellDataset(Dataset):
         except Exception as e:
             # Try to load it from local cache files only (C7 Fix)
             try:
-                self.processor = AutoImageProcessor.from_pretrained(model_name_or_path, local_files_only=True)
+                self.processor = AutoImageProcessor.from_pretrained(model_name_or_path, local_files_only=True) #TODO: check if it works fine or not
             except Exception:
                 if int(os.environ.get("LOCAL_RANK", "0")) == 0:
                     print(f"⚠️ Warning: Failed to load HF processor for {model_name_or_path}: {e}")
@@ -102,7 +102,7 @@ class BatteryCellDataset(Dataset):
             else:
                 self.processor.size = image_size_override
 
-        self.transform = transform
+        self.transform = transform #TODO: check where this argument comes from in the training loop and how it is set up, to ensure that the augmentation pipeline is correctly applied.
 
         # Class mapping
         self.label2id: Dict[str, int] = {
