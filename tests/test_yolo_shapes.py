@@ -10,11 +10,6 @@ from transformers import AutoModel
 project_root = Path(__file__).resolve().parent.parent
 sys.path.append(str(project_root / "src"))
 
-# Register custom layers before importing YOLO
-from bcadfm.utils.yolo_utils import register_yolo_dino
-register_yolo_dino()
-
-from ultralytics import YOLO
 
 class TestYoloShapes(unittest.TestCase):
     """
@@ -33,50 +28,63 @@ class TestYoloShapes(unittest.TestCase):
         Set up a temporary test configuration referencing a small DINOv3 model from Hugging Face
         to test structural mapping and token grid slicing.
         """
+        # Register custom layers before importing YOLO
+        from bcadfm.utils.yolo_utils import register_yolo_dino
+        register_yolo_dino()
+        
+        from ultralytics import YOLO
+        
         import unittest.mock as mock
         import torch.nn as nn
-        
+
         class MockViTModel(nn.Module):
             def __init__(self):
                 super().__init__()
+
                 class Config:
                     hidden_size = 384
                     patch_size = 16
                     num_register_tokens = 4
                 self.config = Config()
-                
+
             def forward(self, x, *args, **kwargs):
                 B, C, H, W = x.shape
                 H_patch = H // 16
                 W_patch = W // 16
-                seq_len = 1 + 4 + (H_patch * W_patch) # CLS + Registers (4) + Patches
-                
+                # CLS + Registers (4) + Patches
+                seq_len = 1 + 4 + (H_patch * W_patch)
+
                 class Outputs:
                     pass
                 outputs = Outputs()
-                outputs.last_hidden_state = torch.ones(B, seq_len, 384, device=x.device, dtype=x.dtype)
+                outputs.last_hidden_state = torch.ones(
+                    B, seq_len, 384, device=x.device, dtype=x.dtype)
                 return outputs
-                
+
         # Start mock patcher to avoid gated download check for facebook/dinov3 models
-        cls.mock_patcher = mock.patch("bcadfm.models.yolo_dino.AutoModel.from_pretrained")
+        cls.mock_patcher = mock.patch(
+            "bcadfm.models.yolo_dino.AutoModel.from_pretrained")
         cls.mock_from_pretrained = cls.mock_patcher.start()
         cls.mock_from_pretrained.return_value = MockViTModel()
-        
-        cls.config_path = str(project_root / "configs" / "det" / "yolo26_dino.yaml")
-        cls.temp_config_path = str(project_root / "configs" / "det" / "yolo26_dino_temp.yaml")
-        
+
+        cls.config_path = str(project_root / "configs" /
+                              "det" / "yolo26_dino.yaml")
+        cls.temp_config_path = str(
+            project_root / "configs" / "det" / "yolo26_dino_temp.yaml")
+
         with open(cls.config_path, "r") as f:
             cfg = yaml.safe_load(f)
-            
+
         # Swap model name to small dinov3 model
         cfg["backbone"][0][3] = [384, "facebook/dinov3-vits16-pretrain-lvd1689m"]
-        
+
         with open(cls.temp_config_path, "w") as f:
             yaml.safe_dump(cfg, f)
-            
-        print(f"\n🔬 Instantiating YOLO model from test config: {cls.temp_config_path}")
+
+        print(
+            f"\n🔬 Instantiating YOLO model from test config: {cls.temp_config_path}")
         cls.model = YOLO(cls.temp_config_path)
-        
+
     @classmethod
     def tearDownClass(cls):
         """
@@ -85,14 +93,16 @@ class TestYoloShapes(unittest.TestCase):
         if hasattr(cls, "mock_patcher"):
             cls.mock_patcher.stop()
             print("Stopped backbone mock patcher.")
-            
+
         if hasattr(cls, 'temp_config_path') and os.path.exists(cls.temp_config_path):
             try:
                 os.remove(cls.temp_config_path)
-                print(f"🧹 Cleaned up temporary test config: {cls.temp_config_path}")
+                print(
+                    f"🧹 Cleaned up temporary test config: {cls.temp_config_path}")
             except Exception as e:
-                print(f"⚠️ Failed to remove temp config {cls.temp_config_path}: {e}")
-        
+                print(
+                    f"⚠️ Failed to remove temp config {cls.temp_config_path}: {e}")
+
     def test_backbone_and_sfp_shapes(self):
         """
         Verify that intermediate layers in the model exist, have the correct attributes,
@@ -103,13 +113,13 @@ class TestYoloShapes(unittest.TestCase):
         and should possess the required attributes and expected hidden dimensions.
         """
         py_model = self.model.model
-        
+
         # Verify DINOv3 backbone exists at layer index 0
         backbone = py_model.model[0]
         from bcadfm.models.yolo_dino import DinoV3Backbone
         self.assertTrue(isinstance(backbone, DinoV3Backbone))
-        self.assertEqual(backbone.hidden_size, 384) # ViT-S has hidden dim 384
-        
+        self.assertEqual(backbone.hidden_size, 384)  # ViT-S has hidden dim 384
+
         # Verify SFP neck layers exist at indices 1, 2, 3
         from bcadfm.models.yolo_dino import DinoV3SFP_P3, DinoV3SFP_P4, DinoV3SFP_P5
         self.assertTrue(isinstance(py_model.model[1], DinoV3SFP_P3))
@@ -120,10 +130,14 @@ class TestYoloShapes(unittest.TestCase):
         # Verify that index 'i', input 'f', type 'type', and parameter count 'np' attributes are preserved
         for idx in range(4):
             module = py_model.model[idx]
-            self.assertTrue(hasattr(module, "i"), f"Module {idx} missing 'i' attribute")
-            self.assertTrue(hasattr(module, "f"), f"Module {idx} missing 'f' attribute")
-            self.assertTrue(hasattr(module, "type"), f"Module {idx} missing 'type' attribute")
-            self.assertTrue(hasattr(module, "np"), f"Module {idx} missing 'np' attribute")
+            self.assertTrue(hasattr(module, "i"),
+                            f"Module {idx} missing 'i' attribute")
+            self.assertTrue(hasattr(module, "f"),
+                            f"Module {idx} missing 'f' attribute")
+            self.assertTrue(hasattr(module, "type"),
+                            f"Module {idx} missing 'type' attribute")
+            self.assertTrue(hasattr(module, "np"),
+                            f"Module {idx} missing 'np' attribute")
 
     def test_model_forward_pass_shapes(self):
         """
@@ -137,22 +151,22 @@ class TestYoloShapes(unittest.TestCase):
         """
         # input image of size 640x640
         x = torch.randn(1, 3, 640, 640)
-        
+
         # Run forward pass (in evaluation mode)
         self.model.model.eval()
         with torch.no_grad():
             output = self.model.model(x)
-            
+
         if isinstance(output, tuple):
             pred_tensor = output[0]
         else:
             pred_tensor = output
-            
+
         print(f"  - Inference output shape: {pred_tensor.shape}")
-        
+
         # Check batch size
         self.assertEqual(pred_tensor.shape[0], 1)
-        
+
         # Check shape (either raw anchor outputs or post-processed predictions)
         if pred_tensor.shape[1] == 5:
             # Raw predictions: [batch, 4 + nc, num_anchors]
@@ -162,6 +176,7 @@ class TestYoloShapes(unittest.TestCase):
             # Post-processed detections: [batch, max_det, 6]
             self.assertEqual(pred_tensor.shape[1], 300)
             self.assertEqual(pred_tensor.shape[2], 6)
+
 
 if __name__ == "__main__":
     unittest.main()
