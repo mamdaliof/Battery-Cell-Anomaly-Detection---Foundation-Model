@@ -55,10 +55,13 @@ class DinoV3Backbone(nn.Module):
             self.model = AutoModel.from_pretrained(model_name)
         except Exception as e:
             # Fallback to local files only if gated repository / offline error
+            print(f"[BCADFM] Online model loading failed for '{model_name}': {e}")
+            print(f"[BCADFM] Attempting local cache fallback (local_files_only=True) for '{model_name}'...")
             try:
                 self.model = AutoModel.from_pretrained(model_name, local_files_only=True)
-            except Exception:
-                raise e
+            except Exception as e_inner:
+                print(f"[BCADFM] Local cache fallback failed: {e_inner}")
+                raise e_inner
         self.hidden_size = self.model.config.hidden_size
 
         # Ensure c2 is set correctly to match the backbone hidden size
@@ -68,9 +71,28 @@ class DinoV3Backbone(nn.Module):
         for param in self.model.parameters():
             param.requires_grad = False
 
+        # Try to load the image processor to extract normalization/rescaling settings dynamically
+        try:
+            from transformers import AutoImageProcessor
+            processor = AutoImageProcessor.from_pretrained(model_name)
+        except Exception:
+            try:
+                from transformers import AutoImageProcessor
+                processor = AutoImageProcessor.from_pretrained(model_name, local_files_only=True)
+            except Exception:
+                processor = None
+
+        # Extract parameters or fall back to standard ImageNet constants
+        mean = getattr(processor, "image_mean", [0.485, 0.456, 0.406])
+        std = getattr(processor, "image_std", [0.229, 0.224, 0.225])
+        rescale_factor = getattr(processor, "rescale_factor", 1.0 / 255.0)
+        self.do_rescale = getattr(processor, "do_rescale", True)
+        self.do_normalize = getattr(processor, "do_normalize", True)
+
         # Register ImageNet stats as buffers for device and float precision matching
-        self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1))
-        self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1))
+        self.register_buffer("mean", torch.tensor(mean).view(1, 3, 1, 1))
+        self.register_buffer("std", torch.tensor(std).view(1, 3, 1, 1))
+        self.register_buffer("rescale_factor", torch.tensor(rescale_factor))
 
         # Check DINOv3 specific configurations
         self.num_registers = getattr(self.model.config, "num_register_tokens", 4 if "dinov3" in model_name.lower() else 0)
@@ -162,12 +184,12 @@ class DinoV3Backbone(nn.Module):
         Returns:
             torch.Tensor: Feature map grid of shape (B, hidden_size, H_patch, W_patch).
         """
-        # YOLO inputs are pre-processed to float32. We scale to [0, 1] if not already scaled.
-        if x.max() > 1.0:
-            x = x / 255.0
+        # YOLO inputs are pre-processed to float32. We scale to [0, 1] dynamically if required.
+        if self.do_rescale and x.max() > 1.0:
+            x = x * self.rescale_factor
 
-        # Apply standardization (ImageNet normalization)
-        x_norm = (x - self.mean) / self.std
+        # Apply standardization (normalization) if required
+        x_norm = (x - self.mean) / self.std if self.do_normalize else x
 
         is_training = self.training
 
@@ -188,7 +210,7 @@ class DinoV3Backbone(nn.Module):
         # VPT prompt length (if visual prompt is used, self.model is a VptWrappedBackbone or wraps one)
         num_prompts = 0
         if self.peft_type == "visual_prompt":
-            num_prompts = getattr(self.model, "num_tokens", 0)
+            num_prompts = getattr(self.model, "num_tokens", 0) #TODO: what is this? shouldnt considet number of tokens as num_patchs+1+register? also check the code for but because I know in the VPT in classifier, we used this structure [cls, learnable_tokens, registers, patch_tokens].
 
         start_idx = 1 + num_prompts + self.num_registers
 

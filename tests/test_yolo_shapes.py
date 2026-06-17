@@ -4,6 +4,7 @@ import torch
 import yaml
 import os
 from pathlib import Path
+from transformers import AutoModel
 
 # Add project src/ directory to python path
 project_root = Path(__file__).resolve().parent.parent
@@ -26,21 +27,48 @@ class TestYoloShapes(unittest.TestCase):
     within Ultralytics, can build without stride/shape resolution errors, and
     correctly propagates the feature map grids down the PANet FPN hierarchy.
     """
-    
     @classmethod
     def setUpClass(cls):
         """
         Set up a temporary test configuration referencing a small DINOv3 model from Hugging Face
         to test structural mapping and token grid slicing.
         """
+        import unittest.mock as mock
+        import torch.nn as nn
+        
+        class MockViTModel(nn.Module):
+            def __init__(self):
+                super().__init__()
+                class Config:
+                    hidden_size = 384
+                    patch_size = 16
+                    num_register_tokens = 4
+                self.config = Config()
+                
+            def forward(self, x, *args, **kwargs):
+                B, C, H, W = x.shape
+                H_patch = H // 16
+                W_patch = W // 16
+                seq_len = 1 + 4 + (H_patch * W_patch) # CLS + Registers (4) + Patches
+                
+                class Outputs:
+                    pass
+                outputs = Outputs()
+                outputs.last_hidden_state = torch.ones(B, seq_len, 384, device=x.device, dtype=x.dtype)
+                return outputs
+                
+        # Start mock patcher to avoid gated download check for facebook/dinov3 models
+        cls.mock_patcher = mock.patch("bcadfm.models.yolo_dino.AutoModel.from_pretrained")
+        cls.mock_from_pretrained = cls.mock_patcher.start()
+        cls.mock_from_pretrained.return_value = MockViTModel()
+        
         cls.config_path = str(project_root / "configs" / "det" / "yolo26_dino.yaml")
         cls.temp_config_path = str(project_root / "configs" / "det" / "yolo26_dino_temp.yaml")
         
         with open(cls.config_path, "r") as f:
             cfg = yaml.safe_load(f)
             
-        # Swap model name to small open-access facebook/dinov3-vits16-pretrain-lvd1689m
-        # (hidden size 384, patch size 16) to speed up execution
+        # Swap model name to small dinov3 model
         cfg["backbone"][0][3] = [384, "facebook/dinov3-vits16-pretrain-lvd1689m"]
         
         with open(cls.temp_config_path, "w") as f:
@@ -52,8 +80,12 @@ class TestYoloShapes(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         """
-        Clean up the temporary YOLO config files.
+        Clean up the temporary YOLO config files and stop the mock patcher.
         """
+        if hasattr(cls, "mock_patcher"):
+            cls.mock_patcher.stop()
+            print("Stopped backbone mock patcher.")
+            
         if hasattr(cls, 'temp_config_path') and os.path.exists(cls.temp_config_path):
             try:
                 os.remove(cls.temp_config_path)

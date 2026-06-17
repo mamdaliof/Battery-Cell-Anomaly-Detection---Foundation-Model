@@ -3,6 +3,7 @@ import unittest
 import torch
 import torch.nn as nn
 from pathlib import Path
+from transformers import AutoModel
 
 # Add project src/ directory to python path
 project_root = Path(__file__).resolve().parent.parent
@@ -301,6 +302,42 @@ class TestDinoClassifierAndPeft(unittest.TestCase):
         print("    => Output tensor shape and values validated successfully [OK]")
         print("    => Old prompt tokens (2.0) correctly replaced by new prompt tokens (4.0) [OK]")
         print("✅ [test_models] Passed: test_vpt_deep_layer_prompt_wrapper")
+
+    def test_yolo_backbone_dynamic_preprocessor(self):
+        """
+        Verify that DinoV3Backbone dynamically loads preprocessor parameters
+        and forwards correctly on a public model like facebook/dinov2-base.
+        """
+        print("\n🧪 [test_models] Running: test_yolo_backbone_dynamic_preprocessor")
+        from bcadfm.models.yolo_dino import DinoV3Backbone
+        
+        # Instantiate with public model
+        print("  - Instantiating DinoV3Backbone with facebook/dinov2-base...")
+        backbone = DinoV3Backbone(
+            model_name="facebook/dinov2-base"
+        )
+        
+        # Verify preprocessor attributes are set
+        self.assertTrue(hasattr(backbone, "do_rescale"))
+        self.assertTrue(hasattr(backbone, "do_normalize"))
+        self.assertEqual(backbone.mean.shape, (1, 3, 1, 1))
+        self.assertEqual(backbone.std.shape, (1, 3, 1, 1))
+        print(f"    => Loaded parameters: do_rescale={backbone.do_rescale}, do_normalize={backbone.do_normalize} [OK]")
+        
+        # Run forward pass check
+        print("  - Simulating forward pass with input shape (1, 3, 224, 224)...")
+        dummy_input = torch.randn(1, 3, 224, 224)
+        with torch.no_grad():
+            features = backbone(dummy_input)
+            
+        # For 224x224 input and patch size 14:
+        # H_patch = 224 // 14 = 16
+        # W_patch = 224 // 14 = 16
+        # out_channels = hidden_size = 768
+        # Expected shape: (1, 768, 16, 16)
+        self.assertEqual(features.shape, (1, 768, 16, 16))
+        print(f"    => Forward pass output shape: {features.shape} [OK]")
+        print("✅ [test_models] Passed: test_yolo_backbone_dynamic_preprocessor")
 
 if __name__ == "__main__":
     unittest.main()
