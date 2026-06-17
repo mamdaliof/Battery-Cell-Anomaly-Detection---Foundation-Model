@@ -46,9 +46,90 @@ class TestDinoClassifierAndPeft(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        # We load a small, open-access vision model to act as our backbone
-        # as requested, we configure it using facebook/dinov3-vits16-pretrain-lvd1689m
-        # to test real structural mapping and register token presence.
+        import unittest.mock as mock
+        
+        # Define mock modules for DinoV3 PEFT testing
+        class MockTransformerMLP(nn.Module):
+            def __init__(self, hidden_size):
+                super().__init__()
+                self.fc1 = nn.Linear(hidden_size, hidden_size * 4)
+                self.fc2 = nn.Linear(hidden_size * 4, hidden_size)
+                
+            def forward(self, x):
+                return self.fc2(torch.nn.functional.gelu(self.fc1(x)))
+
+        class MockTransformerAttention(nn.Module):
+            def __init__(self, hidden_size):
+                super().__init__()
+                self.q_proj = nn.Linear(hidden_size, hidden_size)
+                self.k_proj = nn.Linear(hidden_size, hidden_size)
+                self.v_proj = nn.Linear(hidden_size, hidden_size)
+                self.out_proj = nn.Linear(hidden_size, hidden_size)
+                
+            def forward(self, x):
+                return self.out_proj(self.v_proj(x))
+
+        class MockTransformerLayer(nn.Module):
+            def __init__(self, hidden_size):
+                super().__init__()
+                self.attention = MockTransformerAttention(hidden_size)
+                self.mlp = MockTransformerMLP(hidden_size)
+                
+            def forward(self, x, *args, **kwargs):
+                attn_out = self.attention(x)
+                x = x + attn_out
+                mlp_out = self.mlp(x)
+                return x + mlp_out
+
+        class MockDinoBackbone(nn.Module):
+            def __init__(self):
+                super().__init__()
+                class Config:
+                    hidden_size = 384
+                    patch_size = 16
+                    num_register_tokens = 4
+                self.config = Config()
+                
+                # Mock embeddings method
+                class Embeddings(nn.Module):
+                    def __init__(self, hidden_size):
+                        super().__init__()
+                        self.hidden_size = hidden_size
+                    def forward(self, pixel_values, bool_masked_pos=None):
+                        B, C, H, W = pixel_values.shape
+                        H_patch = H // 16
+                        W_patch = W // 16
+                        seq_len = 1 + (H_patch * W_patch)
+                        return torch.ones(B, seq_len, self.hidden_size, device=pixel_values.device)
+                
+                self.embeddings = Embeddings(384)
+                self.register_tokens = nn.Parameter(torch.zeros(1, 4, 384))
+                self.layer = nn.ModuleList([MockTransformerLayer(384) for _ in range(2)])
+                
+            def forward(self, pixel_values, *args, **kwargs):
+                B, C, H, W = pixel_values.shape
+                H_patch = H // 16
+                W_patch = W // 16
+                seq_len = 1 + 4 + (H_patch * W_patch) # CLS + Registers (4) + Patches
+                
+                class Outputs:
+                    pass
+                outputs = Outputs()
+                outputs.last_hidden_state = torch.ones(B, seq_len, 384, device=pixel_values.device)
+                return outputs
+
+        # Start mock patchers
+        from transformers import AutoModel as RealAutoModel
+        cls.original_from_pretrained = RealAutoModel.from_pretrained
+        
+        def conditional_from_pretrained(model_name_or_path, *args, **kwargs):
+            if "dinov3" in model_name_or_path.lower():
+                return MockDinoBackbone()
+            return cls.original_from_pretrained(model_name_or_path, *args, **kwargs)
+            
+        cls.patcher_classifier = mock.patch("transformers.AutoModel.from_pretrained", side_effect=conditional_from_pretrained)
+        cls.mock_classifier_load = cls.patcher_classifier.start()
+
         cls.model_name = "facebook/dinov3-vits16-pretrain-lvd1689m"
         
         # Define configs
@@ -85,6 +166,11 @@ class TestDinoClassifierAndPeft(unittest.TestCase):
             vpt_num_tokens=10,
             vpt_deep=True
         )
+
+    @classmethod
+    def tearDownClass(cls):
+        if hasattr(cls, "patcher_classifier"):
+            cls.patcher_classifier.stop()
 
     def test_classifier_head_construction(self):
         """
