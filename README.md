@@ -173,12 +173,16 @@ torchrun --nproc_per_node=2 scripts/train.py --config configs/cls/peft_smoke_all
 ```
 
 ## 🧪 Testing & Verification
+
 ```bash
-# PEFT integration verification
-python tests/verify_peft.py
+# General classifier and PEFT unit tests
+python tests/test_models.py
 
 # YOLO26+DINOv3 shape tests
-python -m pytest tests/test_yolo_shapes.py
+python tests/test_yolo_shapes.py
+
+# PEFT integration verification
+python tests/verify_peft.py
 
 # Ablation config validation
 python scripts/validate_ablation_configs.py

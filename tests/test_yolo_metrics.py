@@ -111,12 +111,27 @@ class TestCustomDetectionValidator(unittest.TestCase):
 
         # Verify bbox IoUs and Dice counts (3 matched pairs)
         self.assertEqual(len(self.validator.custom_iou_dice_stats), 3)
-        for iou, dice in self.validator.custom_iou_dice_stats:
-            self.assertAlmostEqual(iou, 1.0)
-            self.assertAlmostEqual(dice, 1.0)
+        for class_idx, iou, dice in self.validator.custom_iou_dice_stats:
+            self.assertIn(class_idx, [0, 1, 2])
+            iou_val = iou.item() if isinstance(iou, torch.Tensor) else iou
+            dice_val = dice.item() if isinstance(dice, torch.Tensor) else dice
+            self.assertAlmostEqual(iou_val, 1.0)
+            self.assertAlmostEqual(dice_val, 1.0)
+
+        # Assert cell (class 1) metrics
+        cell_idx = 1
+        self.assertEqual([int(x.item() if isinstance(x, torch.Tensor) else x) for x in self.validator.cls_gt[cell_idx]], [1, 0])
+        self.assertEqual([int(x.item() if isinstance(x, torch.Tensor) else x) for x in self.validator.cls_pred[cell_idx]], [1, 0])
+        probs = [float(x.item() if isinstance(x, torch.Tensor) else x) for x in self.validator.cls_prob[cell_idx]]
+        self.assertAlmostEqual(probs[0], 0.85, places=4)
+        self.assertAlmostEqual(probs[1], 0.0, places=4)
 
     def test_get_stats_formatting(self):
         # Seed lists to ensure validation calculations can run
+        self.validator.cls_gt = {0: [], 1: [], 2: []}
+        self.validator.cls_pred = {0: [], 1: [], 2: []}
+        self.validator.cls_prob = {0: [], 1: [], 2: []}
+
         self.validator.cls_gt_abnormal = [1, 0, 1, 0]
         self.validator.cls_pred_abnormal = [1, 0, 0, 1]
         self.validator.cls_prob_abnormal = [0.9, 0.1, 0.2, 0.85]
@@ -125,7 +140,7 @@ class TestCustomDetectionValidator(unittest.TestCase):
         self.validator.cls_pred_text = [0, 1, 1, 0]
         self.validator.cls_prob_text = [0.1, 0.8, 0.7, 0.2]
 
-        self.validator.custom_iou_dice_stats = [(0.8, 0.88), (0.9, 0.94)]
+        self.validator.custom_iou_dice_stats = [(0, 0.8, 0.88), (2, 0.9, 0.94)]
 
         # Mock standard get_stats to return empty dict
         self.validator.metrics.stats = dict(

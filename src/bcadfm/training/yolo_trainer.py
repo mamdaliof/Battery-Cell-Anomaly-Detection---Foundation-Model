@@ -22,6 +22,8 @@ except Exception as e:
     print(f"⚠️ [WARN] Failed to set Ultralytics runs_dir setting: {e}")
 
 
+from typing import Any, Dict, List, Union
+
 def ddp_gather_list(data_list: List[Any]) -> List[Any]:
     """Gather lists of arbitrary picklable objects from all DDP ranks to Rank 0."""
     if not (torch.distributed.is_initialized() and torch.distributed.get_world_size() > 1):
@@ -39,6 +41,67 @@ def ddp_gather_list(data_list: List[Any]) -> List[Any]:
         return data_list
 
 
+def ddp_gather_tensor(tensor: torch.Tensor) -> torch.Tensor:
+    """Gather a 1D tensor from all DDP ranks to Rank 0, concatenating them."""
+    if not (torch.distributed.is_initialized() and torch.distributed.get_world_size() > 1):
+        return tensor
+    try:
+        world_size = torch.distributed.get_world_size()
+        local_size = torch.tensor([tensor.numel()], dtype=torch.long, device=tensor.device)
+        sizes = [torch.zeros(1, dtype=torch.long, device=tensor.device) for _ in range(world_size)]
+        torch.distributed.all_gather(sizes, local_size)
+        
+        max_size = max(int(s.item()) for s in sizes)
+        # Pad tensor if needed to make sizes equal for all_gather
+        padded = tensor
+        if tensor.numel() < max_size:
+            padded = torch.cat([tensor, torch.zeros(max_size - tensor.numel(), dtype=tensor.dtype, device=tensor.device)])
+        
+        gathered_tensors = [torch.zeros(max_size, dtype=tensor.dtype, device=tensor.device) for _ in range(world_size)]
+        torch.distributed.all_gather(gathered_tensors, padded)
+        
+        # Unpad and concatenate
+        results = []
+        for i, s in enumerate(sizes):
+            size_val = int(s.item())
+            results.append(gathered_tensors[i][:size_val])
+        return torch.cat(results)
+    except Exception as e:
+        print(f"⚠️ [WARN] Failed to gather tensor across DDP ranks: {e}")
+        return tensor
+
+
+def ddp_gather_tensor_2d(tensor: torch.Tensor) -> torch.Tensor:
+    """Gather a 2D tensor of shape (N, D) from all DDP ranks to Rank 0."""
+    if not (torch.distributed.is_initialized() and torch.distributed.get_world_size() > 1):
+        return tensor
+    try:
+        world_size = torch.distributed.get_world_size()
+        local_size = torch.tensor([tensor.shape[0]], dtype=torch.long, device=tensor.device)
+        sizes = [torch.zeros(1, dtype=torch.long, device=tensor.device) for _ in range(world_size)]
+        torch.distributed.all_gather(sizes, local_size)
+        
+        max_rows = max(int(s.item()) for s in sizes)
+        D = tensor.shape[1]
+        
+        # Pad tensor if needed to make sizes equal
+        padded = tensor
+        if tensor.shape[0] < max_rows:
+            padding = torch.zeros(max_rows - tensor.shape[0], D, dtype=tensor.dtype, device=tensor.device)
+            padded = torch.cat([tensor, padding], dim=0)
+            
+        gathered_tensors = [torch.zeros(max_rows, D, dtype=tensor.dtype, device=tensor.device) for _ in range(world_size)]
+        torch.distributed.all_gather(gathered_tensors, padded)
+        
+        results = []
+        for i, s in enumerate(sizes):
+            size_val = int(s.item())
+            results.append(gathered_tensors[i][:size_val])
+        return torch.cat(results, dim=0)
+    except Exception as e:
+        print(f"⚠️ [WARN] Failed to gather 2D tensor across DDP ranks: {e}")
+        return tensor
+
 
 class CustomDetectionValidator(DetectionValidator):
     """Custom YOLO Validation class that calculates advanced metrics.
@@ -52,100 +115,160 @@ class CustomDetectionValidator(DetectionValidator):
         super().__init__(*args, **kwargs)
         self.normal_class_name = "normal"
         self.abnormal_class_name = "abnormal"
-        # Bbox IoU and Dice collectors
-        self.custom_iou_dice_stats: List[tuple[float, float]] = []
+        # Bbox IoU and Dice collectors (stores tuple of: class_idx, best_iou, dice)
+        self.custom_iou_dice_stats: List[tuple[int, Union[float, torch.Tensor], Union[float, torch.Tensor]]] = []
         
-        # Image-level abnormal classification collectors
-        self.cls_gt_abnormal: List[int] = []
-        self.cls_pred_abnormal: List[int] = []
-        self.cls_prob_abnormal: List[float] = []
+        # Initialize internal dynamic dictionary collectors
+        self.cls_gt = {}
+        self.cls_pred = {}
+        self.cls_prob = {}
 
-        # Image-level text classification collectors
-        self.cls_gt_text: List[int] = []
-        self.cls_pred_text: List[int] = []
-        self.cls_prob_text: List[float] = []
+    def _get_class_idx(self, name: str) -> int | None:
+        if not hasattr(self, "names") or not self.names:
+            return None
+        for idx, val in self.names.items():
+            if val.lower() == name.lower():
+                return idx
+        return None
+
+    # Backward compatibility properties
+    @property
+    def cls_gt_abnormal(self) -> List[int]:
+        idx = self._get_class_idx(self.abnormal_class_name)
+        if idx is not None and idx in self.cls_gt:
+            return [int(x.item() if isinstance(x, torch.Tensor) else x) for x in self.cls_gt[idx]]
+        return []
+
+    @cls_gt_abnormal.setter
+    def cls_gt_abnormal(self, val: List[int]):
+        idx = self._get_class_idx(self.abnormal_class_name)
+        if idx is not None:
+            self.cls_gt[idx] = val
+
+    @property
+    def cls_pred_abnormal(self) -> List[int]:
+        idx = self._get_class_idx(self.abnormal_class_name)
+        if idx is not None and idx in self.cls_pred:
+            return [int(x.item() if isinstance(x, torch.Tensor) else x) for x in self.cls_pred[idx]]
+        return []
+
+    @cls_pred_abnormal.setter
+    def cls_pred_abnormal(self, val: List[int]):
+        idx = self._get_class_idx(self.abnormal_class_name)
+        if idx is not None:
+            self.cls_pred[idx] = val
+
+    @property
+    def cls_prob_abnormal(self) -> List[float]:
+        idx = self._get_class_idx(self.abnormal_class_name)
+        if idx is not None and idx in self.cls_prob:
+            return [float(x.item() if isinstance(x, torch.Tensor) else x) for x in self.cls_prob[idx]]
+        return []
+
+    @cls_prob_abnormal.setter
+    def cls_prob_abnormal(self, val: List[float]):
+        idx = self._get_class_idx(self.abnormal_class_name)
+        if idx is not None:
+            self.cls_prob[idx] = val
+
+    @property
+    def cls_gt_text(self) -> List[int]:
+        idx = self._get_class_idx("text")
+        if idx is not None and idx in self.cls_gt:
+            return [int(x.item() if isinstance(x, torch.Tensor) else x) for x in self.cls_gt[idx]]
+        return []
+
+    @cls_gt_text.setter
+    def cls_gt_text(self, val: List[int]):
+        idx = self._get_class_idx("text")
+        if idx is not None:
+            self.cls_gt[idx] = val
+
+    @property
+    def cls_pred_text(self) -> List[int]:
+        idx = self._get_class_idx("text")
+        if idx is not None and idx in self.cls_pred:
+            return [int(x.item() if isinstance(x, torch.Tensor) else x) for x in self.cls_pred[idx]]
+        return []
+
+    @cls_pred_text.setter
+    def cls_pred_text(self, val: List[int]):
+        idx = self._get_class_idx("text")
+        if idx is not None:
+            self.cls_pred[idx] = val
+
+    @property
+    def cls_prob_text(self) -> List[float]:
+        idx = self._get_class_idx("text")
+        if idx is not None and idx in self.cls_prob:
+            return [float(x.item() if isinstance(x, torch.Tensor) else x) for x in self.cls_prob[idx]]
+        return []
+
+    @cls_prob_text.setter
+    def cls_prob_text(self, val: List[float]):
+        idx = self._get_class_idx("text")
+        if idx is not None:
+            self.cls_prob[idx] = val
 
     def init_metrics(self, model):
         """Initializes/resets metric collectors at the start of each validation epoch."""
         super().init_metrics(model)
         self.custom_iou_dice_stats = []
-        self.cls_gt_abnormal = []
-        self.cls_pred_abnormal = []
-        self.cls_prob_abnormal = []
-        self.cls_gt_text = []
-        self.cls_pred_text = []
-        self.cls_prob_text = []
+        self.cls_gt = {idx: [] for idx in self.names.keys()}
+        self.cls_pred = {idx: [] for idx in self.names.keys()}
+        self.cls_prob = {idx: [] for idx in self.names.keys()}
 
     def update_metrics(self, preds: list[dict[str, torch.Tensor]], batch: dict[str, Any]) -> None:
         """Accumulates standard metrics and extracts custom verification metrics."""
         # 1. Update standard Ultralytics metrics
         super().update_metrics(preds, batch)
 
-        # Class names to indices map
-        abnormal_idx = None
-        text_idx = None
-        cfg_abnormal = getattr(self, "abnormal_class_name", "abnormal")
-        for idx, name in self.names.items():
-            if name in (cfg_abnormal, "abnormal", "abnormal"):
-                abnormal_idx = idx
-            elif name == "text":
-                text_idx = idx
-
-        # 2. Extract matched box stats and classification labels
+        # 2. Extract matched box stats and classification labels on GPU
         for si, pred in enumerate(preds):
             pbatch = self._prepare_batch(si, batch)
             predn = self._prepare_pred(pred)
 
-            gt_classes = pbatch["cls"].cpu().numpy().astype(int) if pbatch["cls"].shape[0] > 0 else np.zeros(0)
-            pred_classes = predn["cls"].cpu().numpy().astype(int) if predn["cls"].shape[0] > 0 else np.zeros(0)
-            pred_confs = predn["conf"].cpu().numpy() if predn["cls"].shape[0] > 0 else np.zeros(0)
+            device = predn["cls"].device if predn["cls"].shape[0] > 0 else (pbatch["cls"].device if pbatch["cls"].shape[0] > 0 else torch.device("cpu"))
+            
+            gt_classes = pbatch["cls"].reshape(-1).long() if pbatch["cls"].shape[0] > 0 else torch.empty(0, dtype=torch.long, device=device)
+            pred_classes = predn["cls"].reshape(-1).long() if predn["cls"].shape[0] > 0 else torch.empty(0, dtype=torch.long, device=device)
+            pred_confs = predn["conf"] if predn["cls"].shape[0] > 0 else torch.empty(0, dtype=torch.float32, device=device)
 
             # --- Image-level Multi-Label Classification Labels ---
-            gt_has_abn = int(abnormal_idx in gt_classes) if abnormal_idx is not None else 0
-            gt_has_txt = int(text_idx in gt_classes) if text_idx is not None else 0
+            for idx in self.names.keys():
+                gt_has = (gt_classes == idx).any().int() if gt_classes.numel() > 0 else torch.tensor(0, dtype=torch.int32, device=device)
+                
+                pred_has = torch.tensor(0, dtype=torch.int32, device=device)
+                prob = torch.tensor(0.0, dtype=torch.float32, device=device)
+                
+                if pred_classes.numel() > 0:
+                    class_mask = (pred_classes == idx)
+                    if class_mask.any():
+                        prob = pred_confs[class_mask].max()
+                        pred_has = (prob >= 0.25).int()
 
-            # Find predictions above decision threshold (standard 0.25 confidence)
-            pred_has_abn = 0
-            prob_abn = 0.0
-            pred_has_txt = 0
-            prob_txt = 0.0
-
-            for c_idx, conf in zip(pred_classes, pred_confs):
-                if abnormal_idx is not None and c_idx == abnormal_idx:
-                    prob_abn = max(prob_abn, float(conf))
-                    if conf >= 0.25:
-                        pred_has_abn = 1
-                elif text_idx is not None and c_idx == text_idx:
-                    prob_txt = max(prob_txt, float(conf))
-                    if conf >= 0.25:
-                        pred_has_txt = 1
-
-            if abnormal_idx is not None:
-                self.cls_gt_abnormal.append(gt_has_abn)
-                self.cls_pred_abnormal.append(pred_has_abn)
-                self.cls_prob_abnormal.append(prob_abn)
-
-            if text_idx is not None:
-                self.cls_gt_text.append(gt_has_txt)
-                self.cls_pred_text.append(pred_has_txt)
-                self.cls_prob_text.append(prob_txt)
+                if idx not in self.cls_gt:
+                    self.cls_gt[idx] = []
+                    self.cls_pred[idx] = []
+                    self.cls_prob[idx] = []
+                self.cls_gt[idx].append(gt_has)
+                self.cls_pred[idx].append(pred_has)
+                self.cls_prob[idx].append(prob)
 
             # --- Bounding Box-level matched IoU and Dice ---
             if pbatch["bboxes"].shape[0] > 0 and predn["bboxes"].shape[0] > 0:
-                # Calculate pairwise IoU matrix between gt and pred boxes
-                iou_matrix = box_iou(pbatch["bboxes"], predn["bboxes"]).cpu().numpy()
+                iou_matrix = box_iou(pbatch["bboxes"], predn["bboxes"])
                 matched_pred_indices = set()
 
-                # Greedy matching per ground truth box
                 for gt_i in range(pbatch["bboxes"].shape[0]):
-                    gt_c = gt_classes[gt_i]
-                    best_iou = -1.0
+                    gt_c = gt_classes[gt_i].item()
+                    best_iou = torch.tensor(-1.0, dtype=torch.float32, device=device)
                     best_pred_idx = -1
 
                     for pred_i in range(predn["bboxes"].shape[0]):
                         if pred_i in matched_pred_indices:
                             continue
-                        if pred_classes[pred_i] != gt_c:
+                        if pred_classes[pred_i].item() != gt_c:
                             continue
                         
                         curr_iou = iou_matrix[gt_i, pred_i]
@@ -153,15 +276,13 @@ class CustomDetectionValidator(DetectionValidator):
                             best_iou = curr_iou
                             best_pred_idx = pred_i
 
-                    # Record matched boxes if overlap matches threshold
                     if best_pred_idx != -1 and best_iou >= 0.50:
                         matched_pred_indices.add(best_pred_idx)
                         dice = (2.0 * best_iou) / (1.0 + best_iou)
-                        self.custom_iou_dice_stats.append((best_iou, dice))
+                        self.custom_iou_dice_stats.append((int(gt_c), best_iou, dice))
 
     def get_stats(self) -> Dict[str, Any]:
         """Calculates and returns custom stats injected alongside YOLO stats."""
-        # 1. Copy metrics stats BEFORE super().get_stats() clears them!
         concatenated_stats = {}
         try:
             if hasattr(self.metrics, "stats") and self.metrics.stats:
@@ -184,17 +305,40 @@ class CustomDetectionValidator(DetectionValidator):
             }
 
         names_list = sorted(self.names.keys())
+        device = self.device if hasattr(self, "device") else torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # Gather custom validator metrics across all DDP ranks
-        cls_gt_abnormal = ddp_gather_list(self.cls_gt_abnormal)
-        cls_pred_abnormal = ddp_gather_list(self.cls_pred_abnormal)
-        cls_prob_abnormal = ddp_gather_list(self.cls_prob_abnormal)
+        # Gather custom validator metrics across all DDP ranks on GPU
+        gathered_gt = {}
+        gathered_pred = {}
+        gathered_prob = {}
         
-        cls_gt_text = ddp_gather_list(self.cls_gt_text)
-        cls_pred_text = ddp_gather_list(self.cls_pred_text)
-        cls_prob_text = ddp_gather_list(self.cls_prob_text)
-        
-        custom_iou_dice_stats = ddp_gather_list(self.custom_iou_dice_stats)
+        for idx in self.names.keys():
+            if idx in self.cls_gt and len(self.cls_gt[idx]) > 0:
+                gt_t = torch.stack([x if isinstance(x, torch.Tensor) else torch.tensor(x, dtype=torch.int32, device=device) for x in self.cls_gt[idx]])
+                pred_t = torch.stack([x if isinstance(x, torch.Tensor) else torch.tensor(x, dtype=torch.int32, device=device) for x in self.cls_pred[idx]])
+                prob_t = torch.stack([x if isinstance(x, torch.Tensor) else torch.tensor(x, dtype=torch.float32, device=device) for x in self.cls_prob[idx]])
+            else:
+                gt_t = torch.empty(0, dtype=torch.int32, device=device)
+                pred_t = torch.empty(0, dtype=torch.int32, device=device)
+                prob_t = torch.empty(0, dtype=torch.float32, device=device)
+
+            gathered_gt[idx] = ddp_gather_tensor(gt_t).cpu().numpy()
+            gathered_pred[idx] = ddp_gather_tensor(pred_t).cpu().numpy()
+            gathered_prob[idx] = ddp_gather_tensor(prob_t).cpu().numpy()
+
+        if self.custom_iou_dice_stats:
+            iou_dice_tensor = torch.stack([
+                torch.stack([
+                    torch.tensor(c, dtype=torch.float32, device=device) if not isinstance(c, torch.Tensor) else c.to(device),
+                    iou if isinstance(iou, torch.Tensor) else torch.tensor(iou, dtype=torch.float32, device=device),
+                    dice if isinstance(dice, torch.Tensor) else torch.tensor(dice, dtype=torch.float32, device=device)
+                ])
+                for c, iou, dice in self.custom_iou_dice_stats
+            ])
+        else:
+            iou_dice_tensor = torch.empty((0, 3), dtype=torch.float32, device=device)
+
+        gathered_iou_dice = ddp_gather_tensor_2d(iou_dice_tensor).cpu().numpy()
 
         # 2. Bbox class-specific TP, FP, FN, Precision, Recall, F1, maps
         try:
@@ -213,7 +357,6 @@ class CustomDetectionValidator(DetectionValidator):
                     stats[f"metrics/custom_FP/{name}"] = fp_c
                     stats[f"metrics/custom_FN/{name}"] = fn_c
 
-                    # Map metrics from ap_class_index mapping
                     results_idx = np.where(self.metrics.ap_class_index == idx)[0]
                     if len(results_idx) > 0:
                         r_idx = results_idx[0]
@@ -227,40 +370,57 @@ class CustomDetectionValidator(DetectionValidator):
 
         # 2. Matched bbox IoU and Dice averages
         try:
-            if custom_iou_dice_stats:
-                ious = [x[0] for x in custom_iou_dice_stats]
-                dices = [x[1] for x in custom_iou_dice_stats]
+            if gathered_iou_dice.size > 0:
+                ious = gathered_iou_dice[:, 1]
+                dices = gathered_iou_dice[:, 2]
                 stats["metrics/custom_mean_bbox_IoU"] = float(np.mean(ious))
                 stats["metrics/custom_mean_bbox_Dice"] = float(np.mean(dices))
+
+                for idx in names_list:
+                    name = self.names[idx]
+                    class_mask = (gathered_iou_dice[:, 0] == idx)
+                    if class_mask.any():
+                        class_ious = gathered_iou_dice[class_mask, 1]
+                        class_dices = gathered_iou_dice[class_mask, 2]
+                        stats[f"metrics/custom_mean_bbox_IoU/{name}"] = float(np.mean(class_ious))
+                        stats[f"metrics/custom_mean_bbox_Dice/{name}"] = float(np.mean(class_dices))
+                    else:
+                        stats[f"metrics/custom_mean_bbox_IoU/{name}"] = 0.0
+                        stats[f"metrics/custom_mean_bbox_Dice/{name}"] = 0.0
             else:
                 stats["metrics/custom_mean_bbox_IoU"] = 0.0
                 stats["metrics/custom_mean_bbox_Dice"] = 0.0
+                for idx in names_list:
+                    name = self.names[idx]
+                    stats[f"metrics/custom_mean_bbox_IoU/{name}"] = 0.0
+                    stats[f"metrics/custom_mean_bbox_Dice/{name}"] = 0.0
         except Exception as e:
             stats["metrics/custom_mean_bbox_IoU"] = 0.0
             stats["metrics/custom_mean_bbox_Dice"] = 0.0
+            for idx in names_list:
+                name = self.names[idx]
+                stats[f"metrics/custom_mean_bbox_IoU/{name}"] = 0.0
+                stats[f"metrics/custom_mean_bbox_Dice/{name}"] = 0.0
 
-        # 3. Image-level Multi-Label Classification Metrics
+        # 3. Image-level Multi-Label Classification Metrics for all classes
         try:
-            for cls_name, gt, pred, prob in [
-                ("abnormal", cls_gt_abnormal, cls_pred_abnormal, cls_prob_abnormal),
-                ("text", cls_gt_text, cls_pred_text, cls_prob_text)
-            ]:
-                if gt:
-                    gt_arr = np.array(gt)
-                    pred_arr = np.array(pred)
-                    prob_arr = np.array(prob)
-                    stats[f"metrics/custom_cls_accuracy/{cls_name}"] = float(accuracy_score(gt_arr, pred_arr))
-                    stats[f"metrics/custom_cls_precision/{cls_name}"] = float(precision_score(gt_arr, pred_arr, zero_division=0))
-                    stats[f"metrics/custom_cls_recall/{cls_name}"] = float(recall_score(gt_arr, pred_arr, zero_division=0))
-                    stats[f"metrics/custom_cls_f1/{cls_name}"] = float(f1_score(gt_arr, pred_arr, zero_division=0))
+            for idx, cls_name in self.names.items():
+                gt = gathered_gt.get(idx, np.array([]))
+                pred = gathered_pred.get(idx, np.array([]))
+                prob = gathered_prob.get(idx, np.array([]))
+
+                if gt.size > 0:
+                    stats[f"metrics/custom_cls_accuracy/{cls_name}"] = float(accuracy_score(gt, pred))
+                    stats[f"metrics/custom_cls_precision/{cls_name}"] = float(precision_score(gt, pred, zero_division=0))
+                    stats[f"metrics/custom_cls_recall/{cls_name}"] = float(recall_score(gt, pred, zero_division=0))
+                    stats[f"metrics/custom_cls_f1/{cls_name}"] = float(f1_score(gt, pred, zero_division=0))
                     
-                    if len(np.unique(gt_arr)) > 1:
-                        stats[f"metrics/custom_cls_auroc/{cls_name}"] = float(roc_auc_score(gt_arr, prob_arr))
+                    if len(np.unique(gt)) > 1:
+                        stats[f"metrics/custom_cls_auroc/{cls_name}"] = float(roc_auc_score(gt, prob))
                     else:
                         stats[f"metrics/custom_cls_auroc/{cls_name}"] = 0.5
 
-                    # Abnormal and Text classification confusion matrix counts
-                    cm = confusion_matrix(gt_arr, pred_arr, labels=[0, 1])
+                    cm = confusion_matrix(gt, pred, labels=[0, 1])
                     if cm.shape == (2, 2):
                         tn, fp, fn, tp = cm.ravel()
                     else:
@@ -291,62 +451,84 @@ class CustomDetectionValidator(DetectionValidator):
         except Exception as e:
             print(f"⚠️ [WARN] Failed to finalize standard YOLO metrics: {e}")
         
-        # Display the custom stats summary in terminal
         stats = self.get_stats()
-        print("\n" + "=" * 80)
-        print("📊 CUSTOM VALIDATION METRICS REPORT")
-        print("=" * 80)
+        is_short = getattr(self, "training", True)
         
-        # Matched box IoU/Dice
-        print(f"📐 Matched Bbox IoU:   {stats.get('metrics/custom_mean_bbox_IoU', 0.0):.4f}")
-        print(f"📐 Matched Bbox Dice:  {stats.get('metrics/custom_mean_bbox_Dice', 0.0):.4f}")
-        
-        # Per-class metrics
-        print("\n📦 Bbox Metrics Per-Class (IoU=0.50):")
-        print(f"{'Class':<15} | {'TP':<5} | {'FP':<5} | {'FN':<5} | {'Prec':<6} | {'Recall':<6} | {'F1':<6} | {'mAP50':<6}")
-        print("-" * 80)
-        for idx, name in self.names.items():
-            tp = stats.get(f"metrics/custom_TP/{name}", 0)
-            fp = stats.get(f"metrics/custom_FP/{name}", 0)
-            fn = stats.get(f"metrics/custom_FN/{name}", 0)
-            p = stats.get(f"metrics/custom_P/{name}", 0.0)
-            r = stats.get(f"metrics/custom_R/{name}", 0.0)
-            f1 = stats.get(f"metrics/custom_F1/{name}", 0.0)
-            map50 = stats.get(f"metrics/custom_mAP50/{name}", 0.0)
-            print(f"{name:<15} | {tp:<5} | {fp:<5} | {fn:<5} | {p:.3f}  | {r:.3f}  | {f1:.3f}  | {map50:.3f}")
+        if is_short:
+            iou = stats.get('metrics/custom_mean_bbox_IoU', 0.0)
+            dice = stats.get('metrics/custom_mean_bbox_Dice', 0.0)
+            
+            cfg_abnormal = getattr(self, "abnormal_class_name", "abnormal")
+            abn_f1 = stats.get(f"metrics/custom_F1/{cfg_abnormal}", stats.get("metrics/custom_F1/abnormal", 0.0))
+            txt_f1 = stats.get("metrics/custom_F1/text", 0.0)
+            abn_img_f1 = stats.get(f"metrics/custom_cls_f1/{cfg_abnormal}", stats.get("metrics/custom_cls_f1/abnormal", 0.0))
+            txt_img_f1 = stats.get("metrics/custom_cls_f1/text", 0.0)
+            cell_f1 = stats.get("metrics/custom_F1/cell", 0.0)
+            cell_img_f1 = stats.get("metrics/custom_cls_f1/cell", 0.0)
+            
+            images_count = getattr(self, "seen", 0)
+            instances_count = 0
+            if hasattr(self, "nt_per_class") and self.nt_per_class is not None:
+                instances_count = int(self.nt_per_class.sum())
+                
+            print(f"\n{'Class':<15} {'Images':<8} {'Targets':<8} {'Mean-IoU':<10} {'Mean-Dice':<10} {'Abn-BoxF1':<10} {'Txt-BoxF1':<10} {'Cell-BoxF1':<11} {'Abn-ImgF1':<10} {'Txt-ImgF1':<10}")
+            print(f"{'custom-stats':<15} {images_count:<8} {instances_count:<8} {iou:<10.4f} {dice:<10.4f} {abn_f1:<10.3f} {txt_f1:<10.3f} {cell_f1:<11.3f} {abn_img_f1:<10.3f} {txt_img_f1:<10.3f}\n")
+        else:
+            print("\n" + "=" * 80)
+            print("📊 CUSTOM VALIDATION METRICS REPORT (FINAL EVALUATION)")
+            print("=" * 80)
+            
+            print(f"📐 Matched Bbox IoU:   {stats.get('metrics/custom_mean_bbox_IoU', 0.0):.4f}")
+            print(f"📐 Matched Bbox Dice:  {stats.get('metrics/custom_mean_bbox_Dice', 0.0):.4f}")
+            
+            print("\n📦 Bbox Metrics Per-Class (IoU=0.50):")
+            print(f"{'Class':<15} | {'TP':<5} | {'FP':<5} | {'FN':<5} | {'Prec':<6} | {'Recall':<6} | {'F1':<6} | {'mAP50':<6} | {'IoU':<6} | {'Dice':<6}")
+            print("-" * 105)
+            for idx, name in self.names.items():
+                tp = stats.get(f"metrics/custom_TP/{name}", 0)
+                fp = stats.get(f"metrics/custom_FP/{name}", 0)
+                fn = stats.get(f"metrics/custom_FN/{name}", 0)
+                p = stats.get(f"metrics/custom_P/{name}", 0.0)
+                r = stats.get(f"metrics/custom_R/{name}", 0.0)
+                f1 = stats.get(f"metrics/custom_F1/{name}", 0.0)
+                map50 = stats.get(f"metrics/custom_mAP50/{name}", 0.0)
+                iou = stats.get(f"metrics/custom_mean_bbox_IoU/{name}", 0.0)
+                dice = stats.get(f"metrics/custom_mean_bbox_Dice/{name}", 0.0)
+                print(f"{name:<15} | {tp:<5} | {fp:<5} | {fn:<5} | {p:.3f}  | {r:.3f}  | {f1:.3f}  | {map50:.3f}  | {iou:.3f}  | {dice:.3f}")
 
-        # Classification metrics
-        print("\n🖥️ Image-Level Multi-Label Classification Conversion:")
-        print(f"{'Class Indicator':<18} | {'Accuracy':<8} | {'Precision':<9} | {'Recall':<8} | {'F1':<6} | {'AUROC':<6}")
-        print("-" * 80)
-        cfg_abnormal = getattr(self, "abnormal_class_name", "abnormal")
-        printed_classes = []
-        for cls_name in ["abnormal", cfg_abnormal, "text"]:
-            if cls_name in printed_classes:
-                continue
-            acc = stats.get(f"metrics/custom_cls_accuracy/{cls_name}")
-            if acc is not None:
-                printed_classes.append(cls_name)
-                p = stats.get(f"metrics/custom_cls_precision/{cls_name}", 0.0)
-                r = stats.get(f"metrics/custom_cls_recall/{cls_name}", 0.0)
-                f1 = stats.get(f"metrics/custom_cls_f1/{cls_name}", 0.0)
-                auc = stats.get(f"metrics/custom_cls_auroc/{cls_name}", 0.5)
-                print(f"{cls_name:<18} | {acc:.3f}    | {p:.3f}     | {r:.3f}   | {f1:.3f} | {auc:.3f}")
-        print("=" * 80 + "\n")
+            print("\n🖥️ Image-Level Multi-Label Classification Conversion:")
+            print(f"{'Class Indicator':<18} | {'Accuracy':<8} | {'Precision':<9} | {'Recall':<8} | {'F1':<6} | {'AUROC':<6}")
+            print("-" * 80)
+            printed_classes = []
+            for idx, cls_name in self.names.items():
+                if cls_name in printed_classes:
+                    continue
+                acc = stats.get(f"metrics/custom_cls_accuracy/{cls_name}")
+                if acc is not None:
+                    printed_classes.append(cls_name)
+                    p = stats.get(f"metrics/custom_cls_precision/{cls_name}", 0.0)
+                    r = stats.get(f"metrics/custom_cls_recall/{cls_name}", 0.0)
+                    f1 = stats.get(f"metrics/custom_cls_f1/{cls_name}", 0.0)
+                    auc = stats.get(f"metrics/custom_cls_auroc/{cls_name}", 0.5)
+                    print(f"{cls_name:<18} | {acc:.3f}    | {p:.3f}     | {r:.3f}   | {f1:.3f} | {auc:.3f}")
+            print("=" * 80 + "\n")
+
 
 
 class CustomDetectionTrainer(DetectionTrainer):
     """Custom YOLO Trainer class that registers CustomDetectionValidator."""
 
     def __init__(self, *args, **kwargs):
-        self.normal_class_name = kwargs.pop("normal_class_name", "normal")
-        self.abnormal_class_name = kwargs.pop("abnormal_class_name", "abnormal")
+        # Extract configurations for normal and abnormal class names
+        self.normal_class_name = kwargs.pop("normal_class_name", "normal")#TODO: what if I have more classes?
+        self.abnormal_class_name = kwargs.pop("abnormal_class_name", "abnormal")#TODO: what if I have more classes?
         super().__init__(*args, **kwargs)
-        # Register the trainer_state.json writing callback
+        # Register the callback that runs at the end of each validation epoch to update progress metrics
         self.add_callback("on_fit_epoch_end", save_yolo_trainer_state_callback)
 
     def get_validator(self) -> CustomDetectionValidator:
         """Returns the custom validator instance."""
+        # Configure model losses and instantiate the custom validator with custom class name rules
         self.loss_names = "box_loss", "cls_loss", "dfl_loss"
         validator = CustomDetectionValidator(self.test_loader, save_dir=self.save_dir, args=self.args, _callbacks=self.callbacks)
         validator.normal_class_name = self.normal_class_name
@@ -367,6 +549,15 @@ def save_yolo_trainer_state_callback(trainer) -> None:
     step = int(trainer.epoch + 1)
     
     # 1. Load existing state or initialize new
+    # EXAMPLE format of trainer_state.json:
+    # {
+    #   "best_global_step": 3,
+    #   "best_metric": 0.885,
+    #   "best_model_checkpoint": "outputs/train/weights/best.pt",
+    #   "epoch": 3.0,
+    #   "global_step": 3,
+    #   "log_history": [...]
+    # }
     state = {
         "best_global_step": 0,
         "best_metric": 0.0,
@@ -391,6 +582,7 @@ def save_yolo_trainer_state_callback(trainer) -> None:
     state["log_history"] = [entry for entry in state["log_history"] if entry.get("epoch") != epoch]
     
     # 2. Get training loss
+    # EXAMPLE train_loss: 2.345 (sum of box_loss, cls_loss, dfl_loss)
     train_loss = 0.0
     if hasattr(trainer, "tloss") and trainer.tloss is not None:
         if isinstance(trainer.tloss, (list, tuple, np.ndarray)):
@@ -399,6 +591,7 @@ def save_yolo_trainer_state_callback(trainer) -> None:
             train_loss = float(trainer.tloss.sum().item())
             
     # Get current learning rate
+    # EXAMPLE lr: 0.001
     lr = 0.0
     if hasattr(trainer, "lr") and trainer.lr is not None:
         if isinstance(trainer.lr, dict):
@@ -424,6 +617,7 @@ def save_yolo_trainer_state_callback(trainer) -> None:
     }
     
     # Get validation loss
+    # EXAMPLE val_loss: 1.876
     val_loss = 0.0
     if hasattr(trainer, "validator") and trainer.validator is not None:
         if hasattr(trainer.validator, "loss") and trainer.validator.loss is not None:
@@ -443,6 +637,15 @@ def save_yolo_trainer_state_callback(trainer) -> None:
     eval_entry["eval_loss"] = val_loss
     
     # Copy and map validation metrics
+    # EXAMPLE eval_entry populated:
+    # {
+    #   "epoch": 3.0,
+    #   "step": 3,
+    #   "eval_loss": 1.876,
+    #   "eval_precision": 0.762,
+    #   "eval_custom_cls_f1/abnormal": 0.885,
+    #   ...
+    # }
     if trainer.metrics:
         # Map standard YOLO metrics
         eval_entry["eval_precision"] = float(trainer.metrics.get("metrics/precision(B)", 0.0))

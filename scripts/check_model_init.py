@@ -25,7 +25,7 @@ if "HF_HOME" not in os.environ:
     # If the model is cached in the default home directory, copy it to the local workspace cache
     default_cache = Path.home() / ".cache" / "huggingface" / "hub"
     if default_cache.exists():
-        for p in default_cache.glob("models--facebook--dinov3*"):
+        for p in default_cache.glob("models--facebook--dino*"):
             if p.is_dir():
                 target_hub_dir = hf_cache_dir / "hub"
                 target_dir = target_hub_dir / p.name

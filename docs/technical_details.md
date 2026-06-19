@@ -676,14 +676,25 @@ To inject custom classes (`DinoV3Backbone`, `DinoV3SFP_P3`, `DinoV3SFP_P4`, `Din
      ```
 
 ### 🖼️ 9.3. Device-Safe Computation Graph Normalization
-To prevent preprocessing discrepancy between YOLO (scaling pixel values to $[0, 1]$) and DINOv3 (standardizing with ImageNet mean/std), image normalization is embedded directly inside the custom backbone module. The mean and standard deviation are registered as model buffers:
+To prevent preprocessing discrepancy between YOLO (scaling pixel values to $[0, 1]$) and DINOv3 (standardizing with model-specific normalization/scaling parameters), image normalization is embedded directly inside the custom backbone module. 
+
+During initialization, the custom backbone attempts to load the model's official Hugging Face preprocessor configuration (using `AutoImageProcessor`) to dynamically extract the scaling and normalization parameters (`image_mean`, `image_std`, `rescale_factor`, `do_rescale`, and `do_normalize`), falling back to standard ImageNet constants if offline or loading fails.
+
+The normalization parameters are registered as model buffers:
 ```python
-self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1))
-self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1))
+self.register_buffer("mean", torch.tensor(mean).view(1, 3, 1, 1))
+self.register_buffer("std", torch.tensor(std).view(1, 3, 1, 1))
+self.register_buffer("rescale_factor", torch.tensor(rescale_factor))
 ```
-During the forward pass, standardization is executed on the GPU:
-$$x_{norm} = \frac{x - \mu}{\sigma}$$
+
+During the forward pass, scaling and standardization are executed on the GPU depending on the preprocessor configuration flags:
+- If `do_rescale` is enabled:
+  $$x_{scaled} = x \times \text{rescale\_factor}$$
+- If `do_normalize` is enabled:
+  $$x_{norm} = \frac{x_{scaled} - \mu}{\sigma}$$
+
 This guarantees device safety and avoids duplicating preprocessing overrides during training, ONNX export, or TensorRT deployment.
+
 
 ### 🎟️ 9.4. Register Token Slicing
 DINOv3 standardizes on 4 learned register tokens to absorb high-norm outlier features. The token layout returned by the model is:
@@ -719,15 +730,21 @@ $$\text{FP}_c = \sum (\neg\text{tp\_mask} \land (\text{pred\_cls} == c))$$
 $$\text{FN}_c = \text{GroundTruthCount}_c - \text{TP}_c$$
 
 #### 2. Bbox Overlap IoU & Dice Coefficient
-We perform greedy matching of bounding boxes belonging to the same class at $IoU \ge 0.50$. For matched box pairs, we compute the individual Dice Coefficient and calculate global averages across the split:
+We perform greedy matching of bounding boxes belonging to the same class at $IoU \ge 0.50$. For matched box pairs, we compute the individual Dice Coefficient and calculate both global and per-class averages across the split:
 $$\text{Dice} = \frac{2 \times \text{IoU}}{1 + \text{IoU}}$$
 
 #### 3. Image-Level Multi-Label Classification Metrics
-To evaluate binary indicators $\text{y} = [has\_abnormal, has\_text]$ at image level:
+To evaluate binary indicators at the image level for all classes dynamically:
 - **Ground Truth**: Set to 1 if the image contains at least one ground-truth bbox for that class, else 0.
 - **Prediction**: Set to 1 if there is at least one predicted bbox for that class with confidence $\ge 0.25$, else 0.
 - **Probability**: Set to the maximum confidence score of predicted bboxes for that class (passed to ROC-AUC).
-- **Evaluation**: Uses `scikit-learn` to compute image-level Accuracy, Precision, Recall, F1-score, and AUROC independently.
+- **Evaluation**: Uses `scikit-learn` to compute image-level Accuracy, Precision, Recall, F1-score, and AUROC independently for each class.
+
+#### 4. GPU-Based DDP Metric Gathering
+To support multi-GPU DDP training, custom validation metrics (ground truth, predictions, probabilities, and pairwise IoU/Dice coefficients) are gathered across all ranks on the GPU:
+- **1D Tensors** (class indicators): Consolidated using `ddp_gather_tensor` which handles unequal padding and unpads the concatenated output.
+- **2D Tensors** (bbox IoU/Dice arrays): Consolidated using `ddp_gather_tensor_2d` to concatenate dynamic bounding-box matched shapes safely before computing metrics.
+
 
 ---
 
@@ -878,7 +895,9 @@ To align classification and detection training experiments, detection configurat
 - **Visual Prompt Tuning (VPT)**:
   - **Shallow**: Registers input prompt parameters prepended to patch sequences.
   - **Deep**: Automatically intercepts block execution to swap prompt parameters at intermediate blocks.
+- **Dynamic Preprocessing**: Dynamically instantiates the official `AutoImageProcessor` for the active model config to parse scaling factors and normalization stats, executing GPU-based scaling and standardization in the forward pass.
 - **Gradient Tracking**: During standard inference, the backbone runs inside `torch.no_grad()`. During PEFT training, gradient computation is enabled on the model to update the trainable adapter weights, while keeping the rest of the backbone fully frozen.
+
 
 ### 13.3. VPT Token Slicing Offset Resolution
 When VPT is active, the layout of sequence outputs from the DINOv3 model shifts:

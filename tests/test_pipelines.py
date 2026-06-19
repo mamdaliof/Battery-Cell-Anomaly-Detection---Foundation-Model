@@ -116,8 +116,8 @@ class TestPipelines(unittest.TestCase):
         # Create a configs/cls/ folder in the temp workspace and copy template
         (self.workspace_dir / "configs" / "cls").mkdir(parents=True)
         shutil.copy(
-            str(project_root / "configs" / "cls" / "benchmark_baseline.yaml"),
-            str(self.workspace_dir / "configs" / "cls" / "benchmark_baseline.yaml")
+            str(project_root / "configs" / "cls" / "peft_smoke_all_label.yaml"),
+            str(self.workspace_dir / "configs" / "cls" / "peft_smoke_all_label.yaml")
         )
         
         # 1. Run grid generator CLI script with Cwd set to the temp workspace
@@ -127,8 +127,8 @@ class TestPipelines(unittest.TestCase):
         res_gen = subprocess.run(cmd_gen, cwd=str(self.workspace_dir), capture_output=True, text=True)
         self.assertEqual(res_gen.returncode, 0, f"Grid generation failed: {res_gen.stderr}")
         
-        # Verify that multiple YAML files were generated under configs/cls/ablations/
-        grid_out_dir = self.workspace_dir / "configs" / "cls" / "ablations"
+        # Verify that multiple YAML files were generated under configs/cls/ablations_all_label/
+        grid_out_dir = self.workspace_dir / "configs" / "cls" / "ablations_all_label"
         yaml_files = list(grid_out_dir.glob("*.yaml"))
         self.assertTrue(len(yaml_files) > 0)
 
