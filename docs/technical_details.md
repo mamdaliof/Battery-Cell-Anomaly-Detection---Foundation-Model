@@ -926,7 +926,40 @@ To prevent filesystem race conditions and config name collisions:
 - **Strategy-Specific Logging**: Log files for subprocess execution in `scripts/run_parallel_det_ablations.py` are saved in separate subdirectories `outputs/{strategy}/det/logs/`.
 - **Strategy-Aware Status Checker**: `scripts/check_ablation_status.py` extracts the strategy namespace from the run folder path to correctly pair the run with its original configuration file.
 
-```
+---
+
+## 🔁 14. 5-Fold Cross-Validation Framework
+
+To evaluate the generalization performance of our foundation models and PEFT configurations robustly, we implemented a complete 5-fold cross-validation framework across both classification and object detection pipelines.
+
+### 14.1. Config Schema Extension (src/bcadfm/utils/config.py)
+We added `fold` as an optional parameter (`fold: Optional[int | str] = None`) to the top-level `TrainingConfig` schema. This enables specifying the active partition subset index (0 through 4) directly in configuration YAML files.
+
+### 14.2. Fold-Aware Dataset Loading
+Both classification and detection pipelines resolve the target dataset directory dynamically based on the active fold parameter:
+- **Dynamic Path Construction**: If `cfg.fold` is set, the dataset directory `data_dir` is updated at startup to point to the corresponding fold subdirectory:
+  $$\text{data\_dir}_{\text{active}} = \text{data\_dir}_{\text{base}} \mathbin{/} \text{"fold\_" + fold}$$
+  For example, `data/cls_v1.0` is resolved as `data/cls_v1.0/fold_2` for fold 2.
+- **DDP Compatibility**: The dataset-level oversampling and loaders partition the active fold subset across GPUs safely using PyTorch's `DistributedSampler`.
+
+### 14.3. Fold-Specific Seeds and Random State
+To ensure folds are reproducible and use distinct initial states for data shuffling, class balancing, and network initialization, config sweeps assign unique seeds based on the fold number:
+$$\text{seed} = 30 + \text{fold} \times 10$$
+- **Fold 0**: seed 30
+- **Fold 1**: seed 40
+- **Fold 2**: seed 50
+- **Fold 3**: seed 60
+- **Fold 4**: seed 70
+
+### 14.4. Isolated Outputs & Dynamic YOLO YAML Creation
+To execute concurrent parallel runs across multiple folds and configurations without file writing collisions:
+- **Unique Output Stems**: Run-specific directories under the outputs folder suffix the config stem with the active fold:
+  `outputs/{task}/{model_name}__{config_stem}_fold_{fold}/{timestamp}`
+- **On-the-fly YOLO Data Configurations**: In the detection pipeline, training is initiated by passing a YOLO data description YAML path to the Ultralytics API. Since modifying a shared YAML file concurrently causes parallel subprocesses to read mismatched directories, `scripts/train_detection.py` reads the base data YAML, injects the fold path, writes a temporary `yolo_data_fold.yaml` directly into the run's isolated output folder, and overrides the yolo data path argument.
+
+### 14.5. Config Generators, Parallel Schedulers, and Status Audit
+- **Sweep Generation**: `scripts/generate_ablation_grid.py` and `scripts/generate_det_ablation_grid.py` now include a fold sweep loop (0-4), producing config filenames suffixed with `_fold_{fold}.yaml`.
+- **Subprocess Equivalence Verification**: The parallel runner schedulers (`_equiv()` in `run_parallel_ablations.py` / `run_parallel_det_ablations.py`) and training run checkers (`is_equiv()` in `check_ablation_status.py`) incorporate the `fold` and `seed` variables in equivalence matching. This ensures already-completed fold configurations are skipped correctly when resuming sweeps.
 
 
 

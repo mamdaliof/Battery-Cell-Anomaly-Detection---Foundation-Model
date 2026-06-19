@@ -94,6 +94,7 @@ class TrainingConfig:
     scheduler: SchedulerConfig
     amp: AmpConfig
     seed: int = 42
+    fold: Optional[int | str] = None
 
     # YOLO / Detection settings (optional)
     yolo_model_config: Optional[str] = None
@@ -144,6 +145,7 @@ def load_yaml_config(path: str | Path) -> TrainingConfig:
         metric_for_best=raw.get("metric_for_best", "eval_loss"),
         greater_is_better=raw.get("greater_is_better", False),
         seed=raw.get("seed", 42),
+        fold=raw.get("fold", None),
         scheduler=scheduler_cfg,
         amp=amp_cfg,
         yolo_model_config=raw.get("yolo_model_config", None),

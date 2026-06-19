@@ -53,139 +53,151 @@ def main():
 
     # Swept models
     models = [
-        ("vits16", "facebook/dinov3-vits16-pretrain-lvd1689m"),
-        ("vitb16", "facebook/dinov3-vitb16-pretrain-lvd1689m")
+        ("vits16", "facebook/dinov3-vits16-pretrain-lvd1689m")
     ]
 
-    # 1. Baseline Runs (2 runs: Small, Base)
+    # 1. Baseline Runs
     for model_key, model_name in models:
-        cfg = copy.deepcopy(base_cfg)
-        cfg["model_name"] = model_name
-        cfg["peft"] = {
-            "type": "none",
-            "lora_r": 8,
-            "lora_alpha": 16,
-            "lora_dropout": 0.0,
-            "lora_target_modules": ["q_proj", "v_proj"],
-            "lora_target_blocks": None,
-            "adapter_bottleneck_dim": 64,
-            "adapter_dropout": 0.0,
-            "adapter_target_blocks": None,
-            "vpt_num_tokens": 10,
-            "vpt_deep": False,
-            "vpt_target_blocks": None
-        }
-        
-        path = out_dir / f"{run_id:02d}_baseline_{model_key}.yaml"
-        save_config_with_validation(cfg, path)
-        generated_configs.append(path)
-        run_id += 1
+        for fold in range(5):
+            cfg = copy.deepcopy(base_cfg)
+            cfg["model_name"] = model_name
+            cfg["learning_rate"] = 0.0003
+            cfg["fold"] = fold
+            cfg["seed"] = 30 + fold * 10
+            cfg["peft"] = {
+                "type": "none",
+                "lora_r": 8,
+                "lora_alpha": 16,
+                "lora_dropout": 0.0,
+                "lora_target_modules": ["q_proj", "v_proj"],
+                "lora_target_blocks": None,
+                "adapter_bottleneck_dim": 64,
+                "adapter_dropout": 0.0,
+                "adapter_target_blocks": None,
+                "vpt_num_tokens": 10,
+                "vpt_deep": False,
+                "vpt_target_blocks": None
+            }
+            
+            path = out_dir / f"{run_id:02d}_baseline_{model_key}_fold_{fold}.yaml"
+            save_config_with_validation(cfg, path)
+            generated_configs.append(path)
+            run_id += 1
 
-    # 2. LoRA Runs (24 runs: 2 models x 2 ranks x 3 blocks x 2 LRs)
+    # 2. LoRA Runs
     lora_ranks = [8, 16]
     lora_blocks = [
-        ("all", None),
         ("last4", [8, 9, 10, 11]),
         ("last2", [10, 11])
     ]
-    lora_lrs = [0.0003, 0.0005]
+    lora_lrs = [0.0003]
 
     for model_key, model_name in models:
         for rank in lora_ranks:
             for block_name, blocks in lora_blocks:
                 for lr in lora_lrs:
-                    cfg = copy.deepcopy(base_cfg)
-                    cfg["model_name"] = model_name
-                    cfg["learning_rate"] = lr
-                    cfg["peft"] = {
-                        "type": "lora",
-                        "lora_r": rank,
-                        "lora_alpha": rank * 2,
-                        "lora_dropout": 0.1,
-                        "lora_target_modules": ["q_proj", "v_proj"],
-                        "lora_target_blocks": blocks,
-                        "adapter_bottleneck_dim": 64,
-                        "adapter_dropout": 0.0,
-                        "adapter_target_blocks": None,
-                        "vpt_num_tokens": 10,
-                        "vpt_deep": False,
-                        "vpt_target_blocks": None
-                    }
-                    
-                    path = out_dir / f"{run_id:02d}_lora_{model_key}_r{rank}_{block_name}_lr{lr}.yaml"
-                    save_config_with_validation(cfg, path)
-                    generated_configs.append(path)
-                    run_id += 1
+                    for fold in range(5):
+                        cfg = copy.deepcopy(base_cfg)
+                        cfg["model_name"] = model_name
+                        cfg["learning_rate"] = lr
+                        cfg["fold"] = fold
+                        cfg["seed"] = 30 + fold * 10
+                        cfg["peft"] = {
+                            "type": "lora",
+                            "lora_r": rank,
+                            "lora_alpha": rank * 2,
+                            "lora_dropout": 0.1,
+                            "lora_target_modules": ["q_proj", "v_proj"],
+                            "lora_target_blocks": blocks,
+                            "adapter_bottleneck_dim": 64,
+                            "adapter_dropout": 0.0,
+                            "adapter_target_blocks": None,
+                            "vpt_num_tokens": 10,
+                            "vpt_deep": False,
+                            "vpt_target_blocks": None
+                        }
+                        
+                        path = out_dir / f"{run_id:02d}_lora_{model_key}_r{rank}_{block_name}_lr{lr}_fold_{fold}.yaml"
+                        save_config_with_validation(cfg, path)
+                        generated_configs.append(path)
+                        run_id += 1
 
-    # 3. Adapter Runs (16 runs: 2 models x 2 dims x 2 blocks x 2 LRs)
+    # 3. Adapter Runs
     adapter_dims = [32, 64]
     adapter_blocks = [
         ("last4", [8, 9, 10, 11]),
         ("last2", [10, 11])
     ]
-    adapter_lrs = [0.0003, 0.0005]
+    adapter_lrs = [0.0003]
 
     for model_key, model_name in models:
         for dim in adapter_dims:
             for block_name, blocks in adapter_blocks:
                 for lr in adapter_lrs:
-                    cfg = copy.deepcopy(base_cfg)
-                    cfg["model_name"] = model_name
-                    cfg["learning_rate"] = lr
-                    cfg["peft"] = {
-                        "type": "adapter",
-                        "lora_r": 8,
-                        "lora_alpha": 16,
-                        "lora_dropout": 0.0,
-                        "lora_target_modules": ["q_proj", "v_proj"],
-                        "lora_target_blocks": None,
-                        "adapter_bottleneck_dim": dim,
-                        "adapter_dropout": 0.1,
-                        "adapter_target_blocks": blocks,
-                        "vpt_num_tokens": 10,
-                        "vpt_deep": False,
-                        "vpt_target_blocks": None
-                    }
-                    
-                    path = out_dir / f"{run_id:02d}_adapter_{model_key}_d{dim}_{block_name}_lr{lr}.yaml"
-                    save_config_with_validation(cfg, path)
-                    generated_configs.append(path)
-                    run_id += 1
+                    for fold in range(5):
+                        cfg = copy.deepcopy(base_cfg)
+                        cfg["model_name"] = model_name
+                        cfg["learning_rate"] = lr
+                        cfg["fold"] = fold
+                        cfg["seed"] = 30 + fold * 10
+                        cfg["peft"] = {
+                            "type": "adapter",
+                            "lora_r": 8,
+                            "lora_alpha": 16,
+                            "lora_dropout": 0.0,
+                            "lora_target_modules": ["q_proj", "v_proj"],
+                            "lora_target_blocks": None,
+                            "adapter_bottleneck_dim": dim,
+                            "adapter_dropout": 0.1,
+                            "adapter_target_blocks": blocks,
+                            "vpt_num_tokens": 10,
+                            "vpt_deep": False,
+                            "vpt_target_blocks": None
+                        }
+                        
+                        path = out_dir / f"{run_id:02d}_adapter_{model_key}_d{dim}_{block_name}_lr{lr}_fold_{fold}.yaml"
+                        save_config_with_validation(cfg, path)
+                        generated_configs.append(path)
+                        run_id += 1
 
-    # 4. VPT Runs (16 runs: 2 models x 2 types x 2 tokens x 2 LRs)
+    # 4. VPT Runs
     vpt_types = [
         ("shallow", False, None),
+        ("deep_last2", True, [10, 11]),
         ("deep_last4", True, [8, 9, 10, 11])
     ]
-    vpt_tokens = [10, 20]
-    vpt_lrs = [0.0005, 0.001]
+    vpt_tokens = [10]
+    vpt_lrs = [0.0003]
 
     for model_key, model_name in models:
         for type_name, is_deep, blocks in vpt_types:
             for tokens in vpt_tokens:
                 for lr in vpt_lrs:
-                    cfg = copy.deepcopy(base_cfg)
-                    cfg["model_name"] = model_name
-                    cfg["learning_rate"] = lr
-                    cfg["peft"] = {
-                        "type": "visual_prompt",
-                        "lora_r": 8,
-                        "lora_alpha": 16,
-                        "lora_dropout": 0.0,
-                        "lora_target_modules": ["q_proj", "v_proj"],
-                        "lora_target_blocks": None,
-                        "adapter_bottleneck_dim": 64,
-                        "adapter_dropout": 0.0,
-                        "adapter_target_blocks": None,
-                        "vpt_num_tokens": tokens,
-                        "vpt_deep": is_deep,
-                        "vpt_target_blocks": blocks
-                    }
-                    
-                    path = out_dir / f"{run_id:02d}_vpt_{model_key}_{type_name}_t{tokens}_lr{lr}.yaml"
-                    save_config_with_validation(cfg, path)
-                    generated_configs.append(path)
-                    run_id += 1
+                    for fold in range(5):
+                        cfg = copy.deepcopy(base_cfg)
+                        cfg["model_name"] = model_name
+                        cfg["learning_rate"] = lr
+                        cfg["fold"] = fold
+                        cfg["seed"] = 30 + fold * 10
+                        cfg["peft"] = {
+                            "type": "visual_prompt",
+                            "lora_r": 8,
+                            "lora_alpha": 16,
+                            "lora_dropout": 0.0,
+                            "lora_target_modules": ["q_proj", "v_proj"],
+                            "lora_target_blocks": None,
+                            "adapter_bottleneck_dim": 64,
+                            "adapter_dropout": 0.0,
+                            "adapter_target_blocks": None,
+                            "vpt_num_tokens": tokens,
+                            "vpt_deep": is_deep,
+                            "vpt_target_blocks": blocks
+                        }
+                        
+                        path = out_dir / f"{run_id:02d}_vpt_{model_key}_{type_name}_t{tokens}_lr{lr}_fold_{fold}.yaml"
+                        save_config_with_validation(cfg, path)
+                        generated_configs.append(path)
+                        run_id += 1
 
     print(f"✅ Generated {len(generated_configs)} configuration files under {out_dir}/")
 

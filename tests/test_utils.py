@@ -114,6 +114,45 @@ class TestConfigAndUtilities(unittest.TestCase):
         self.assertEqual(cfg.imbalance.loss_type, "focal")
         self.assertTrue(cfg.amp.bf16)
 
+    def test_load_yaml_config_fold_parsing(self):
+        """
+        Verify fold parsing from yaml configuration.
+        """
+        # Load default temp config (which has no fold)
+        cfg = load_yaml_config(self.temp_file.name)
+        self.assertIsNone(cfg.fold)
+
+        # Modify temp config to include fold
+        self.config_dict["fold"] = 3
+        with open(self.temp_file.name, "w") as f:
+            yaml.safe_dump(self.config_dict, f)
+
+        cfg_with_fold = load_yaml_config(self.temp_file.name)
+        self.assertEqual(cfg_with_fold.fold, 3)
+
+    def test_runner_equivalence_checks(self):
+        """
+        Verify that _equiv from parallel runner and is_equiv from status checker
+        properly compare fold and seed fields.
+        """
+        # Load runners and test equivalence checks
+        sys.path.append(str(project_root / "scripts"))
+        from run_parallel_ablations import _equiv as cls_equiv
+        from run_parallel_det_ablations import _equiv as det_equiv
+
+        cfg_a = {"model_name": "vit", "fold": 1, "seed": 40}
+        cfg_b = {"model_name": "vit", "fold": 2, "seed": 40}
+        cfg_c = {"model_name": "vit", "fold": 1, "seed": 50}
+        cfg_d = {"model_name": "vit", "fold": 1, "seed": 40}
+
+        self.assertFalse(cls_equiv(cfg_a, cfg_b))
+        self.assertFalse(cls_equiv(cfg_a, cfg_c))
+        self.assertTrue(cls_equiv(cfg_a, cfg_d))
+
+        self.assertFalse(det_equiv(cfg_a, cfg_b))
+        self.assertFalse(det_equiv(cfg_a, cfg_c))
+        self.assertTrue(det_equiv(cfg_a, cfg_d))
+
     def test_count_parameters(self):
         """
         Verify count_parameters returns correct values for trainable and total weights.

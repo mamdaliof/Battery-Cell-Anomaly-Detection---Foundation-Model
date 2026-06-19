@@ -249,7 +249,7 @@ def _load(p: Path) -> Dict[str, Any]:
 
 def _equiv(a: Dict, b: Dict) -> bool:
     for k in ("model_name", "data", "head", "peft",
-              "learning_rate", "num_epochs", "imbalance"):
+              "learning_rate", "num_epochs", "imbalance", "fold", "seed"):
         if a.get(k) != b.get(k):
             return False
     return True

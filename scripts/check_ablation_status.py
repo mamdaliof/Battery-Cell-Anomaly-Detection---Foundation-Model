@@ -76,7 +76,7 @@ def find_matching_config_by_content(run_cfg, task, custom_configs_dir=None, stra
     def is_equiv(a, b):
         for k in ("model_name", "data", "head", "peft",
                   "learning_rate", "num_epochs", "imbalance",
-                  "yolo_model_config", "yolo_data_yaml"):
+                  "yolo_model_config", "yolo_data_yaml", "fold", "seed"):
             if a.get(k) != b.get(k):
                 return False
         return True

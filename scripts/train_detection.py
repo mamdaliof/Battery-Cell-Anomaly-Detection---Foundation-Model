@@ -88,10 +88,17 @@ def main() -> None:
 
     task_name = "det"  # detection task name
     
+    # Handle dataset fold path combination
+    if cfg.fold is not None:
+        fold_str = f"fold_{cfg.fold}" if isinstance(cfg.fold, int) or (isinstance(cfg.fold, str) and cfg.fold.isdigit()) else str(cfg.fold)
+        cfg.data.data_dir = str(Path(cfg.data.data_dir) / fold_str)
+
     # Create run-specific output directory under outputs/det
     base_out = Path(cfg.output_dir)
     safe_model_name = cfg.model_name.replace("/", "-")
     cfg_stem = Path(args.config).stem
+    if cfg.fold is not None:
+        cfg_stem = f"{cfg_stem}_fold_{cfg.fold}"
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = base_out / f"{safe_model_name}__{cfg_stem}" / timestamp
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -113,10 +120,26 @@ def main() -> None:
         print("ℹ️  [INFO] YOLO training will utilize standard internal Ultralytics augmentations.")
         print("=" * 80 + "\n")
 
+    # Load and potentially rewrite the YOLO data config YAML to include the fold directory
+    import yaml
+    yolo_data_path = cfg.yolo_data_yaml or "data/battery_detection_all.yaml"
+    if cfg.fold is not None:
+        fold_str = f"fold_{cfg.fold}" if isinstance(cfg.fold, int) or (isinstance(cfg.fold, str) and cfg.fold.isdigit()) else str(cfg.fold)
+        with open(yolo_data_path, "r") as f:
+            yolo_data_dict = yaml.safe_load(f)
+        orig_path = yolo_data_dict.get("path", "")
+        yolo_data_dict["path"] = str(Path(orig_path) / fold_str)
+        
+        # Write temporary data YAML inside the run directory to prevent parallel job collision
+        temp_data_yaml = run_dir / "yolo_data_fold.yaml"
+        with open(temp_data_yaml, "w") as f:
+            yaml.safe_dump(yolo_data_dict, f)
+        yolo_data_path = str(temp_data_yaml)
+
     # Translate unified configuration schema into YOLO training parameters
     yolo_overrides = {
         "model": cfg.yolo_model_config or "configs/det/yolo26_dino.yaml",
-        "data": cfg.yolo_data_yaml or "data/det_v1.0/battery_detection_all.yaml",
+        "data": yolo_data_path,
         "epochs": cfg.num_epochs,
         "batch": cfg.batch_size,
         "imgsz": cfg.data.image_size or 224,  # Configurable input image size, defaults to DINO standard 224

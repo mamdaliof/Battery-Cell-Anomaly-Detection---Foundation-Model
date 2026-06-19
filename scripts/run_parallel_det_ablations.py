@@ -246,7 +246,7 @@ def _load(p: Path) -> Dict[str, Any]:
 
 def _equiv(a: Dict, b: Dict) -> bool:
     for k in ("model_name", "data", "peft", "learning_rate", "num_epochs",
-              "yolo_model_config", "yolo_data_yaml"):
+              "yolo_model_config", "yolo_data_yaml", "fold", "seed"):
         if a.get(k) != b.get(k):
             return False
     return True

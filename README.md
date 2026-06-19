@@ -112,6 +112,13 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
   - **Comparison Tab**: Compares the best classification model directly with the best detection model on image-level anomaly classification, complete with side-by-side confusion matrices and performance metrics.
   - Driven by the unified `trainer_state.json` file generated at the end of each training epoch.
 
+- **🔁 5-Fold Cross Validation**
+  - **Dynamic Fold Directories**: Supports loading datasets from a combined `data_dir` and active `fold` path (e.g., `data/cls_v1.0/fold_2`).
+  - **Fold-Specific Seeds**: Config generators assign unique seeds to each fold based on: `seed = 30 + fold * 10` for robust, reproducible folding.
+  - **Isolated Runs**: Appends the fold parameter to the config stem in run directory paths to isolate outputs and avoid parallel run collisions.
+  - **On-the-fly YOLO Data Config**: Rewrites standard YOLO data YAML files on-the-fly inside the specific run directory as `yolo_data_fold.yaml` to override the path dynamically for each fold, avoiding concurrent process collisions during parallel GPU execution.
+  - **Parallel Sweeps & Status Audit**: All parallel training runner scripts and status auditing tools are fully fold-aware and seed-aware.
+
 ## 📂 Dataset conversion and usage
 
 The raw dataset is assumed to live under a directory like `split_base/` with the following structure:
@@ -229,6 +236,7 @@ To systematically execute the grid search of hyperparameters, we use python scri
 ## 🛠️ Development Logs
 
 The evolution and detailed implementation steps of the codebase are recorded in the developer logs:
+- [DEVLOG_5_FOLD_CROSS_VALIDATION.md](file:///home/mamdaliof/Documents/GitHub/mamdaliof-obsidian/02-Projects/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_5_FOLD_CROSS_VALIDATION.md): Details implementation of 5-fold cross validation configuration, directory isolation, dynamic YOLO data config rewrite, and fold-specific seeds.
 - [DEVLOG_STATUS_CHECKER_AND_MULTI_DATASET_RUNNER.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_STATUS_CHECKER_AND_MULTI_DATASET_RUNNER.md): Explains updates to status check scripts (recursive folder depth, corruption detection, completed filter) and updates to parallel detection runners supporting three different dataset strategies.
 - [DEVLOG_YOLO_AUGMENTATION_AND_CLASS_SYNC.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_YOLO_AUGMENTATION_AND_CLASS_SYNC.md): Connects YOLO augmentations to YAML configuration, maps classification default parameters, and aligns class names across dashboards and metrics validator.
 - [DEVLOG_YOLO_DINO_PEFT_INTEGRATION_AND_REORGANIZATION.md](file:///home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/devlogs/DEVLOG_YOLO_DINO_PEFT_INTEGRATION_AND_REORGANIZATION.md): Integrates PEFT inside the YOLO detection model, config/output folder reorganization, and gradient routing.

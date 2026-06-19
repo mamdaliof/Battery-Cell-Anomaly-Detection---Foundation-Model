@@ -98,6 +98,11 @@ def main() -> None:
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
+    # Handle dataset fold path combination
+    if cfg.fold is not None:
+        fold_str = f"fold_{cfg.fold}" if isinstance(cfg.fold, int) or (isinstance(cfg.fold, str) and cfg.fold.isdigit()) else str(cfg.fold)
+        cfg.data.data_dir = str(Path(cfg.data.data_dir) / fold_str)
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Task name prefix to avoid local directory name conflicts with HF repos
@@ -107,6 +112,8 @@ def main() -> None:
     base_out = Path(cfg.output_dir)
     safe_model_name = cfg.model_name.replace("/", "-")
     cfg_stem = Path(args.config).stem
+    if cfg.fold is not None:
+        cfg_stem = f"{cfg_stem}_fold_{cfg.fold}"
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = base_out / f"{safe_model_name}__{cfg_stem}" / timestamp
     run_dir.mkdir(parents=True, exist_ok=True)
