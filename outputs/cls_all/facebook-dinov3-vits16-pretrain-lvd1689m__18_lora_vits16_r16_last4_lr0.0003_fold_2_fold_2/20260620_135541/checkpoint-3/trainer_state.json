@@ -1,0 +1,67 @@
+{
+  "best_global_step": 3,
+  "best_metric": 0.0,
+  "best_model_checkpoint": "outputs/cls_all/facebook-dinov3-vits16-pretrain-lvd1689m__18_lora_vits16_r16_last4_lr0.0003_fold_2_fold_2/20260620_135541/checkpoint-3",
+  "epoch": 1.0,
+  "eval_steps": 500,
+  "global_step": 3,
+  "is_hyper_param_search": false,
+  "is_local_process_zero": true,
+  "is_world_process_zero": true,
+  "log_history": [
+    {
+      "epoch": 1.0,
+      "grad_norm": 5.103940010070801,
+      "learning_rate": 8.955223880597014e-06,
+      "loss": 0.7321805159250895,
+      "step": 3
+    },
+    {
+      "epoch": 1.0,
+      "eval_accuracy": 0.38461538461538464,
+      "eval_auroc": NaN,
+      "eval_f1": 0.0,
+      "eval_fn": 0.0,
+      "eval_fp": 24.0,
+      "eval_loss": 0.7399973273277283,
+      "eval_precision": 0.0,
+      "eval_recall": 0.0,
+      "eval_runtime": 0.9344,
+      "eval_samples_per_second": 41.74,
+      "eval_steps_per_second": 1.07,
+      "eval_tn": 15.0,
+      "eval_tp": 0.0,
+      "step": 3
+    }
+  ],
+  "logging_steps": 500,
+  "max_steps": 900,
+  "num_input_tokens_seen": 0,
+  "num_train_epochs": 300,
+  "save_steps": 500,
+  "stateful_callbacks": {
+    "EarlyStoppingCallback": {
+      "args": {
+        "early_stopping_patience": 20,
+        "early_stopping_threshold": 0.0
+      },
+      "attributes": {
+        "early_stopping_patience_counter": 0
+      }
+    },
+    "TrainerControl": {
+      "args": {
+        "should_epoch_stop": false,
+        "should_evaluate": false,
+        "should_log": false,
+        "should_save": true,
+        "should_training_stop": false
+      },
+      "attributes": {}
+    }
+  },
+  "total_flos": 0.0,
+  "train_batch_size": 64,
+  "trial_name": null,
+  "trial_params": null
+}
