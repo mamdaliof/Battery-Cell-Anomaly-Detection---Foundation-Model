@@ -128,6 +128,59 @@ def test_load_results():
         assert cls_row_train["best_eval_f1"] == 0.75
         assert cls_row_train["best_eval_loss"] == 0.3
 
+def test_fold_parsing_and_averaging():
+    from visualize import parse_fold_and_base_name, group_results_by_fold
+    
+    # 1. Test parse_fold_and_base_name
+    fold, base = parse_fold_and_base_name("vit__peft_smoke_all_label_fold_0", "peft_smoke_all_label_fold_0")
+    assert fold == "0"
+    assert base == "peft_smoke_all_label"
+
+    fold, base = parse_fold_and_base_name("vit__peft-smoke-fold-3", "peft-smoke-fold-3")
+    assert fold == "3"
+    assert base == "peft-smoke"
+
+    fold, base = parse_fold_and_base_name("vit__peft_smoke_all_label", "peft_smoke_all_label", config_fold=2)
+    assert fold == "2"
+    assert base == "peft_smoke_all_label"
+
+    # 2. Test grouping/averaging
+    data = [
+        {
+            "task": "Classification", "model": "vit", "peft_type": "lora", "peft_detail": "r=8",
+            "imbalance_strategy": "none", "loss_type": "ce", "lr": 0.001, "epochs_configured": 5,
+            "dataset": "ds", "short_cfg_name": "cfg_fold_0", "display_name": "cfg_fold_0",
+            "fold": "0", "base_cfg_name": "cfg", "completed": True,
+            "best_eval_f1": 0.8, "best_eval_loss": 0.2, "img_abnormal_f1": 0.8, "img_abnormal_auroc": 0.85,
+            "final_train_loss": 0.1, "total_params": 100, "trainable_params": 10, "pct_trainable": 10.0
+        },
+        {
+            "task": "Classification", "model": "vit", "peft_type": "lora", "peft_detail": "r=8",
+            "imbalance_strategy": "none", "loss_type": "ce", "lr": 0.001, "epochs_configured": 5,
+            "dataset": "ds", "short_cfg_name": "cfg_fold_1", "display_name": "cfg_fold_1",
+            "fold": "1", "base_cfg_name": "cfg", "completed": True,
+            "best_eval_f1": 0.9, "best_eval_loss": 0.1, "img_abnormal_f1": 0.9, "img_abnormal_auroc": 0.95,
+            "final_train_loss": 0.08, "total_params": 100, "trainable_params": 10, "pct_trainable": 10.0
+        }
+    ]
+    df = pd.DataFrame(data)
+    df_grouped = group_results_by_fold(df)
+    
+    assert not df_grouped.empty
+    assert len(df_grouped) == 1
+    row = df_grouped.iloc[0]
+    assert row["short_cfg_name"] == "cfg"
+    assert row["completed_folds_count"] == 2
+    assert row["total_folds_count"] == 2
+    assert abs(row["best_eval_f1"] - 0.85) < 1e-5
+    assert abs(row["best_eval_loss"] - 0.15) < 1e-5
+    assert abs(row["img_abnormal_f1"] - 0.85) < 1e-5
+    assert abs(row["img_abnormal_auroc"] - 0.9) < 1e-5
+    assert abs(row["final_train_loss"] - 0.09) < 1e-5
+
+
 if __name__ == "__main__":
     test_load_results()
+    test_fold_parsing_and_averaging()
     print("ALL TESTS PASSED!")
+

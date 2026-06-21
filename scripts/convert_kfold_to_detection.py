@@ -1,38 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """Convert detection-style XML annotations into YOLO-compatible dataset variants.
 
-Source layout (depth 1):
-
-    split_base/
-      train/
-        c44_5.png
-        c44_5.xml
-        ...
-      val/
-        ...
-
-Target layout (for Ultralytics YOLO variants under target_root):
-
-    target_root/
-      battery_detection_{variant}/
-        images/
-          train/
-          val/
-        labels/
-          train/
-          val/
-      battery_detection_{variant}.yaml
-
-Each XML file is parsed to extract target bounding boxes depending on the selected
-variant, and converted to the normalized YOLO format: `class_idx x_center y_center width height`.
-
-Variants:
-1. 'all': keeps cell, text, abnormal -> class indices: abnormal=0, cell=1, text=2
-2. 'no_cell': drops cell, keeps text and abnormal -> class indices: abnormal=0, text=1
-3. 'only_cell': keeps only cell -> class indices: cell=0
-
-By default, image files are COPIED. You can optionally use symlinks instead.
+Supports both single split directories and multi-fold cross-validation directories.
 """
 
 from __future__ import annotations
@@ -44,20 +14,19 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Dict, List, Set
 
-
 # Define target labels and mapping indices for each variant
 VARIANTS = {
     "all": {
-        "labels": {"abnormal", "cell", "text"},
-        "mapping": {"abnormal": 0, "cell": 1, "text": 2}
+        "labels": {"abnormality", "cell", "text"},
+        "mapping": {"abnormality": 0, "cell": 1, "text": 2}
     },
     "no_cell": {
-        "labels": {"abnormal", "text"},
-        "mapping": {"abnormal": 0, "text": 1}
+        "labels": {"abnormality", "text"},
+        "mapping": {"abnormality": 0, "text": 1}
     },
     "abnormal_only": {
-        "labels": {"abnormal"},
-        "mapping": {"abnormal": 0}
+        "labels": {"abnormality"},
+        "mapping": {"abnormality": 0}
     }
 }
 
@@ -70,18 +39,23 @@ def parse_args() -> argparse.Namespace:
         "--source-root",
         type=Path,
         required=True,
-        help="Path to split_base root containing train/ and val/",
+        help="Path to source root containing train/val or fold_* directories",
     )
     parser.add_argument(
         "--target-root",
         type=Path,
         required=True,
-        help="Path where YOLO formatted variant dirs and YAML configs will be written (data/)",
+        help="Path where YOLO formatted variant dirs and YAML configs will be written (e.g. data/kfold_detection)",
     )
     parser.add_argument(
         "--use-symlinks",
         action="store_true",
         help="If set, create symlinks instead of copying image files.",
+    )
+    parser.add_argument(
+        "--kfold",
+        action="store_true",
+        help="If set, loops through all fold_* directories in the source root.",
     )
     return parser.parse_args()
 
@@ -92,7 +66,8 @@ def find_image_xml_pairs(split_dir: Path) -> List[tuple[Path, Path]]:
     Assumes that for each image `name.png` there is a corresponding `name.xml`.
     """
     pairs: List[tuple[Path, Path]] = []
-    for img_path in split_dir.glob("*.png"):
+    # Search in all subdirectories of split_dir recursively to handle normal/abnormality subfolders
+    for img_path in split_dir.rglob("*.png"):
         xml_path = img_path.with_suffix(".xml")
         if not xml_path.exists():
             print(f"⚠️ [WARN] XML not found for image: {img_path}")
@@ -193,30 +168,25 @@ def copy_or_link(src: Path, dst: Path, use_symlinks: bool) -> None:
 
 def convert_split_variant(
     split_name: str,
-    source_root: Path,
-    target_root: Path,
+    source_dir: Path,
+    target_dir: Path,
     variant_name: str,
     use_symlinks: bool,
 ) -> None:
-    split_src = source_root / split_name
-    if not split_src.is_dir():
-        raise FileNotFoundError(f"Split directory not found: {split_src}")
-
     variant_info = VARIANTS[variant_name]
     target_labels = variant_info["labels"]
     label_to_idx = variant_info["mapping"]
 
-    print(f"ℹ️ [INFO] Processing split '{split_name}' for variant '{variant_name}'")
+    print(f"ℹ️ [INFO] Processing split '{split_name}' for variant '{variant_name}' in {source_dir}")
 
-    variant_dir = target_root / f"battery_detection_{variant_name}"
-    target_images_dir = variant_dir / "images" / split_name
-    target_labels_dir = variant_dir / "labels" / split_name
+    target_images_dir = target_dir / "images" / split_name
+    target_labels_dir = target_dir / "labels" / split_name
     
     target_images_dir.mkdir(parents=True, exist_ok=True)
     target_labels_dir.mkdir(parents=True, exist_ok=True)
 
-    pairs = find_image_xml_pairs(split_src)
-    print(f"ℹ️ [INFO] Found {len(pairs)} image-XML pairs in {split_src}")
+    pairs = find_image_xml_pairs(source_dir)
+    print(f"ℹ️ [INFO] Found {len(pairs)} image-XML pairs in {source_dir}")
 
     image_with_detection_count = 0
     total_boxes = 0
@@ -243,7 +213,6 @@ def convert_split_variant(
                 image_with_detection_count += 1
                 total_boxes += len(lines)
 
-    print(f"✅ [INFO] Finished split '{split_name}' (variant '{variant_name}')")
     print(f"   - Images with targets: {image_with_detection_count}")
     print(f"   - Total bounding boxes: {total_boxes}")
 
@@ -288,6 +257,7 @@ def main() -> None:
     print(f"ℹ️ [INFO] Target root: {target_root}")
     print(f"ℹ️ [INFO] Target variants: {list(VARIANTS.keys())}")
     print(f"ℹ️ [INFO] Using symlinks: {args.use_symlinks}")
+    print(f"ℹ️ [INFO] K-Fold mode: {args.kfold}")
 
     # Generate each variant
     for variant in VARIANTS.keys():
@@ -297,14 +267,31 @@ def main() -> None:
             shutil.rmtree(variant_dir)
         variant_dir.mkdir(parents=True, exist_ok=True)
 
-        for split_name in ("train", "val"):
-            convert_split_variant(
-                split_name=split_name,
-                source_root=source_root,
-                target_root=target_root,
-                variant_name=variant,
-                use_symlinks=bool(args.use_symlinks),
-            )
+        if args.kfold:
+            fold_dirs = sorted([d for d in source_root.glob("fold_*") if d.is_dir()])
+            if not fold_dirs:
+                print(f"❌ [ERROR] No fold_* directories found in {source_root}")
+                return
+            for fold_dir in fold_dirs:
+                fold_name = fold_dir.name
+                print(f"\n📂 Processing fold: {fold_name} for variant '{variant}'")
+                for split_name in ("train", "val"):
+                    convert_split_variant(
+                        split_name=split_name,
+                        source_dir=fold_dir / split_name,
+                        target_dir=variant_dir / fold_name,
+                        variant_name=variant,
+                        use_symlinks=bool(args.use_symlinks),
+                    )
+        else:
+            for split_name in ("train", "val"):
+                convert_split_variant(
+                    split_name=split_name,
+                    source_dir=source_root / split_name,
+                    target_dir=variant_dir,
+                    variant_name=variant,
+                    use_symlinks=bool(args.use_symlinks),
+                )
             
         # Write config YAML file for this variant
         write_dataset_yaml(target_root, variant)

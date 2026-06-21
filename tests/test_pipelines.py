@@ -85,7 +85,8 @@ class TestPipelines(unittest.TestCase):
 
         # Import the script's main logic directly or execute as subprocess
         # We execute via subprocess to verify CLI parameters parser
-        script_path = str(project_root / "scripts" / "convert_split_base_to_classification.py")
+        script_path = str(project_root / "scripts" / "convert_kfold_to_classification.py")
+
         
         cmd = [
             sys.executable,

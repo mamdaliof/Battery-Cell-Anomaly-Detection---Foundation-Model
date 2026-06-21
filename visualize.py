@@ -11,6 +11,32 @@ import plotly.express as px
 
 # Using Context7 for Streamlit and Plotly API usage and layout setup.
 
+import re
+from typing import Any, Optional, Tuple
+
+def parse_fold_and_base_name(display_name: str, short_cfg_name: str, config_fold: Any = None) -> Tuple[Optional[str], str]:
+    """
+    Extract fold index and base config name by stripping fold patterns.
+    """
+    # If fold is explicitly provided in config, use it
+    if config_fold is not None:
+        fold = str(config_fold)
+        base_cfg = re.sub(rf'[-_]fold[-_]?{fold}\b', '', short_cfg_name, flags=re.IGNORECASE)
+        base_cfg = re.sub(r'__+', '_', base_cfg).strip('-_')
+        return fold, base_cfg
+
+    # Fallback: parse from short_cfg_name or display_name
+    for name in [short_cfg_name, display_name]:
+        match = re.search(r'[-_]fold[-_]?(\d+)\b', name, re.IGNORECASE)
+        if match:
+            fold = match.group(1)
+            base_cfg = re.sub(rf'[-_]fold[-_]?{fold}\b', '', short_cfg_name, flags=re.IGNORECASE)
+            base_cfg = re.sub(r'__+', '_', base_cfg).strip('-_')
+            return fold, base_cfg
+            
+    return None, short_cfg_name
+
+
 def find_latest_checkpoint_state(run_dir):
     """
     Locate the latest checkpoint folder inside a run directory and return
@@ -280,10 +306,16 @@ def load_results(base_path="outputs"):
             parts = display_name.split("__")
             short_cfg_name = parts[-1] if len(parts) > 1 else display_name
             
+            # Parse fold and base configuration name
+            config_fold = cfg.get("fold", None)
+            parsed_fold, base_cfg_name = parse_fold_and_base_name(display_name, short_cfg_name, config_fold)
+            
             runs_data.append({
                 "dir": str(run_dir.relative_to(base_path_obj)),
                 "display_name": display_name,
                 "short_cfg_name": short_cfg_name,
+                "base_cfg_name": base_cfg_name,
+                "fold": parsed_fold,
                 "task": task,
                 "model": model_name,
                 "peft_type": peft_type,
@@ -309,6 +341,7 @@ def load_results(base_path="outputs"):
             })
             
     return pd.DataFrame(runs_data)
+
 
 def get_best_epoch_metrics(history: list, benchmark_metric: str, mode: str = "max") -> dict:
     if not history:
@@ -452,7 +485,112 @@ def update_best_metrics_inplace(df: pd.DataFrame, benchmark_metric: str, mode: s
                         "image_cls_f1", "image_cls_auroc", "image_cls_precision", "image_cls_recall"]:
                 df.at[idx, col] = None
 
+def group_results_by_fold(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Groups dataframe of runs by common parameters, averaging numeric columns over folds.
+    """
+    if df.empty:
+        return df
+        
+    from collections import defaultdict
+        
+    # Group columns
+    group_cols = [
+        "task", "model", "peft_type", "peft_detail", "imbalance_strategy", 
+        "loss_type", "lr", "epochs_configured", "dataset", "base_cfg_name"
+    ]
+    
+    # Check which group columns actually exist in df
+    group_cols = [c for c in group_cols if c in df.columns]
+    
+    # We'll group by these columns and aggregate
+    aggregated_rows = []
+    for keys, group in df.groupby(group_cols, dropna=False):
+        # Create dict of keys
+        row = dict(zip(group_cols, keys))
+        
+        # Fold counts
+        total_folds = len(group)
+        completed_folds = group["completed"].sum()
+        
+        row["completed_folds_count"] = completed_folds
+        row["total_folds_count"] = total_folds
+        row["completed"] = (completed_folds == total_folds)
+        
+        # Add status string
+        row["status"] = f"✅ All Folds Completed ({completed_folds}/{total_folds})" if completed_folds == total_folds else f"⏳ Folds: {completed_folds}/{total_folds} Completed"
+        
+        # Use first values for non-numeric/metadata columns
+        row["short_cfg_name"] = row["base_cfg_name"]
+        row["display_name"] = row["base_cfg_name"]
+        row["dir"] = group.iloc[0]["dir"] if "dir" in group.columns else ""
+        row["abnormal_class_name"] = group.iloc[0]["abnormal_class_name"] if "abnormal_class_name" in group.columns else "abnormal"
+        
+        # Average parameter counts
+        row["total_params"] = group["total_params"].mean() if "total_params" in group.columns else None
+        row["trainable_params"] = group["trainable_params"].mean() if "trainable_params" in group.columns else None
+        row["pct_trainable"] = group["pct_trainable"].mean() if "pct_trainable" in group.columns else None
+        
+        # Average target metric columns
+        numeric_cols = [
+            "best_eval_f1", "best_eval_loss", "final_train_loss", 
+            "img_abnormal_f1", "img_abnormal_auroc", "image_cls_f1", 
+            "image_cls_auroc", "image_cls_precision", "image_cls_recall",
+            "eval_f1", "eval_accuracy", "eval_auroc", "eval_loss", 
+            "eval_mAP50", "eval_mAP50-95", "eval_precision", "eval_recall", 
+            "eval_custom_mean_bbox_IoU", "eval_custom_mean_bbox_Dice"
+        ]
+        for col in numeric_cols:
+            if col in group.columns:
+                # Use mean, skipping NaNs
+                vals = group[col].dropna()
+                row[col] = vals.mean() if not vals.empty else None
+                
+        # Keep track of individual runs in the group for single-run inspection
+        row["fold_runs"] = group.to_dict(orient="records")
+        
+        # Group history logs by epoch and average the metric values
+        history_by_epoch = defaultdict(list)
+        if "history" in group.columns:
+            for _, item in group.iterrows():
+                history = item["history"]
+                if isinstance(history, list):
+                    for entry in history:
+                        if isinstance(entry, dict) and "epoch" in entry:
+                            history_by_epoch[entry["epoch"]].append(entry)
+                        
+        merged_history = []
+        for epoch, entries in sorted(history_by_epoch.items()):
+            merged_entry = {"epoch": epoch}
+            # Find all keys across entries
+            all_keys = set()
+            for entry in entries:
+                all_keys.update(entry.keys())
+            all_keys.discard("epoch")
+            all_keys.discard("step")
+            
+            for k in all_keys:
+                vals = [entry[k] for entry in entries if k in entry and entry[k] is not None]
+                if vals:
+                    merged_entry[k] = sum(vals) / len(vals)
+            
+            # Average step number
+            steps = [entry["step"] for entry in entries if "step" in entry]
+            if steps:
+                merged_entry["step"] = int(sum(steps) / len(steps))
+                
+            merged_history.append(merged_entry)
+            
+        row["history"] = merged_history
+        row["best_metrics"] = get_best_epoch_metrics(merged_history, "eval_loss", "min") if merged_history else {}
+
+        
+        aggregated_rows.append(row)
+        
+    return pd.DataFrame(aggregated_rows)
+
 def main():
+
     st.set_page_config(
         page_title="🔋 Anomaly Detection - Ablation Results Visualizer",
         page_icon="🔋",
@@ -690,11 +828,17 @@ def main():
     # Run Status selector
     status_filter = st.sidebar.radio("Run Status", ["All Runs", "Completed Only (DONE)", "Incomplete/Active Only"])
 
+    # K-Fold Options
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 🔀 K-Fold Settings")
+    group_folds = st.sidebar.checkbox("Average Metrics Over Folds", value=True)
+
     # Placeholder for future hyperparameter selectors
     st.sidebar.markdown("---")
     st.sidebar.markdown("### 🔮 Future Hyperparameters (Placeholder)")
     st.sidebar.selectbox("Future Optimizer Type", ["AdamW (Active)", "SGD (Future)", "AdamW-ScheduleFree (Future)"])
     st.sidebar.select_slider("Future Weight Decay", options=["0.01 (Active)", "0.05 (Future)", "0.10 (Future)"])
+
 
     # Apply filters to DataFrame
     df_filtered = df_results.copy()
@@ -743,8 +887,14 @@ def main():
     elif status_filter == "Incomplete/Active Only":
         df_filtered = df_filtered[df_filtered["completed"] == False]
 
+    # Average folds if selected
+    if group_folds:
+        df_filtered = group_results_by_fold(df_filtered)
+
     # Sort filtered runs by best F1 score descending
-    df_filtered = df_filtered.sort_values(by="img_abnormal_f1", ascending=False)
+    if not df_filtered.empty and "img_abnormal_f1" in df_filtered.columns:
+        df_filtered = df_filtered.sort_values(by="img_abnormal_f1", ascending=False)
+
 
     # ── Render top metrics dashboard ──────────────────────────────────────────
     total_scanned = len(df_results)

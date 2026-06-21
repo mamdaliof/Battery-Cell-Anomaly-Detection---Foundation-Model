@@ -3,14 +3,15 @@ output_dir: "outputs/det_all"
 
 # YOLO specific options
 yolo_model_config: "configs/det/yolo26_dino.yaml"
-yolo_data_yaml: "data/det_v1.0/battery_detection_all.yaml"
+yolo_data_yaml: "data/kfold_detection/battery_detection_all.yaml"
 
 # Data configuration
 # WARNING: Standard augmentation fields below are placeholders kept for classification schema parity.
 # To configure YOLO's internal augmentations, set augmentations_enabled to true and use
 # the optional yolo_augmentations dictionary overrides.
 data:
-  data_dir: "data"
+  data_dir: "data/kfold_detection"
+
   train_subdir: "train"
   val_subdir: "val"
   normal_class_name: "normal"
@@ -94,3 +95,7 @@ imbalance:
   focal_gamma: 2.0
   focal_alpha: null
   oversampling_method: "none"
+
+# K-Fold configuration
+fold: null
+

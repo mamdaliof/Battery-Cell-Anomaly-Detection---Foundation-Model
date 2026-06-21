@@ -1,32 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """Convert detection-style XML annotations into a classification dataset.
 
-Source layout (depth 1):
-
-    split_base/
-      train/
-        c44_5.png
-        c44_5.xml
-        ...
-      val/
-        ...
-
-Each XML file is assumed to contain one or more annotated objects. If any
-object label is in the set of "abnormal" labels, the corresponding image is
-classified as abnormal; otherwise it is classified as normal.
-
-Target layout (for BatteryCellDataset):
-
-    target_root/
-      train/
-        normal/
-        abnormal/
-      val/
-        normal/
-        abnormal/
-
-By default, files are COPIED. You can optionally use symlinks instead.
+Supports both single split directories and multi-fold cross-validation directories.
 """
 
 from __future__ import annotations
@@ -47,13 +23,13 @@ def parse_args() -> argparse.Namespace:
         "--source-root",
         type=Path,
         required=True,
-        help="Path to split_base root containing train/ and val/",
+        help="Path to source root containing train/val or fold_* directories",
     )
     parser.add_argument(
         "--target-root",
         type=Path,
         required=True,
-        help="Path where classification data will be written (data/)",
+        help="Path where classification data will be written (e.g., data/kfold_classification)",
     )
     parser.add_argument(
         "--abnormal-labels",
@@ -70,6 +46,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="If set, create symlinks instead of copying image files.",
     )
+    parser.add_argument(
+        "--kfold",
+        action="store_true",
+        help="If set, loops through all fold_* directories in the source root.",
+    )
     return parser.parse_args()
 
 
@@ -78,12 +59,10 @@ def find_image_xml_pairs(split_dir: Path) -> List[tuple[Path, Path]]:
 
     Assumes that for each image `name.png` there is a corresponding `name.xml`.
     """
-
     pairs: List[tuple[Path, Path]] = []
     for img_path in split_dir.glob("*.png"):
         xml_path = img_path.with_suffix(".xml")
         if not xml_path.exists():
-            # You can choose to warn or skip strictly
             print(f"⚠️ [WARN] XML not found for image: {img_path}")
             continue
         pairs.append((img_path, xml_path))
@@ -91,12 +70,7 @@ def find_image_xml_pairs(split_dir: Path) -> List[tuple[Path, Path]]:
 
 
 def extract_labels_from_xml(xml_path: Path) -> List[str]:
-    """Parse XML and extract object labels.
-
-    This assumes a standard VOC-like structure where object names are under
-    `object/name`. Adjust if your schema differs.
-    """
-
+    """Parse XML and extract object labels."""
     try:
         tree = ET.parse(xml_path)
         root = tree.getroot()
@@ -131,26 +105,35 @@ def copy_or_link(src: Path, dst: Path, use_symlinks: bool) -> None:
 
 def convert_split(
     split_name: str,
-    source_root: Path,
-    target_root: Path,
+    source_dir: Path,
+    target_dir: Path,
     abnormal_labels: Set[str],
     use_symlinks: bool,
 ) -> None:
-    split_src = source_root / split_name
-    if not split_src.is_dir():
-        raise FileNotFoundError(f"Split directory not found: {split_src}")
+    # Under source_dir we can have standard splits like train/val,
+    # or the abnormality/normal subdirectory structure directly!
+    # In data/kfold_structured_dataset/fold_0/train/, images are in 'abnormality' and 'normal' subfolders.
+    # So we must search recursively or check subdirectories.
+    print(f"ℹ️ [INFO] Processing split: {split_name} in {source_dir}")
 
-    print(f"ℹ️ [INFO] Processing split: {split_name}")
+    # Check if files are directly in split_dir or in subfolders (abnormality/normal)
+    pairs = []
+    if (source_dir / "normal").exists() or (source_dir / "abnormality").exists():
+        for sub in ("normal", "abnormality"):
+            sub_dir = source_dir / sub
+            if sub_dir.exists():
+                pairs.extend(find_image_xml_pairs(sub_dir))
+    else:
+        pairs.extend(find_image_xml_pairs(source_dir))
 
-    pairs = find_image_xml_pairs(split_src)
-    print(f"ℹ️ [INFO] Found {len(pairs)} image-XML pairs in {split_src}")
+    print(f"ℹ️ [INFO] Found {len(pairs)} image-XML pairs in {source_dir}")
 
     for img_path, xml_path in pairs:
         labels = extract_labels_from_xml(xml_path)
         abnormal = is_abnormal(labels, abnormal_labels)
         label_str = "abnormal" if abnormal else "normal"
 
-        dst_dir = target_root / split_name / label_str
+        dst_dir = target_dir / split_name / label_str
         dst_path = dst_dir / img_path.name
 
         copy_or_link(img_path, dst_path, use_symlinks)
@@ -168,17 +151,36 @@ def main() -> None:
     print(f"ℹ️ [INFO] Target root: {target_root}")
     print(f"ℹ️ [INFO] Abnormal labels: {sorted(abnormal_labels)}")
     print(f"ℹ️ [INFO] Using symlinks: {args.use_symlinks}")
+    print(f"ℹ️ [INFO] K-Fold mode: {args.kfold}")
 
-    for split_name in ("train", "val"):
-        convert_split(
-            split_name=split_name,
-            source_root=source_root,
-            target_root=target_root,
-            abnormal_labels=abnormal_labels,
-            use_symlinks=bool(args.use_symlinks),
-        )
+    if args.kfold:
+        fold_dirs = sorted([d for d in source_root.glob("fold_*") if d.is_dir()])
+        if not fold_dirs:
+            print(f"❌ [ERROR] No fold_* directories found in {source_root}")
+            return
+        
+        for fold_dir in fold_dirs:
+            fold_name = fold_dir.name
+            print(f"\n📂 Processing fold: {fold_name}")
+            for split_name in ("train", "val"):
+                convert_split(
+                    split_name=split_name,
+                    source_dir=fold_dir / split_name,
+                    target_dir=target_root / fold_name,
+                    abnormal_labels=abnormal_labels,
+                    use_symlinks=bool(args.use_symlinks),
+                )
+    else:
+        for split_name in ("train", "val"):
+            convert_split(
+                split_name=split_name,
+                source_dir=source_root / split_name,
+                target_dir=target_root,
+                abnormal_labels=abnormal_labels,
+                use_symlinks=bool(args.use_symlinks),
+            )
 
-    print("🎉 [INFO] Conversion completed.")
+    print("\n🎉 [INFO] Classification dataset conversion completed.")
 
 
 if __name__ == "__main__":
