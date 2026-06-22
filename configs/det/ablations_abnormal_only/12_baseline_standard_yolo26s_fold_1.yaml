@@ -4,31 +4,46 @@ amp:
 batch_size: 64
 data:
   abnormal_class_name: abnormal
-  aug_global_prob: 0.0
-  aug_max_transforms: 0
-  augmentations_enabled: false
-  color_jitter_brightness: 0.0
-  color_jitter_contrast: 0.0
-  color_jitter_hue: 0.0
-  color_jitter_prob: 0.0
-  color_jitter_saturation: 0.0
-  data_dir: data
+  aug_global_prob: 0.66
+  aug_max_transforms: 3
+  augmentations_enabled: true
+  color_jitter_brightness: 0.4
+  color_jitter_contrast: 0.4
+  color_jitter_hue: 0.5
+  color_jitter_prob: 0.5
+  color_jitter_saturation: 0.4
+  data_dir: data/kfold_detection
   gaussian_noise_prob: 0.0
   gaussian_noise_std: 0.0
-  horizontal_flip_prob: 0.0
+  horizontal_flip_prob: 0.5
   image_size: 640
   normal_class_name: normal
-  random_resized_crop_prob: 0.0
+  random_resized_crop_prob: 0.5
   random_resized_crop_ratio:
-  - 1.0
-  - 1.0
+  - 0.9
+  - 1.1
   random_resized_crop_scale:
-  - 1.0
-  - 1.0
-  rotation_degrees: 0.0
-  rotation_prob: 0.0
+  - 0.9
+  - 1.1
+  rotation_degrees: 20.0
+  rotation_prob: 0.5
   train_subdir: train
   val_subdir: val
+  yolo_augmentations:
+    copy_paste: 0.0
+    degrees: 20.0
+    erasing: 0.4
+    fliplr: 0.5
+    flipud: 0.5
+    hsv_h: 0.5
+    hsv_s: 0.4
+    hsv_v: 0.4
+    mixup: 0.1
+    mosaic: 0.5
+    perspective: 0.0
+    scale: 0.1
+    shear: 0.1
+    translate: 0.1
 early_stopping_patience: 20
 fold: 1
 greater_is_better: true
@@ -67,5 +82,5 @@ scheduler:
   lr_scheduler_type: cosine
   warmup_ratio: 0.1
 seed: 40
-yolo_data_yaml: data/det_v1.0/battery_detection_abnormal_only.yaml
+yolo_data_yaml: data/kfold_detection/battery_detection_abnormal_only.yaml
 yolo_model_config: yolo26s.pt

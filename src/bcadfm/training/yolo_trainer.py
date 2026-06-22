@@ -314,9 +314,9 @@ class CustomDetectionValidator(DetectionValidator):
         
         for idx in self.names.keys():
             if idx in self.cls_gt and len(self.cls_gt[idx]) > 0:
-                gt_t = torch.stack([x if isinstance(x, torch.Tensor) else torch.tensor(x, dtype=torch.int32, device=device) for x in self.cls_gt[idx]])
-                pred_t = torch.stack([x if isinstance(x, torch.Tensor) else torch.tensor(x, dtype=torch.int32, device=device) for x in self.cls_pred[idx]])
-                prob_t = torch.stack([x if isinstance(x, torch.Tensor) else torch.tensor(x, dtype=torch.float32, device=device) for x in self.cls_prob[idx]])
+                gt_t = torch.stack([x.to(device) if isinstance(x, torch.Tensor) else torch.tensor(x, dtype=torch.int32, device=device) for x in self.cls_gt[idx]])
+                pred_t = torch.stack([x.to(device) if isinstance(x, torch.Tensor) else torch.tensor(x, dtype=torch.int32, device=device) for x in self.cls_pred[idx]])
+                prob_t = torch.stack([x.to(device) if isinstance(x, torch.Tensor) else torch.tensor(x, dtype=torch.float32, device=device) for x in self.cls_prob[idx]])
             else:
                 gt_t = torch.empty(0, dtype=torch.int32, device=device)
                 pred_t = torch.empty(0, dtype=torch.int32, device=device)
@@ -330,8 +330,8 @@ class CustomDetectionValidator(DetectionValidator):
             iou_dice_tensor = torch.stack([
                 torch.stack([
                     torch.tensor(c, dtype=torch.float32, device=device) if not isinstance(c, torch.Tensor) else c.to(device),
-                    iou if isinstance(iou, torch.Tensor) else torch.tensor(iou, dtype=torch.float32, device=device),
-                    dice if isinstance(dice, torch.Tensor) else torch.tensor(dice, dtype=torch.float32, device=device)
+                    iou.to(device) if isinstance(iou, torch.Tensor) else torch.tensor(iou, dtype=torch.float32, device=device),
+                    dice.to(device) if isinstance(dice, torch.Tensor) else torch.tensor(dice, dtype=torch.float32, device=device)
                 ])
                 for c, iou, dice in self.custom_iou_dice_stats
             ])

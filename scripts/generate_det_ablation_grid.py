@@ -22,7 +22,7 @@ def main():
     # Map strategy to datasets and outputs
     strategy = args.strategy
     data_name = "all" if strategy == "all_label" else strategy
-    yolo_data_yaml = f"data/det_v1.0/battery_detection_{data_name}.yaml"
+    yolo_data_yaml = f"data/kfold_detection/battery_detection_{data_name}.yaml"
     
     if strategy == "all_label":
         output_dir = "outputs/det_all"
@@ -55,6 +55,7 @@ def main():
     base_cfg["yolo_model_config"] = "configs/det/yolo26_dino.yaml"
     base_cfg["yolo_data_yaml"] = yolo_data_yaml
     base_cfg["output_dir"] = output_dir
+    base_cfg["data"]["data_dir"] = "data/kfold_detection"
 
     # Clean previous generated yaml files to avoid mixing old/new runs
     if out_dir.exists():

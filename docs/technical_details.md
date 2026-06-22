@@ -961,5 +961,16 @@ To execute concurrent parallel runs across multiple folds and configurations wit
 - **Sweep Generation**: `scripts/generate_ablation_grid.py` and `scripts/generate_det_ablation_grid.py` now include a fold sweep loop (0-4), producing config filenames suffixed with `_fold_{fold}.yaml`.
 - **Subprocess Equivalence Verification**: The parallel runner schedulers (`_equiv()` in `run_parallel_ablations.py` / `run_parallel_det_ablations.py`) and training run checkers (`is_equiv()` in `check_ablation_status.py`) incorporate the `fold` and `seed` variables in equivalence matching. This ensures already-completed fold configurations are skipped correctly when resuming sweeps.
 
+### 14.6. K-Fold Dataset Conversion and Statistical Analysis (ME SPLIT AND COUNT BONES)
+- **Classification Convert**: `scripts/convert_kfold_to_classification.py` split data for classifier. Use `--kfold` to loop all folds. Use `--use-symlinks` to not waste cave space.
+- **Detection Convert**: `scripts/convert_kfold_to_detection.py` split data for YOLO detector. Save images and labels for variants: `all`, `no_cell`, and `abnormal_only`.
+- **Stats Script**: `scripts/analyze_kfold_stats.py` count how many normal/abnormal image rocks and bounding box bones per fold split. Write to `kfold_stats.csv`.
+
+### 14.7. Visualizer K-Fold Aggregation (ME CHOOSE ALL FOLDS OR ONE FOLD)
+- **Averaging Checkbox**: Streamlit dashboard get checkbox. If caveman check, dashboard average curves and metrics across all 5 folds.
+- **Group Runs**: Match runs by same hyperparameter rocks, average them.
+- **Fold Selector**: Single run inspector let caveman see whole group average or choose one fold to inspect.
+- **Show Stats CSV**: Dashboard load `kfold_stats.csv` and show nice tables to caveman.
+
 
 

@@ -19,29 +19,39 @@ data:
   image_size: 256
 
   # Optional direct YOLO overrides (ignored if augmentations_enabled: false)
-  # yolo_augmentations:
-  #   fliplr: 0.5       # 50% probability of horizontal flip
-  #   degrees: 15.0     # rotate up to 15 degrees
-  #   scale: 0.1        # scale between 90% and 110%
-  #   mosaic: 1.0       # enable 4-image mosaics
+  yolo_augmentations:
+    hsv_h: 0.5       # HSV-Hue augmentation (fraction)
+    hsv_s: 0.4       # HSV-Saturation (fraction)
+    hsv_v: 0.4       # HSV-Value (brightness) (fraction)
+    degrees: 20.0    # Rotation (+/- deg)
+    translate: 0.1   # Translation (+/- fraction)
+    scale: 0.1       # Scale (+/- gain)
+    shear: 0.1       # Shear (+/- deg)
+    perspective: 0.0 # Perspective (+/- fraction)
+    flipud: 0.5      # Up-down flip (probability)
+    fliplr: 0.5      # Left-right flip (probability)
+    mosaic: 0.5      # Mosaic (probability) - 4 images combined
+    mixup: 0.1       # Mixup (probability) - blend images
+    copy_paste: 0.0  # Segment copy-paste (probability)
+    erasing: 0.4     # Random erasing (probability)
 
-  augmentations_enabled: false
-  aug_global_prob: 0.0
-  aug_max_transforms: 0
+  augmentations_enabled: true
+  aug_global_prob: 0.66
+  aug_max_transforms: 3
 
-  horizontal_flip_prob: 0.0
-  rotation_degrees: 0.0
-  rotation_prob: 0.0
+  horizontal_flip_prob: 0.5
+  rotation_degrees: 20.0
+  rotation_prob: 0.5
 
-  random_resized_crop_scale: [1.0, 1.0]
-  random_resized_crop_ratio: [1.0, 1.0]
-  random_resized_crop_prob: 0.0
+  random_resized_crop_scale: [0.9, 1.1]
+  random_resized_crop_ratio: [0.9, 1.1]
+  random_resized_crop_prob: 0.5
 
-  color_jitter_brightness: 0.0
-  color_jitter_contrast: 0.0
-  color_jitter_saturation: 0.0
-  color_jitter_hue: 0.0
-  color_jitter_prob: 0.0
+  color_jitter_brightness: 0.4
+  color_jitter_contrast: 0.4
+  color_jitter_saturation: 0.4
+  color_jitter_hue: 0.5
+  color_jitter_prob: 0.5
 
   gaussian_noise_std: 0.0
   gaussian_noise_prob: 0.0

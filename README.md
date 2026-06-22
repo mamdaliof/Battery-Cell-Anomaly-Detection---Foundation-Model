@@ -104,46 +104,76 @@ This repository explores **battery cell anomaly detection** using **DINOv3** vis
   - The local `models/` directory is registered in `.gitignore` to prevent large model weight binaries from being tracked in the repository.
 
 
-- **🖥️ Streamlit Visualization Dashboard (Enhanced)**
-  - An interactive dashboard (`visualize.py`) loads and parses classification and detection training results uniformly.
-  - **Leaderboard**: Compares runs across backbones, PEFT configurations, and training parameters, ranked by image-level anomaly classification F1.
-  - **Trajectory Curves**: Plots training/validation loss, learning rates, standard detection (mAP50, mAP50-95), and custom metrics (IoU, Dice, image-level F1).
-  - **Single Run Inspector**: Shows config properties, bbox details, per-class metrics, and interactive confusion matrices.
-  - **Comparison Tab**: Compares the best classification model directly with the best detection model on image-level anomaly classification, complete with side-by-side confusion matrices and performance metrics.
-  - Driven by the unified `trainer_state.json` file generated at the end of each training epoch.
+- **🖥️ Streamlit Visualization Dashboard (Enhanced) - ME MAKE LOOK GOOD!**
+  - Web page (`visualize.py`) read training results and show to caveman!
+  - **Leaderboard**: Compare runs, rank by F1 score. Caveman see which model strong!
+  - **Trajectory Curves**: Plot loss and F1 over time. Average curves across folds if caveman check box!
+  - **Single Run Inspector**: Show details, boxes, and confusion matrix rocks!
+  - **Comparison Tab**: Compare classification vs detection side-by-side!
+  - **K-Fold Stats**: Load and show K-fold stats CSV so caveman see data balance!
 
-- **🔁 5-Fold Cross Validation**
-  - **Dynamic Fold Directories**: Supports loading datasets from a combined `data_dir` and active `fold` path (e.g., `data/cls_v1.0/fold_2`).
-  - **Fold-Specific Seeds**: Config generators assign unique seeds to each fold based on: `seed = 30 + fold * 10` for robust, reproducible folding.
-  - **Isolated Runs**: Appends the fold parameter to the config stem in run directory paths to isolate outputs and avoid parallel run collisions.
-  - **On-the-fly YOLO Data Config**: Rewrites standard YOLO data YAML files on-the-fly inside the specific run directory as `yolo_data_fold.yaml` to override the path dynamically for each fold, avoiding concurrent process collisions during parallel GPU execution.
-  - **Parallel Sweeps & Status Audit**: All parallel training runner scripts and status auditing tools are fully fold-aware and seed-aware.
+- **🔁 5-Fold Cross Validation - SPLIT BIG ROCK TO 5 PIECES!**
+  - **Dynamic Fold Directories**: Model read from `fold_X` folder directly!
+  - **Fold-Specific Seeds**: Seed is `30 + fold * 10`. Every fold gets different random fire!
+  - **Isolated Runs**: Each fold run goes to own cave folder to not bump heads!
+  - **On-the-fly YOLO Data Config**: Script write temporary YOLO config for each fold run!
+  - **K-Fold Dataset Conversion**: Scripts convert raw data to classification and detection folds with symlinks.
+  - **Statistical Analysis**: `scripts/analyze_kfold_stats.py` counts normal/abnormal images and boxes per fold.
 
-## 📂 Dataset conversion and usage
+## 📂 Dataset conversion and usage - ME SPLIT ROCK!
 
-The raw dataset is assumed to live under a directory like `split_base/` with the following structure:
+ME ASSUME DATA LIVE IN `data/kfold_structured_dataset/` WITH STRUCTURE LIKE THIS:
 
 ```text
-split_base/
-  train/
-    c44_5.png
-    c44_5.xml
-    ...
-  val/
-    ...
+data/kfold_structured_dataset/
+  fold_0/
+    train/
+      normal/
+        c44_5.png
+        c44_5.xml
+      abnormality/
+        ...
+    val/
+      ...
 ```
 
-Each `*.xml` file contains bounding box annotations for the corresponding image. Some object labels (e.g. `burnt`, `crack`, etc.) indicate **abnormal** cells.
+EACH `*.xml` FILE HAVE BOUNDING BOX FOR IMAGE. SOME THING LIKE `burnt` OR `crack` MEANS BAD ANOMALY!
 
-To convert this detection-style dataset into a classification dataset compatible with the training pipeline, use the conversion script:
+ME SPLIT DATA TO K-FOLDS! ME USE SYMLINKS TO SAVING SPACE!
 
+### 1. MAKE CLASSIFICATION FOLDS (BAD CELLS VS GOOD CELLS)
+
+RUN SCRIPTS WITH CONDA ENV AND PYTHONS:
 ```bash
-python scripts/convert_split_base_to_classification.py \
-  --input_dir split_base \
-  --output_dir data
+python scripts/convert_kfold_to_classification.py \
+  --source-root data/kfold_structured_dataset \
+  --target-root data/kfold_classification \
+  --abnormal-labels abnormality \
+  --kfold \
+  --use-symlinks
 ```
+THIS MAKE FOLD DIRECTORIES UNDER `data/kfold_classification/fold_X/(train|val)/(normal|abnormal)`.
 
-This creates `data/train/normal/`, `data/train/abnormal/`, `data/val/normal/`, and `data/val/abnormal/` directories.
+### 2. MAKE YOLO DETECTION FOLDS (BOXES OF ANOMALY AND CELL)
+
+RUN SCRIPTS FOR YOLO LABELS AND CONFIGS:
+```bash
+python scripts/convert_kfold_to_detection.py \
+  --source-root data/kfold_structured_dataset \
+  --target-root data/kfold_detection \
+  --kfold \
+  --use-symlinks
+```
+THIS MAKE FOLDS UNDER `data/kfold_detection/battery_detection_{variant}/fold_X/(images|labels)/(train|val)`.
+
+### 3. STATS FOR FOLDS! COUNT BONES!
+ME COUNT BOXES AND IMAGES:
+```bash
+python scripts/analyze_kfold_stats.py \
+  --data-dir data/kfold_structured_dataset \
+  --output-csv data/kfold_structured_dataset/kfold_stats.csv
+```
+THIS SAVE TABLE IN CSV AND PRINT SUMMARY TO TERMINAL!
 
 ## 🏋️ Training
 

@@ -190,6 +190,9 @@ def check_outputs(base_path="outputs", configs_dir=None, show_completed=False):
         if not matched_config and cfg:
             matched_config = find_matching_config_by_content(cfg, task, configs_dir, strategy)
             
+        if not matched_config:
+            continue
+            
         # Fallback to reading parameters from matched_config if cfg is None
         if cfg is None and matched_config:
             try:
