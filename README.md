@@ -131,7 +131,7 @@ data/kfold_structured_dataset/
       normal/
         c44_5.png
         c44_5.xml
-      abnormality/
+      abnormal/
         ...
     val/
       ...
@@ -148,7 +148,7 @@ RUN SCRIPTS WITH CONDA ENV AND PYTHONS:
 python scripts/convert_kfold_to_classification.py \
   --source-root data/kfold_structured_dataset \
   --target-root data/kfold_classification \
-  --abnormal-labels abnormality \
+  --abnormal-labels abnormal \
   --kfold \
   --use-symlinks
 ```

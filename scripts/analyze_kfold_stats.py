@@ -86,7 +86,7 @@ def main() -> None:
                 continue
 
             # Image-wise classification stats are based on folder names
-            for label in ("normal", "abnormality"):
+            for label in ("normal", "abnormal"):
                 class_dir = split_dir / label
                 if not class_dir.exists():
                     continue
@@ -150,12 +150,12 @@ def main() -> None:
     for fold_name in sorted(stats.keys()):
         for split in ("train", "val"):
             norm = stats[fold_name][split]["image_count"]["normal"]
-            abnorm = stats[fold_name][split]["image_count"]["abnormality"]
+            abnorm = stats[fold_name][split]["image_count"]["abnormal"]
             print_row(fold_name, split, norm, abnorm)
     print("-" * 55)
     for split in ("train", "val"):
         norm = overall[split]["image_count"]["normal"]
-        abnorm = overall[split]["image_count"]["abnormality"]
+        abnorm = overall[split]["image_count"]["abnormal"]
         print_row("overall", split, norm, abnorm)
 
     print("\n📦 --- K-FOLD DETECTION SUMMARY (BOX-WISE) ---")

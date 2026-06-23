@@ -34,7 +34,7 @@ class TestKFoldConversion(unittest.TestCase):
             for split in ("train", "val"):
                 split_dir = fold_dir / split
                 (split_dir / "normal").mkdir(parents=True)
-                (split_dir / "abnormality").mkdir(parents=True)
+                (split_dir / "abnormal").mkdir(parents=True)
 
                 # Create 1 normal sample
                 img_normal = Image.new("RGB", (640, 640), color="white")
@@ -46,10 +46,10 @@ class TestKFoldConversion(unittest.TestCase):
 
                 # Create 1 abnormal sample
                 img_abnormal = Image.new("RGB", (640, 640), color="black")
-                img_abnormal.save(split_dir / "abnormality" / "img_abn.png")
+                img_abnormal.save(split_dir / "abnormal" / "img_abn.png")
                 self.create_mock_xml(
-                    split_dir / "abnormality" / "img_abn.xml",
-                    objects=[("abnormality", 150, 150, 250, 250), ("cell", 50, 50, 600, 600)]
+                    split_dir / "abnormal" / "img_abn.xml",
+                    objects=[("abnormal", 150, 150, 250, 250), ("cell", 50, 50, 600, 600)]
                 )
 
     def tearDown(self):
@@ -91,7 +91,7 @@ class TestKFoldConversion(unittest.TestCase):
             "convert_kfold_to_classification.py",
             "--source-root", str(self.source_root),
             "--target-root", str(self.target_cls_root),
-            "--abnormal-labels", "abnormality",
+            "--abnormal-labels", "abnormal",
             "--kfold"
         ]
         

@@ -17,16 +17,16 @@ from typing import Dict, List, Set
 # Define target labels and mapping indices for each variant
 VARIANTS = {
     "all": {
-        "labels": {"abnormality", "cell", "text"},
-        "mapping": {"abnormality": 0, "cell": 1, "text": 2}
+        "labels": {"abnormal", "cell", "text"},
+        "mapping": {"abnormal": 0, "cell": 1, "text": 2}
     },
     "no_cell": {
-        "labels": {"abnormality", "text"},
-        "mapping": {"abnormality": 0, "text": 1}
+        "labels": {"abnormal", "text"},
+        "mapping": {"abnormal": 0, "text": 1}
     },
     "abnormal_only": {
-        "labels": {"abnormality"},
-        "mapping": {"abnormality": 0}
+        "labels": {"abnormal"},
+        "mapping": {"abnormal": 0}
     }
 }
 
@@ -66,7 +66,7 @@ def find_image_xml_pairs(split_dir: Path) -> List[tuple[Path, Path]]:
     Assumes that for each image `name.png` there is a corresponding `name.xml`.
     """
     pairs: List[tuple[Path, Path]] = []
-    # Search in all subdirectories of split_dir recursively to handle normal/abnormality subfolders
+    # Search in all subdirectories of split_dir recursively to handle normal/abnormal subfolders
     for img_path in split_dir.rglob("*.png"):
         xml_path = img_path.with_suffix(".xml")
         if not xml_path.exists():

@@ -111,15 +111,15 @@ def convert_split(
     use_symlinks: bool,
 ) -> None:
     # Under source_dir we can have standard splits like train/val,
-    # or the abnormality/normal subdirectory structure directly!
-    # In data/kfold_structured_dataset/fold_0/train/, images are in 'abnormality' and 'normal' subfolders.
+    # or the abnormal/normal subdirectory structure directly!
+    # In data/kfold_structured_dataset/fold_0/train/, images are in 'abnormal' and 'normal' subfolders.
     # So we must search recursively or check subdirectories.
     print(f"ℹ️ [INFO] Processing split: {split_name} in {source_dir}")
 
-    # Check if files are directly in split_dir or in subfolders (abnormality/normal)
+    # Check if files are directly in split_dir or in subfolders (abnormal/normal)
     pairs = []
-    if (source_dir / "normal").exists() or (source_dir / "abnormality").exists():
-        for sub in ("normal", "abnormality"):
+    if (source_dir / "normal").exists() or (source_dir / "abnormal").exists():
+        for sub in ("normal", "abnormal"):
             sub_dir = source_dir / sub
             if sub_dir.exists():
                 pairs.extend(find_image_xml_pairs(sub_dir))
