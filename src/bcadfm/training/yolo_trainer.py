@@ -255,31 +255,40 @@ class CustomDetectionValidator(DetectionValidator):
                 self.cls_pred[idx].append(pred_has)
                 self.cls_prob[idx].append(prob)
 
-            # --- Bounding Box-level matched IoU and Dice ---
-            if pbatch["bboxes"].shape[0] > 0 and predn["bboxes"].shape[0] > 0:
-                iou_matrix = box_iou(pbatch["bboxes"], predn["bboxes"])
-                matched_pred_indices = set()
+            # --- Bounding Box-level matched IoU and Dice (Global Target IoU) ---
+            if pbatch["bboxes"].shape[0] > 0:
+                if predn["bboxes"].shape[0] > 0:
+                    iou_matrix = box_iou(pbatch["bboxes"], predn["bboxes"])
+                    matched_pred_indices = set()
 
-                for gt_i in range(pbatch["bboxes"].shape[0]):
-                    gt_c = gt_classes[gt_i].item()
-                    best_iou = torch.tensor(-1.0, dtype=torch.float32, device=device)
-                    best_pred_idx = -1
+                    for gt_i in range(pbatch["bboxes"].shape[0]):
+                        gt_c = gt_classes[gt_i].item()
+                        best_iou = torch.tensor(-1.0, dtype=torch.float32, device=device)
+                        best_pred_idx = -1
 
-                    for pred_i in range(predn["bboxes"].shape[0]):
-                        if pred_i in matched_pred_indices:
-                            continue
-                        if pred_classes[pred_i].item() != gt_c:
-                            continue
-                        
-                        curr_iou = iou_matrix[gt_i, pred_i]
-                        if curr_iou > best_iou:
-                            best_iou = curr_iou
-                            best_pred_idx = pred_i
+                        for pred_i in range(predn["bboxes"].shape[0]):
+                            if pred_i in matched_pred_indices:
+                                continue
+                            if pred_classes[pred_i].item() != gt_c:
+                                continue
+                            
+                            curr_iou = iou_matrix[gt_i, pred_i]
+                            if curr_iou > best_iou:
+                                best_iou = curr_iou
+                                best_pred_idx = pred_i
 
-                    if best_pred_idx != -1 and best_iou >= 0.50:
-                        matched_pred_indices.add(best_pred_idx)
-                        dice = (2.0 * best_iou) / (1.0 + best_iou)
-                        self.custom_iou_dice_stats.append((int(gt_c), best_iou, dice))
+                        if best_pred_idx != -1 and best_iou >= 0.50:
+                            matched_pred_indices.add(best_pred_idx)
+                            dice = (2.0 * best_iou) / (1.0 + best_iou)
+                            self.custom_iou_dice_stats.append((int(gt_c), best_iou, dice))
+                        else:
+                            # Missed detection: 0.0 IoU and 0.0 Dice
+                            self.custom_iou_dice_stats.append((int(gt_c), 0.0, 0.0))
+                else:
+                    # No predicted boxes: all targets missed
+                    for gt_i in range(pbatch["bboxes"].shape[0]):
+                        gt_c = gt_classes[gt_i].item()
+                        self.custom_iou_dice_stats.append((int(gt_c), 0.0, 0.0))
 
     def get_stats(self) -> Dict[str, Any]:
         """Calculates and returns custom stats injected alongside YOLO stats."""

@@ -14,27 +14,41 @@ import plotly.express as px
 import re
 from typing import Any, Optional, Tuple
 
+colors_palette = [
+    "#4facfe", "#22c55e", "#ff7f0e", "#f43f5e", "#a855f7",
+    "#eab308", "#3b82f6", "#ec4899", "#10b981", "#00f2fe"
+]
+
+def hex_to_rgba(hex_str: str, alpha: float = 0.15) -> str:
+    hex_str = hex_str.lstrip('#')
+    rgb = tuple(int(hex_str[i:i+2], 16) for i in (0, 2, 4))
+    return f"rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {alpha})"
+
 def parse_fold_and_base_name(display_name: str, short_cfg_name: str, config_fold: Any = None) -> Tuple[Optional[str], str]:
     """
-    Extract fold index and base config name by stripping fold patterns.
+    Extract fold index and base config name by stripping fold patterns and leading run indexes.
     """
     # If fold is explicitly provided in config, use it
     if config_fold is not None:
         fold = str(config_fold)
-        base_cfg = re.sub(rf'[-_]fold[-_]?{fold}\b', '', short_cfg_name, flags=re.IGNORECASE)
+        base_cfg = re.sub(rf'[-_]fold[-_]?{fold}(?!\d)', '', short_cfg_name, flags=re.IGNORECASE)
+        base_cfg = re.sub(r'^\d+[-_]', '', base_cfg)
         base_cfg = re.sub(r'__+', '_', base_cfg).strip('-_')
         return fold, base_cfg
 
     # Fallback: parse from short_cfg_name or display_name
     for name in [short_cfg_name, display_name]:
-        match = re.search(r'[-_]fold[-_]?(\d+)\b', name, re.IGNORECASE)
+        match = re.search(r'[-_]fold[-_]?(\d+)(?!\d)', name, re.IGNORECASE)
         if match:
             fold = match.group(1)
-            base_cfg = re.sub(rf'[-_]fold[-_]?{fold}\b', '', short_cfg_name, flags=re.IGNORECASE)
+            base_cfg = re.sub(rf'[-_]fold[-_]?{fold}(?!\d)', '', short_cfg_name, flags=re.IGNORECASE)
+            base_cfg = re.sub(r'^\d+[-_]', '', base_cfg)
             base_cfg = re.sub(r'__+', '_', base_cfg).strip('-_')
             return fold, base_cfg
             
-    return None, short_cfg_name
+    base_cfg = re.sub(r'^\d+[-_]', '', short_cfg_name)
+    base_cfg = re.sub(r'__+', '_', base_cfg).strip('-_')
+    return None, base_cfg
 
 
 def find_latest_checkpoint_state(run_dir):
@@ -141,6 +155,7 @@ def estimate_model_params(model_name, task, peft_type, peft_config, is_yolo_dino
                 "trainable": head_params + peft_params
             }
 
+@st.cache_data
 def load_results(base_path="outputs"):
     """
     Recursively scans base_path to load config.yaml and trainer_state.json files.
@@ -194,11 +209,20 @@ def load_results(base_path="outputs"):
             # Resolve specific PEFT details
             peft_detail = "none"
             if peft_type == "lora":
-                peft_detail = f"r={peft_cfg.get('lora_r', 8)}"
+                r = peft_cfg.get('lora_r', 8)
+                blocks = peft_cfg.get('lora_target_blocks')
+                block_str = f", b={len(blocks)}" if blocks else ""
+                peft_detail = f"r={r}{block_str}"
             elif peft_type == "adapter":
-                peft_detail = f"d={peft_cfg.get('adapter_bottleneck_dim', 64)}"
+                d = peft_cfg.get('adapter_bottleneck_dim', 64)
+                blocks = peft_cfg.get('adapter_target_blocks')
+                block_str = f", b={len(blocks)}" if blocks else ""
+                peft_detail = f"d={d}{block_str}"
             elif peft_type == "visual_prompt":
-                peft_detail = f"t={peft_cfg.get('vpt_num_tokens', 10)}"
+                t = peft_cfg.get('vpt_num_tokens', 10)
+                deep = peft_cfg.get('vpt_deep', False)
+                deep_str = "deep" if deep else "shallow"
+                peft_detail = f"t={t}, {deep_str}"
             
             # Determine task dynamically
             is_det = "yolo_model_config" in cfg
@@ -485,7 +509,7 @@ def update_best_metrics_inplace(df: pd.DataFrame, benchmark_metric: str, mode: s
                         "image_cls_f1", "image_cls_auroc", "image_cls_precision", "image_cls_recall"]:
                 df.at[idx, col] = None
 
-def group_results_by_fold(df: pd.DataFrame) -> pd.DataFrame:
+def group_results_by_fold(df: pd.DataFrame, benchmark_metric: str = "eval_loss", mode: str = "min", selected_label: str = "abnormal", use_custom: bool = True) -> pd.DataFrame:
     """
     Groups dataframe of runs by common parameters, averaging numeric columns over folds.
     """
@@ -582,7 +606,20 @@ def group_results_by_fold(df: pd.DataFrame) -> pd.DataFrame:
             merged_history.append(merged_entry)
             
         row["history"] = merged_history
-        row["best_metrics"] = get_best_epoch_metrics(merged_history, "eval_loss", "min") if merged_history else {}
+        
+        # Resolve benchmark metric for the grouped run
+        target_metric = benchmark_metric
+        target_mode = mode
+        if benchmark_metric == "default":
+            # Map selected label to actual label present in group if needed
+            group_label = selected_label
+            if group_label in ["abnormal", "abnormality"] and not group.empty:
+                first_run = group.iloc[0]
+                group_label = first_run.get("abnormal_label", selected_label)
+            target_metric = f"eval_custom_cls_f1/{group_label}" if use_custom else "eval_f1"
+            target_mode = "max"
+            
+        row["best_metrics"] = get_best_epoch_metrics(merged_history, target_metric, target_mode) if merged_history else {}
 
         
         aggregated_rows.append(row)
@@ -665,6 +702,13 @@ def main():
     # Sidebar parameters & data loader
     st.sidebar.markdown("### 📂 Data Settings")
     outputs_dir = st.sidebar.text_input("Outputs Directory", value="outputs")
+
+    if st.sidebar.button("🔄 Reload Data"):
+        st.cache_data.clear()
+        try:
+            st.rerun()
+        except AttributeError:
+            st.experimental_rerun()
 
     # Load results
     with st.spinner("Scanning outputs directory..."):
@@ -889,7 +933,7 @@ def main():
 
     # Average folds if selected
     if group_folds:
-        df_filtered = group_results_by_fold(df_filtered)
+        df_filtered = group_results_by_fold(df_filtered, benchmark_metric, benchmark_mode, selected_label, metric_source_is_custom)
 
     # Sort filtered runs by best F1 score descending
     if not df_filtered.empty and "img_abnormal_f1" in df_filtered.columns:
@@ -1068,6 +1112,29 @@ def main():
             
             renamed_df = display_df[leaderboard_cols].rename(columns=rename_map)
             
+            # If multiple datasets are present, prepend dataset name to Configuration for clarity
+            if "Dataset" in renamed_df.columns and renamed_df["Dataset"].nunique() > 1:
+                col_cfg = []
+                for _, row in renamed_df.iterrows():
+                    col_cfg.append(f"{row['Dataset']} | {row['Configuration']}")
+                renamed_df["Configuration"] = col_cfg
+            
+            # Deduplicate Configuration names to ensure index uniqueness for Pandas Styler
+            col_cfg = renamed_df["Configuration"].tolist()
+            seen = {}
+            deduped_cfg = []
+            for item in col_cfg:
+                if item not in seen:
+                    seen[item] = 1
+                    deduped_cfg.append(item)
+                else:
+                    seen[item] += 1
+                    deduped_cfg.append(f"{item} ({seen[item]})")
+            renamed_df["Configuration"] = deduped_cfg
+            
+            # Set Configuration as index so it remains frozen/sticky on the left
+            renamed_df = renamed_df.set_index("Configuration")
+            
             # Highlight max values for F1/mAP/accuracy columns dynamically
             def highlight_max_metric(s):
                 is_metric = any(term in s.name for term in ["F1", "mAP", "IoU", "Dice", "Accuracy", "AUROC", "Recall", "Precision"]) and "Loss" not in s.name
@@ -1080,6 +1147,22 @@ def main():
             st.dataframe(
                 renamed_df.style.apply(highlight_max_metric),
                 use_container_width=True
+            )
+            
+            st.markdown(
+                '<div style="font-size: 0.85rem; color: #a1a1aa; margin-top: -0.5rem; margin-bottom: 1rem;">'
+                '💡 <i>Tip: You can also hover over any column header, click its dropdown menu, and select "Pin column" to freeze it.</i>'
+                '</div>', 
+                unsafe_allow_html=True
+            )
+
+            # Export to CSV option (include index since Configuration is the index)
+            csv_data = renamed_df.to_csv(index=True).encode('utf-8')
+            st.download_button(
+                label="📥 Export Leaderboard to CSV",
+                data=csv_data,
+                file_name="anomaly_detection_leaderboard.csv",
+                mime="text/csv"
             )
 
     # ── Tab 2: Trajectory Curves ──────────────────────────────────────────────
@@ -1106,7 +1189,7 @@ def main():
                 # Gather all metric keys available in the selected runs' history
                 available_metrics = set()
                 for idx in selected_indices:
-                    run = df_results.loc[idx]
+                    run = df_filtered.loc[idx]
                     for entry in run["history"]:
                         for k in entry.keys():
                             if k not in ("epoch", "step", "learning_rate"):
@@ -1153,42 +1236,102 @@ def main():
                 else:
                     fig = go.Figure()
                     
-                    for idx in selected_indices:
-                        run = df_results.loc[idx]
+                    from collections import defaultdict
+                    
+                    for idx_color, idx in enumerate(selected_indices):
+                        run = df_filtered.loc[idx]
                         history = run["history"]
                         
                         if not history:
                             continue
                             
-                        epochs = []
-                        values = []
+                        epochs_to_plot = []
+                        values_to_plot = []
+                        upper_to_plot = []
+                        lower_to_plot = []
                         
-                        # Find best epoch if truncation is requested
-                        best_ep = float('inf')
-                        if truncate_at_best and run["best_metrics"]:
-                            best_ep = run["best_metrics"].get("epoch", float('inf'))
-                            
-                        for log_entry in history:
-                            if plot_metric in log_entry and "epoch" in log_entry:
-                                ep = log_entry["epoch"]
-                                if ep <= best_ep:
-                                    epochs.append(ep)
-                                    values.append(log_entry[plot_metric])
+                        color_idx = idx_color % len(colors_palette)
+                        base_color = colors_palette[color_idx]
+                        
+                        if group_folds and "fold_runs" in run and isinstance(run["fold_runs"], list):
+                            # Calculate mean and standard deviation across fold runs
+                            epoch_vals = defaultdict(list)
+                            for f_run in run["fold_runs"]:
+                                f_hist = f_run.get("history", [])
+                                if not isinstance(f_hist, list):
+                                    continue
+                                f_best_ep = float('inf')
+                                if truncate_at_best and f_run.get("best_metrics"):
+                                    f_best_ep = f_run["best_metrics"].get("epoch", float('inf'))
+                                for log_entry in f_hist:
+                                    if plot_metric in log_entry and "epoch" in log_entry:
+                                        ep = log_entry["epoch"]
+                                        if ep <= f_best_ep:
+                                            epoch_vals[ep].append(log_entry[plot_metric])
+                                            
+                            sorted_epochs = sorted(epoch_vals.keys())
+                            for ep in sorted_epochs:
+                                vals = [v for v in epoch_vals[ep] if v is not None]
+                                if vals:
+                                    epochs_to_plot.append(ep)
+                                    mean_val = np.mean(vals)
+                                    std_val = np.std(vals) if len(vals) > 1 else 0.0
+                                    values_to_plot.append(mean_val)
                                     
-                        if epochs:
-                            # Sort by epoch to guarantee line continuity
-                            sort_idx = np.argsort(epochs)
-                            epochs = np.array(epochs)[sort_idx]
-                            values = np.array(values)[sort_idx]
-                            
+                                    # Clip score metrics to bounds [0, 1]
+                                    is_bounded = any(term in plot_metric for term in ["f1", "map", "accuracy", "auroc", "precision", "recall", "iou", "dice"])
+                                    upper_val = mean_val + std_val
+                                    lower_val = mean_val - std_val
+                                    if is_bounded:
+                                        upper_val = min(1.0, upper_val)
+                                        lower_val = max(0.0, lower_val)
+                                        
+                                    upper_to_plot.append(upper_val)
+                                    lower_to_plot.append(lower_val)
+                        else:
+                            # Single run / no fold averaging
+                            epochs = []
+                            values = []
+                            best_ep = float('inf')
+                            if truncate_at_best and run["best_metrics"]:
+                                best_ep = run["best_metrics"].get("epoch", float('inf'))
+                                
+                            for log_entry in history:
+                                if plot_metric in log_entry and "epoch" in log_entry:
+                                    ep = log_entry["epoch"]
+                                    if ep <= best_ep:
+                                        epochs.append(ep)
+                                        values.append(log_entry[plot_metric])
+                                        
+                            if epochs:
+                                sort_idx = np.argsort(epochs)
+                                epochs_to_plot = list(np.array(epochs)[sort_idx])
+                                values_to_plot = list(np.array(values)[sort_idx])
+                                
+                        if epochs_to_plot:
+                            # Draw shaded variance band first if grouping folds and we have variation
+                            if group_folds and upper_to_plot and lower_to_plot:
+                                x_fill = epochs_to_plot + epochs_to_plot[::-1]
+                                y_fill = upper_to_plot + lower_to_plot[::-1]
+                                fig.add_trace(go.Scatter(
+                                    x=x_fill,
+                                    y=y_fill,
+                                    fill='toself',
+                                    fillcolor=hex_to_rgba(base_color, 0.15),
+                                    line=dict(color='rgba(255,255,255,0)'),
+                                    hoverinfo="skip",
+                                    showlegend=False,
+                                    name=f"{run['short_cfg_name']} (Fold StdDev)"
+                                ))
+                                
                             label = f"{run['peft_type']} ({run['peft_detail']}) | ds={run['dataset']} | lr={run['lr']} | {run['short_cfg_name']}"
                             fig.add_trace(go.Scatter(
-                                x=epochs,
-                                y=values,
+                                x=epochs_to_plot,
+                                y=values_to_plot,
                                 mode="lines+markers",
                                 name=label,
-                                line=dict(width=2),
-                                marker=dict(size=4)
+                                line=dict(width=2, color=base_color),
+                                marker=dict(size=4, color=base_color)
                             ))
                             
                     fig.update_layout(
@@ -1217,8 +1360,21 @@ def main():
                 options=df_filtered["short_cfg_name"].tolist()
             )
             
-            run_idx = df_filtered[df_filtered["short_cfg_name"] == selected_run_name].index[0]
-            run_data = df_results.loc[run_idx]
+            run_data = df_filtered[df_filtered["short_cfg_name"] == selected_run_name].iloc[0]
+            
+            # Check for early stopping or incomplete runs
+            epochs_configured = run_data.get("epochs_configured", 0)
+            history = run_data.get("history", [])
+            run_epochs = [entry.get("epoch") for entry in history if "epoch" in entry]
+            max_run_epoch = max(run_epochs) if run_epochs else 0
+            
+            if max_run_epoch > 0 and epochs_configured > 0 and max_run_epoch < epochs_configured:
+                max_run_epoch_str = f"{max_run_epoch:.2f}".rstrip('0').rstrip('.')
+                st.warning(
+                    f"🛑 **Early Stopping / Incomplete Run Alert**: "
+                    f"This run stopped early at epoch **{max_run_epoch_str}** out of **{epochs_configured}** configured epochs. "
+                    f"Best epoch was **{run_data.get('best_metrics', {}).get('epoch', 'N/A')}**."
+                )
             
             # Grid layout for detail panels
             col_info, col_metrics = st.columns([1, 1])
@@ -1367,8 +1523,13 @@ def main():
                         
                         # Create interactive Plotly Heatmap for confusion matrix
                         z = [[tn, fp], [fn, tp]]
-                        x = ["Predicted Normal", "Predicted Abnormal"]
-                        y = ["Actual Normal", "Actual Abnormal"]
+                        if run_data.get("task") == "Classification" or selected_cm_class == "abnormal":
+                            x = ["Predicted Normal", "Predicted Abnormal"]
+                            y = ["Actual Normal", "Actual Abnormal"]
+                        else:
+                            cls_cap = selected_cm_class.capitalize()
+                            x = [f"Predicted No {cls_cap}", f"Predicted {cls_cap}"]
+                            y = [f"Actual No {cls_cap}", f"Actual {cls_cap}"]
                         
                         fig_cm = px.imshow(
                             z, x=x, y=y,
@@ -1377,6 +1538,7 @@ def main():
                             text_auto=True,
                             title=cm_title
                         )
+                        fig_cm.update_yaxes(autorange="reversed")
                         fig_cm.update_layout(
                             coloraxis_showscale=False,
                             width=380,
@@ -1581,20 +1743,42 @@ def main():
 
     # ── Tab 5: Classification vs. Detection Comparison ──────────────────────────
     with tab_comparison:
-        st.subheader("⚖️ Classification vs. Detection Model Comparison")
+        subtab_models, subtab_datasets = st.tabs([
+            "🏆 Model Type Comparison (Cls vs. Det)",
+            "⚖️ Dataset Variant Comparison"
+        ])
         
-        comp_label = selected_label if selected_label in ["abnormal", "text"] else "abnormal"
-        st.write(f"Compare the classification models directly with the detection models on the target task: **image-level {comp_label} classification**.")
-        
-        if df_results.empty:
-            st.info("No runs available for comparison.")
-        else:
-            # Filter to get classification and detection runs
-            cls_runs = df_results[df_results["task"] == "Classification"]
-            det_runs = df_results[df_results["task"] == "Detection"]
+        # Create a separate filtered dataframe for task comparison to avoid task filtering
+        df_comp_filtered = df_results.copy()
+        if dataset_filter:
+            df_comp_filtered = df_comp_filtered[df_comp_filtered["dataset"].isin(dataset_filter)]
+        if active_models:
+            df_comp_filtered = df_comp_filtered[df_comp_filtered["model"].isin(active_models)]
+        if active_pefts:
+            df_comp_filtered = df_comp_filtered[df_comp_filtered["peft_type"].isin(active_pefts)]
+        if active_lrs:
+            df_comp_filtered = df_comp_filtered[df_comp_filtered["lr"].isin(active_lrs)]
+        if active_imbs:
+            df_comp_filtered = df_comp_filtered[df_comp_filtered["imbalance_strategy"].isin(active_imbs)]
+        if status_filter == "Completed Only (DONE)":
+            df_comp_filtered = df_comp_filtered[df_comp_filtered["completed"] == True]
+        elif status_filter == "Incomplete/Active Only":
+            df_comp_filtered = df_comp_filtered[df_comp_filtered["completed"] == False]
             
-            if cls_runs.empty or det_runs.empty:
-                st.info("To see comparative charts, make sure you have at least one completed run for both Classification and Detection tasks.")
+        if group_folds:
+            df_comp_filtered = group_results_by_fold(df_comp_filtered, benchmark_metric, benchmark_mode, selected_label, metric_source_is_custom)
+            
+        cls_runs = df_comp_filtered[df_comp_filtered["task"] == "Classification"] if not df_comp_filtered.empty else pd.DataFrame()
+        det_runs = df_comp_filtered[df_comp_filtered["task"] == "Detection"] if not df_comp_filtered.empty else pd.DataFrame()
+
+        with subtab_models:
+            st.subheader("⚖️ Classification vs. Detection Model Comparison")
+            
+            comp_label = selected_label if selected_label in ["abnormal", "text"] else "abnormal"
+            st.write(f"Compare the classification models directly with the detection models on the target task: **image-level {comp_label} classification**.")
+            
+            if df_comp_filtered.empty or cls_runs.empty or det_runs.empty:
+                st.info("To see comparative charts, make sure you have at least one completed run for both Classification and Detection tasks under the current filters.")
             else:
                 best_cls = cls_runs.loc[cls_runs["img_abnormal_f1"].idxmax()]
                 best_det = det_runs.loc[det_runs["img_abnormal_f1"].idxmax()]
@@ -1617,6 +1801,7 @@ def main():
                             [[tn_c, fp_c], [fn_c, tp_c]], x=["Predicted Normal", "Predicted Abnormal"], y=["Actual Normal", "Actual Abnormal"],
                             color_continuous_scale="Greens", aspect="auto", text_auto=True, title="Best Classification Confusion Matrix"
                         )
+                        fig_cm_cls.update_yaxes(autorange="reversed")
                         fig_cm_cls.update_layout(coloraxis_showscale=False, width=350, height=220, template="plotly_dark")
                         st.plotly_chart(fig_cm_cls, use_container_width=False)
                         
@@ -1636,10 +1821,13 @@ def main():
                     tn_d = bm_det.get(f"eval_custom_cls_tn/{comp_label}") or bm_det.get("eval_custom_cls_tn/abnormal")
                     fn_d = bm_det.get(f"eval_custom_cls_fn/{comp_label}") or bm_det.get("eval_custom_cls_fn/abnormal")
                     if all(v is not None for v in [tp_d, fp_d, tn_d, fn_d]):
+                        det_x = ["Predicted Normal", "Predicted Abnormal"] if comp_label == "abnormal" else [f"Predicted No {comp_label.capitalize()}", f"Predicted {comp_label.capitalize()}"]
+                        det_y = ["Actual Normal", "Actual Abnormal"] if comp_label == "abnormal" else [f"Actual No {comp_label.capitalize()}", f"Actual {comp_label.capitalize()}"]
                         fig_cm_det = px.imshow(
-                            [[tn_d, fp_d], [fn_d, tp_d]], x=["Predicted Normal", "Predicted Abnormal"], y=["Actual Normal", "Actual Abnormal"],
+                            [[tn_d, fp_d], [fn_d, tp_d]], x=det_x, y=det_y,
                             color_continuous_scale="Oranges", aspect="auto", text_auto=True, title=f"Best Converted Detection {comp_label.capitalize()} Confusion Matrix"
                         )
+                        fig_cm_det.update_yaxes(autorange="reversed")
                         fig_cm_det.update_layout(coloraxis_showscale=False, width=350, height=220, template="plotly_dark")
                         st.plotly_chart(fig_cm_det, use_container_width=False)
                         
@@ -1663,6 +1851,90 @@ def main():
                 )
                 fig_comp.update_layout(template="plotly_dark", yaxis_range=[0.0, 1.05])
                 st.plotly_chart(fig_comp, use_container_width=True)
+
+        with subtab_datasets:
+            st.subheader("⚖️ Dataset Variant Comparison")
+            st.write("Compare detection models trained on different variants of the dataset: abnormal only vs. abnormal & text vs. abnormal, text & cell.")
+            
+            if df_comp_filtered.empty or det_runs.empty:
+                st.info("No detection runs available under current filters. Make sure you have completed detection runs.")
+            else:
+                dataset_comp_data = []
+                dataset_clean_names = {
+                    "battery_detection_abnormal_only": "Abnormal Only (1 Class)",
+                    "battery_detection_no_cell": "No Cell (2 Classes: Abnormal, Text)",
+                    "battery_detection_all": "All Labels (3 Classes: Abnormal, Text, Cell)"
+                }
+                
+                for ds_name, grp in det_runs.groupby("dataset"):
+                    if not grp.empty:
+                        # Find best run in this group by abnormal F1
+                        best_run = grp.loc[grp["img_abnormal_f1"].idxmax()]
+                        bm = best_run["best_metrics"] or {}
+                        
+                        clean_ds_name = dataset_clean_names.get(ds_name, ds_name)
+                        
+                        # abnormal
+                        abn_f1 = float(best_run.get("img_abnormal_f1", 0.0) or 0.0)
+                        abn_map = float(bm.get("eval_custom_mAP50/abnormal", 0.0) or bm.get("eval_mAP50/abnormal", 0.0) or bm.get("eval_mAP50", 0.0) or 0.0)
+                        
+                        # text
+                        txt_f1 = float(bm.get("eval_custom_cls_f1/text", 0.0) or bm.get("eval_custom_F1/text", 0.0) or 0.0)
+                        txt_map = float(bm.get("eval_custom_mAP50/text", 0.0) or bm.get("eval_custom_mAP50/text", 0.0) or 0.0)
+                        
+                        # cell
+                        cell_f1 = float(bm.get("eval_custom_cls_f1/cell", 0.0) or bm.get("eval_custom_F1/cell", 0.0) or 0.0)
+                        cell_map = float(bm.get("eval_custom_mAP50/cell", 0.0) or bm.get("eval_custom_mAP50/cell", 0.0) or 0.0)
+                        
+                        dataset_comp_data.append({
+                            "Variant": clean_ds_name,
+                            "Abnormal Image F1": abn_f1,
+                            "Abnormal Box mAP50": abn_map,
+                            "Text Image F1": txt_f1 if ds_name != "battery_detection_abnormal_only" else None,
+                            "Text Box mAP50": txt_map if ds_name != "battery_detection_abnormal_only" else None,
+                            "Cell Image F1": cell_f1 if ds_name == "battery_detection_all" else None,
+                            "Cell Box mAP50": cell_map if ds_name == "battery_detection_all" else None,
+                            "Config": best_run["short_cfg_name"]
+                        })
+                        
+                if not dataset_comp_data:
+                    st.info("No formatted dataset data available.")
+                else:
+                    df_ds_comp = pd.DataFrame(dataset_comp_data)
+                    st.write("### 🏆 Best Model Performance per Dataset Variant")
+                    st.dataframe(df_ds_comp, use_container_width=True)
+                    
+                    # Melt for plotting
+                    plot_data = []
+                    for _, row in df_ds_comp.iterrows():
+                        plot_data.append({"Variant": row["Variant"], "Metric": "Abnormal Image F1", "Value": row["Abnormal Image F1"]})
+                        plot_data.append({"Variant": row["Variant"], "Metric": "Abnormal Box mAP50", "Value": row["Abnormal Box mAP50"]})
+                        if row["Text Image F1"] is not None:
+                            plot_data.append({"Variant": row["Variant"], "Metric": "Text Image F1", "Value": row["Text Image F1"]})
+                            plot_data.append({"Variant": row["Variant"], "Metric": "Text Box mAP50", "Value": row["Text Box mAP50"]})
+                        if row["Cell Image F1"] is not None:
+                            plot_data.append({"Variant": row["Variant"], "Metric": "Cell Image F1", "Value": row["Cell Image F1"]})
+                            plot_data.append({"Variant": row["Variant"], "Metric": "Cell Box mAP50", "Value": row["Cell Box mAP50"]})
+                            
+                    df_plot = pd.DataFrame(plot_data)
+                    
+                    # Plotly chart
+                    fig_ds = px.bar(
+                        df_plot, x="Variant", y="Value", color="Metric", barmode="group",
+                        color_discrete_sequence=px.colors.qualitative.Bold,
+                        title="Comparison of Class-wise Performance across Dataset Variants",
+                        text_auto=".4f"
+                    )
+                    fig_ds.update_layout(template="plotly_dark", yaxis_range=[0.0, 1.05])
+                    st.plotly_chart(fig_ds, use_container_width=True)
+                    
+                    st.markdown("""
+                    > [!NOTE]
+                    > **Analysis Guidelines**:
+                    > - Check if omitting the `cell` label (`No Cell` vs `All Labels`) drops the F1 or mAP50 of `abnormal` / `text` classes.
+                    > - A higher F1/mAP50 in the `No Cell` variant indicates that removing the cell label reduces confusion and helps the model target anomalies better.
+                    > - A higher F1/mAP50 in `All Labels` indicates that the cell label provides helpful auxiliary representation context.
+                    """)
 
 if __name__ == "__main__":
     main()

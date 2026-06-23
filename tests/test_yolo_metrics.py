@@ -126,6 +126,63 @@ class TestCustomDetectionValidator(unittest.TestCase):
         self.assertAlmostEqual(probs[0], 0.85, places=4)
         self.assertAlmostEqual(probs[1], 0.0, places=4)
 
+    def test_global_target_iou_with_misses(self):
+        # Image 1 has 2 ground truths: abnormal (class 0) and cell (class 1)
+        # But prediction only has abnormal with high overlap (IoU = 1.0)
+        # and cell prediction has low overlap (IoU = 0.3)
+        pred1 = torch.tensor([
+            [10.0, 10.0, 50.0, 50.0, 0.90, 0.0],  # Matches abnormal perfectly
+            [100.0, 100.0, 130.0, 130.0, 0.85, 1.0] # Matches cell poorly (IoU < 0.5)
+        ])
+        
+        batch = {
+            "bboxes": torch.tensor([
+                [10.0, 10.0, 50.0, 50.0],    # Target abnormal
+                [100.0, 100.0, 200.0, 200.0]  # Target cell
+            ]),
+            "cls": torch.tensor([
+                [0.0],
+                [1.0]
+            ]),
+            "batch_idx": torch.tensor([0.0, 0.0]),
+            "im_file": ["img0.png"],
+            "ori_shape": [(640, 640)]
+        }
+
+        self.validator._prepare_batch = lambda si, b: {
+            "cls": b["cls"][b["batch_idx"] == si].squeeze(-1),
+            "bboxes": b["bboxes"][b["batch_idx"] == si],
+            "im_file": b["im_file"][si],
+            "ori_shape": b["ori_shape"][si]
+        }
+        self.validator._prepare_pred = lambda pred: {
+            "cls": pred[:, 5],
+            "conf": pred[:, 4],
+            "bboxes": pred[:, :4]
+        }
+
+        # Run update
+        self.validator.update_metrics([pred1], batch)
+
+        # 2 custom_iou_dice_stats: 1 match (abnormal), 1 miss (cell)
+        self.assertEqual(len(self.validator.custom_iou_dice_stats), 2)
+        
+        # Parse metrics
+        stats = {}
+        for c, iou, dice in self.validator.custom_iou_dice_stats:
+            stats[c] = (
+                iou.item() if isinstance(iou, torch.Tensor) else iou,
+                dice.item() if isinstance(dice, torch.Tensor) else dice
+            )
+            
+        # Abnormal (class 0) matched perfectly -> IoU=1.0, Dice=1.0
+        self.assertAlmostEqual(stats[0][0], 1.0)
+        self.assertAlmostEqual(stats[0][1], 1.0)
+        
+        # Cell (class 1) missed -> IoU=0.0, Dice=0.0
+        self.assertAlmostEqual(stats[1][0], 0.0)
+        self.assertAlmostEqual(stats[1][1], 0.0)
+
     def test_get_stats_formatting(self):
         # Seed lists to ensure validation calculations can run
         self.validator.cls_gt = {0: [], 1: [], 2: []}
