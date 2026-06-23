@@ -1,0 +1,7 @@
+names:
+  0: abnormality
+  1: text
+nc: 2
+path: /home/jovyan/Battery-Cell-Anomaly-Detection---Foundation-Model/data/kfold_detection/battery_detection_no_cell/fold_3
+train: images/train
+val: images/val

@@ -1,0 +1,90 @@
+amp:
+  bf16: false
+  fp16: true
+batch_size: 64
+data:
+  abnormal_class_name: abnormal
+  aug_global_prob: 0.66
+  aug_max_transforms: 3
+  augmentations_enabled: true
+  color_jitter_brightness: 0.4
+  color_jitter_contrast: 0.4
+  color_jitter_hue: 0.5
+  color_jitter_prob: 0.5
+  color_jitter_saturation: 0.4
+  data_dir: data/kfold_detection
+  gaussian_noise_prob: 0.0
+  gaussian_noise_std: 0.0
+  horizontal_flip_prob: 0.5
+  image_size: 256
+  normal_class_name: normal
+  random_resized_crop_prob: 0.5
+  random_resized_crop_ratio:
+  - 0.9
+  - 1.1
+  random_resized_crop_scale:
+  - 0.9
+  - 1.1
+  rotation_degrees: 20.0
+  rotation_prob: 0.5
+  train_subdir: train
+  val_subdir: val
+  yolo_augmentations:
+    copy_paste: 0.0
+    degrees: 20.0
+    erasing: 0.4
+    fliplr: 0.5
+    flipud: 0.5
+    hsv_h: 0.5
+    hsv_s: 0.4
+    hsv_v: 0.4
+    mixup: 0.1
+    mosaic: 0.5
+    perspective: 0.0
+    scale: 0.1
+    shear: 0.1
+    translate: 0.1
+early_stopping_patience: 20
+fold: 4
+greater_is_better: true
+head:
+  depth: 1
+  dropout: 0.0
+  hidden_dim: null
+  num_labels: 2
+imbalance:
+  class_weights: none
+  focal_alpha: null
+  focal_gamma: 2.0
+  loss_type: cross_entropy
+  oversampling_method: none
+learning_rate: 0.0003
+metric_for_best: eval_f1
+model_name: facebook/dinov3-vits16-pretrain-lvd1689m
+num_epochs: 300
+output_dir: outputs/det_all
+peft:
+  adapter_bottleneck_dim: 32
+  adapter_dropout: 0.1
+  adapter_target_blocks:
+  - 8
+  - 9
+  - 10
+  - 11
+  lora_alpha: 16
+  lora_dropout: 0.0
+  lora_r: 8
+  lora_target_blocks: null
+  lora_target_modules:
+  - q_proj
+  - v_proj
+  type: adapter
+  vpt_deep: false
+  vpt_num_tokens: 10
+  vpt_target_blocks: null
+scheduler:
+  lr_scheduler_type: cosine
+  warmup_ratio: 0.1
+seed: 70
+yolo_data_yaml: data/kfold_detection/battery_detection_all.yaml
+yolo_model_config: configs/det/yolo26_dino.yaml
